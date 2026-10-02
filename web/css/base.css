@@ -1,0 +1,432 @@
+/* Tokens, theme, wallpaper and the pieces shared by every screen. */
+
+:root {
+  --font-display: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "DejaVu Sans", sans-serif;
+  --font-emoji: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+
+  --basil: #1b7f45;
+  --basil-light: #3ccb72;
+  --tomato: #d8443a;
+  --icon-shopping: linear-gradient(155deg, #4fd681 0%, #22a45a 48%, #157a40 100%);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.5, 1);
+
+  --status-h: 2.6rem;
+  --gutter: clamp(1rem, 3.4vw, 3.6rem);
+  --kb-h: 0px;
+
+  /* Painted by sky.js from the sun's real position. */
+  --sky-top: #7db1ea;
+  --sky-mid: #bfdaf3;
+  --sky-low: #eef0ea;
+  --glow: #ffffff;
+  --glow-alpha: 0.5;
+  --glow-x: 70%;
+  --glow-y: 24%;
+  --stars: 0;
+
+  color-scheme: light;
+  --text: #0f1d3f;
+  --text-2: rgb(15 29 63 / 0.64);
+  --text-3: rgb(15 29 63 / 0.4);
+  --accent-text: #1b7f45;
+  --surface: rgb(255 255 255 / 0.74);
+  --surface-edge: rgb(255 255 255 / 0.75);
+  --card: #ffffff;
+  --fill: rgb(15 29 63 / 0.06);
+  --fill-strong: rgb(15 29 63 / 0.11);
+  --hairline: rgb(15 29 63 / 0.09);
+  --shadow: 0 0.1rem 0.3rem rgb(16 32 72 / 0.06), 0 1rem 2.8rem rgb(16 32 72 / 0.13);
+  --shadow-sm: 0 0.05rem 0.15rem rgb(16 32 72 / 0.06), 0 0.3rem 1rem rgb(16 32 72 / 0.06);
+  --dock: rgb(255 255 255 / 0.42);
+  --app-bg: #edf1f8;
+  --check: var(--basil);
+  --inverse-bg: #0f1d3f;
+  --inverse-text: #f4f6ff;
+  --inverse-accent: #7ee2a8;
+  --focus: #1b7f45;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --text: #f1f3ff;
+  --text-2: rgb(241 243 255 / 0.68);
+  --text-3: rgb(241 243 255 / 0.42);
+  --accent-text: #6ee09c;
+  --surface: rgb(13 18 44 / 0.6);
+  --surface-edge: rgb(255 255 255 / 0.09);
+  --card: #161c3b;
+  --fill: rgb(255 255 255 / 0.07);
+  --fill-strong: rgb(255 255 255 / 0.13);
+  --hairline: rgb(255 255 255 / 0.08);
+  --shadow: 0 0.1rem 0.3rem rgb(0 0 0 / 0.2), 0 1rem 2.8rem rgb(0 0 0 / 0.32);
+  --shadow-sm: 0 0.3rem 1rem rgb(0 0 0 / 0.2);
+  --dock: rgb(255 255 255 / 0.1);
+  --app-bg: #0b1029;
+  --check: var(--basil-light);
+  --inverse-bg: #f1f3ff;
+  --inverse-text: #0f1d3f;
+  --inverse-accent: #1b7f45;
+  --focus: #7ee2a8;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Scales with the screen so the board reads from across the room on a TV
+     and still fits a phone. */
+  font-size: clamp(15px, calc(1.1vmin + 0.4vmax), 40px);
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--sky-mid);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-optical-sizing: auto;
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.hide-cursor,
+.hide-cursor * {
+  cursor: none !important;
+}
+
+.emoji {
+  font-family: var(--font-emoji);
+  font-style: normal;
+  line-height: 1;
+}
+
+/* Wallpaper */
+
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 56%, var(--sky-low) 100%);
+}
+
+.sky__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at var(--glow-x) var(--glow-y),
+    color-mix(in srgb, var(--glow) calc(var(--glow-alpha) * 100%), transparent) 0,
+    color-mix(in srgb, var(--glow) calc(var(--glow-alpha) * 55%), transparent) 4vmax,
+    color-mix(in srgb, var(--glow) calc(var(--glow-alpha) * 16%), transparent) 16vmax,
+    transparent 34vmax
+  );
+}
+
+.sky__stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  opacity: var(--stars);
+}
+
+/* Status bar */
+
+.statusbar {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 40;
+  height: var(--status-h);
+  padding: 0 var(--gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  pointer-events: none;
+  transition: color 0.8s;
+}
+
+.statusbar__time {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.is-app-open .statusbar__time {
+  opacity: 1;
+}
+
+.sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sync svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.sync[data-status="offline"] {
+  color: #e2584f;
+}
+
+[data-theme="dark"] .sync[data-status="offline"] {
+  color: #ff8d84;
+}
+
+/* App icons */
+
+.appicon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 23%;
+  background: var(--icon-bg);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 0.25rem 0.8rem rgb(10 40 20 / 0.22);
+}
+
+.appicon svg {
+  width: 74%;
+  height: 74%;
+}
+
+/* App layer */
+
+.app-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--status-h);
+  overflow: hidden;
+  /* A whisper of the current sky at the top ties each app back to the wallpaper. */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sky-top) 16%, var(--app-bg)) 0, var(--app-bg) 45vh);
+  background-color: var(--app-bg);
+}
+
+.app__bar {
+  display: flex;
+  align-items: center;
+  padding: 0.35rem var(--gutter) 0;
+}
+
+.home-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.15rem 0.5rem 0.85rem;
+  border-radius: 999px;
+  background: var(--fill);
+  font-weight: 650;
+  font-size: 1.05rem;
+  transition: background-color 0.2s, transform 0.15s var(--ease-out);
+}
+
+.home-button svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.home-button:active {
+  transform: scale(0.96);
+  background: var(--fill-strong);
+}
+
+.app__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.home-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: env(safe-area-inset-bottom);
+  z-index: 5;
+  width: 18rem;
+  height: 2.2rem;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  touch-action: none;
+}
+
+.home-indicator::before {
+  content: "";
+  width: 9.5rem;
+  height: 0.34rem;
+  border-radius: 999px;
+  background: var(--text);
+  opacity: 0.32;
+  transition: opacity 0.2s, transform 0.2s var(--ease-out);
+}
+
+.home-indicator:active::before {
+  opacity: 0.6;
+  transform: scaleX(1.08);
+}
+
+/* Toasts */
+
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--kb-h) + 2.6rem + env(safe-area-inset-bottom));
+  z-index: 60;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  pointer-events: none;
+  transition: bottom 0.3s var(--ease-out);
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  min-height: 3.4rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.35rem;
+  border-radius: 999px;
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+  font-weight: 600;
+  font-size: 1.08rem;
+  box-shadow: var(--shadow);
+  animation: toast-in 0.4s var(--ease-spring);
+}
+
+.toast:not(:has(.toast__action)) {
+  padding-right: 1.35rem;
+}
+
+.toast__action {
+  min-height: 2.6rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--inverse-accent) 20%, transparent);
+  color: var(--inverse-accent);
+  font-weight: 750;
+}
+
+.toast.is-leaving {
+  animation: toast-out 0.22s ease-in forwards;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.96);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.97);
+  }
+}
+
+@keyframes flash {
+  0%,
+  40% {
+    background-color: color-mix(in srgb, var(--check) 18%, transparent);
+  }
+}
+
+@keyframes nudge {
+  20%,
+  60% {
+    transform: translateX(-0.4rem);
+  }
+  40%,
+  80% {
+    transform: translateX(0.4rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* Phones get their own status bar from the OS; only show ours when offline. */
+@media (max-width: 760px) {
+  :root {
+    --status-h: calc(0.6rem + env(safe-area-inset-top));
+  }
+
+  .statusbar {
+    height: calc(2.2rem + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    justify-content: flex-end;
+  }
+
+  .statusbar__time,
+  .sync:not([data-status="offline"]) {
+    display: none;
+  }
+}

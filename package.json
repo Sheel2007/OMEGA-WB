@@ -1,0 +1,10 @@
+{
+  "name": "widget-board",
+  "private": true,
+  "type": "module",
+  "description": "A shared home-screen-style board for the apartment, built to run on a Raspberry Pi.",
+  "scripts": {
+    "start": "python3 run.py",
+    "test": "python3 -m unittest discover -s tests -t . && node --test tests/js/*.test.js"
+  }
+}

@@ -1,0 +1,350 @@
+/* Home screen: lock-screen clock on the sky, widgets, and the dock. */
+
+.home {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 37%);
+  grid-template-rows: minmax(0, 1fr) auto;
+  column-gap: clamp(2rem, 5vw, 6rem);
+  row-gap: clamp(1rem, 2.4vh, 2rem);
+  padding: calc(var(--status-h) + 0.8rem) var(--gutter) calc(clamp(1rem, 2.6vh, 2rem) + env(safe-area-inset-bottom));
+  transition: transform 0.45s var(--ease-out), opacity 0.4s var(--ease-out);
+}
+
+.is-app-open .home {
+  transform: scale(0.94);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Clock */
+
+.clock {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  padding-top: clamp(0.5rem, 5vh, 4rem);
+  color: var(--text);
+  transition: color 0.8s;
+}
+
+.clock__date {
+  margin: 0 0 0 0.12em;
+  font-size: clamp(1.15rem, 2vw, 2.1rem);
+  font-weight: 650;
+  letter-spacing: 0.005em;
+  opacity: 0.88;
+}
+
+.clock__time {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 430;
+  font-stretch: 75%;
+  font-size: min(25vw, 46vh);
+  line-height: 0.8;
+  letter-spacing: -0.03em;
+  margin-left: -0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Widgets */
+
+.widgets {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  min-height: 0;
+}
+
+.widget {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1.35rem 1.4rem 1.1rem 1.5rem;
+  border-radius: 1.9rem;
+  background: var(--surface);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--surface-edge);
+  transition: background-color 0.8s, box-shadow 0.8s, transform 0.25s var(--ease-out);
+}
+
+.widget:has(.widget__link:active) {
+  transform: scale(0.985);
+}
+
+/* The whole card opens the app; buttons inside sit above this link. */
+.widget__link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.widget__link:focus-visible {
+  outline-offset: -3px;
+}
+
+/* Shopping widget */
+
+.sw-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.sw-head .appicon {
+  flex: none;
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.sw-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.sw-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 750;
+  letter-spacing: -0.005em;
+}
+
+.sw-count {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.sw-add {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 50%;
+  background: var(--basil);
+  color: #fff;
+  box-shadow: 0 0.3rem 0.9rem rgb(27 127 69 / 0.35);
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.sw-add svg {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.sw-add:active {
+  transform: scale(0.9);
+}
+
+.sw-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.sw-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.15rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.sw-ring {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  margin-left: -0.55rem;
+}
+
+.sw-ring::before {
+  content: "";
+  grid-area: 1 / 1;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 50%;
+  border: 2px solid var(--text-3);
+  transition: background-color 0.25s, border-color 0.25s;
+}
+
+.sw-ring svg {
+  grid-area: 1 / 1;
+  width: 1rem;
+  height: 1rem;
+  color: #fff;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset 0.3s 0.05s var(--ease-out);
+}
+
+.sw-item[data-done="true"] .sw-ring::before {
+  background: var(--check);
+  border-color: var(--check);
+}
+
+.sw-item[data-done="true"] .sw-ring svg {
+  stroke-dashoffset: 0;
+}
+
+.sw-emoji {
+  flex: none;
+  width: 1.8rem;
+  font-size: 1.45rem;
+  text-align: center;
+}
+
+.sw-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.4rem;
+  font-weight: 560;
+  transition: color 0.25s, opacity 0.25s;
+}
+
+.sw-item[data-done="true"] .sw-name {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.letter {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 0.55rem;
+  background: var(--fill);
+  color: var(--text-2);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.sw-more {
+  margin: 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--hairline);
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.sw-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 2rem;
+}
+
+.sw-empty__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-weight: 650;
+  font-size: 2.1rem;
+  letter-spacing: -0.02em;
+}
+
+.sw-empty__text {
+  margin: 0.3rem 0 0;
+  font-size: 1.1rem;
+  color: var(--text-2);
+}
+
+/* Dock */
+
+.dock {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: center;
+  display: flex;
+  gap: 1.1rem;
+  padding: 0.8rem;
+  border-radius: 2.05rem;
+  background: var(--dock);
+  box-shadow: inset 0 1px 0 var(--surface-edge), 0 0.6rem 2rem rgb(16 32 72 / 0.1);
+  transition: background-color 0.8s;
+}
+
+.dock__app {
+  display: block;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 23%;
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.dock__app:active {
+  transform: scale(0.9);
+}
+
+/* Portrait monitors and phones: stack everything. */
+@media (orientation: portrait), (max-width: 760px) {
+  .home {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .clock {
+    padding-top: clamp(0.25rem, 2vh, 2rem);
+  }
+
+  .clock__time {
+    font-size: min(27vw, 22vh);
+  }
+
+  .widgets {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .dock {
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 760px) {
+  .clock__date {
+    font-size: 1.05rem;
+  }
+
+  .widget {
+    border-radius: 1.6rem;
+    padding: 1.1rem 1.1rem 0.9rem 1.2rem;
+  }
+
+  .sw-name {
+    font-size: 1.15rem;
+  }
+
+  .sw-item {
+    min-height: 2.9rem;
+  }
+
+  .dock__app {
+    width: 3.8rem;
+    height: 3.8rem;
+  }
+}

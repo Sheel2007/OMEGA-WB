@@ -1,0 +1,153 @@
+/* On-screen keyboard for touchscreen kiosks. */
+
+.keyboard {
+  --kb-bg: #d2d7e1;
+  --key: #fdfdfe;
+  --key-alt: #abb3c3;
+  --key-text: #0f1d3f;
+  --key-shadow: 0 1px 0 rgb(15 29 63 / 0.32);
+  --key-h: clamp(2.6rem, 8.6vh, 4.4rem);
+
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 30;
+  padding: 0 0.6rem calc(0.6rem + env(safe-area-inset-bottom));
+  background: var(--kb-bg);
+  box-shadow: 0 -1px 0 rgb(15 29 63 / 0.08), 0 -0.6rem 2rem rgb(16 32 72 / 0.12);
+  transform: translateY(105%);
+  transition: transform 0.32s var(--ease-out), background-color 0.8s;
+}
+
+[data-theme="dark"] .keyboard {
+  --kb-bg: #1c2137;
+  --key: #4b5169;
+  --key-alt: #30354b;
+  --key-text: #f1f3ff;
+  --key-shadow: 0 1px 0 rgb(0 0 0 / 0.45);
+}
+
+.keyboard.is-open {
+  transform: none;
+}
+
+.keyboard__inner {
+  max-width: 78rem;
+  margin: 0 auto;
+}
+
+.keyboard__suggestions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  height: calc(var(--key-h) * 0.82);
+  margin-bottom: 0.25rem;
+}
+
+.suggestion {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0 0.8rem;
+  color: var(--key-text);
+  font-size: 1.2rem;
+  font-weight: 600;
+  border-radius: 0.7rem;
+}
+
+.suggestion:empty {
+  pointer-events: none;
+}
+
+.suggestion + .suggestion::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: color-mix(in srgb, var(--key-text) 22%, transparent);
+}
+
+.suggestion span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion.is-down {
+  background: color-mix(in srgb, var(--key-text) 10%, transparent);
+}
+
+.keyboard__rows {
+  display: grid;
+  grid-template-columns: repeat(23, minmax(0, 1fr));
+  grid-auto-rows: var(--key-h);
+  gap: 0.5rem 0.42rem;
+}
+
+.key {
+  grid-column: span var(--span, 2);
+  display: grid;
+  place-items: center;
+  border-radius: 0.7rem;
+  background: var(--key);
+  color: var(--key-text);
+  box-shadow: var(--key-shadow);
+  font-size: 1.55rem;
+  font-weight: 450;
+  touch-action: none;
+}
+
+.key svg {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+
+.key--alt {
+  background: var(--key-alt);
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.key--enter {
+  background: var(--basil);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.key--shift[aria-pressed="true"] {
+  background: var(--key);
+}
+
+.key.is-down {
+  background: var(--key-alt);
+}
+
+.key--alt.is-down,
+.key--shift[aria-pressed="true"].is-down {
+  background: var(--key);
+}
+
+.key--enter.is-down {
+  background: #146536;
+}
+
+.key--spacer {
+  visibility: hidden;
+}
+
+.suggestion .emoji {
+  flex: none;
+  font-size: 1.35rem;
+}
+
+.suggestion .letter {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.85rem;
+  border-radius: 0.45rem;
+}

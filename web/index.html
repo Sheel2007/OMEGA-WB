@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#7db1ea" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Home Board</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Figtree:wght@400..800&display=swap"
+    />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/home.css" />
+    <link rel="stylesheet" href="css/shopping.css" />
+    <link rel="stylesheet" href="css/keyboard.css" />
+    <script type="module" src="js/main.js"></script>
+  </head>
+  <body>
+    <div class="sky" aria-hidden="true">
+      <div class="sky__stars"></div>
+      <div class="sky__glow"></div>
+    </div>
+
+    <header class="statusbar">
+      <span class="statusbar__time"></span>
+      <span class="sync" role="status"></span>
+    </header>
+
+    <main class="home" aria-label="Home screen">
+      <section class="clock" aria-label="Clock">
+        <p class="clock__date"></p>
+        <time class="clock__time"></time>
+      </section>
+      <section class="widgets" aria-label="Widgets"></section>
+      <nav class="dock" aria-label="Apps"></nav>
+    </main>
+
+    <div class="app-layer" hidden></div>
+    <div class="toasts" aria-live="polite"></div>
+
+    <noscript>The board needs JavaScript turned on.</noscript>
+  </body>
+</html>

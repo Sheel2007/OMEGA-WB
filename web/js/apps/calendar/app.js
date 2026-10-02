@@ -37,7 +37,7 @@ const YEARS_AHEAD = 5;
 const chipFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 const updatedFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
-export function mount(root, { services, kiosk, info }) {
+export function mount(root, { services, kiosk }) {
   const { calendar } = services;
   let firstRender = true;
   let keyboard = null;
@@ -121,15 +121,29 @@ export function mount(root, { services, kiosk, info }) {
     el('div', { class: 'panel__buttons' }, linkButton, syncButton),
   );
 
-  const qr = el('div', { class: 'phone-link__qr', role: 'img' });
-  const url = el('p', { class: 'phone-link__url' });
-  const phoneTitle = el('h2', { class: 'panel__title' });
-  const phoneText = el('p', { class: 'phone-link__text' });
+  // The quickest way to add something from a phone is Google Calendar itself: it has
+  // the whole editor, and the board picks the event up on its next sync.
+  const qr = el('div', { class: 'phone-link__qr', role: 'img', 'aria-label': 'QR code for Google Calendar' });
+  const phoneNote = el('p', { class: 'phone-link__note' });
   const phone = el(
     'section',
     { class: 'panel panel--phone' },
-    phoneTitle,
-    el('div', { class: 'phone-link' }, qr, el('div', {}, phoneText, url)),
+    el('h2', { class: 'panel__title', text: 'Add on your phone' }),
+    el(
+      'div',
+      { class: 'phone-link' },
+      qr,
+      el(
+        'div',
+        {},
+        el('p', {
+          class: 'phone-link__text',
+          text: 'Scan to add an event in Google Calendar. The board picks it up on its next sync.',
+        }),
+        el('p', { class: 'phone-link__url', text: 'calendar.google.com' }),
+      ),
+    ),
+    phoneNote,
   );
   phone.hidden = true;
 
@@ -148,48 +162,10 @@ export function mount(root, { services, kiosk, info }) {
   );
   root.append(view);
 
-  // With a Google account connected, the quickest way to add something from a phone
-  // is Google Calendar itself: the board picks it up on its next sync. Without one,
-  // the code opens this app on the phone instead.
-  const PHONE_CODES = {
-    google: {
-      title: 'Add on your phone',
-      text: 'Scan to add an event in Google Calendar. It turns up here within a few minutes.',
-      label: 'QR code for Google Calendar',
-      where: () => 'calendar.google.com',
-      fetch: () => fetchQrSvg({ target: 'google-calendar' }),
-    },
-    board: {
-      title: 'On your phone',
-      text: 'Scan to add events from your phone. Works on the home Wi-Fi.',
-      label: 'QR code for the calendar',
-      where: (boardUrl) => boardUrl,
-      fetch: () => fetchQrSvg({ app: id }),
-    },
-  };
-  let boardUrl = null;
-  let showing = null;
-
-  async function renderPhone(account) {
-    const kind = account.linked ? 'google' : 'board';
-    const code = PHONE_CODES[kind];
-    phoneTitle.textContent = code.title;
-    phoneText.textContent = code.text;
-    qr.setAttribute('aria-label', code.label);
-    if (showing === kind || (kind === 'board' && !boardUrl)) return;
-    showing = kind;
-    const svg = await code.fetch();
-    // The account may have been connected or dropped while that was in flight.
-    if (unmounted || showing !== kind) return;
-    url.textContent = code.where(boardUrl) ?? '';
-    if (svg) qr.innerHTML = svg;
+  fetchQrSvg({ target: 'google-calendar' }).then((svg) => {
+    if (unmounted || !svg) return;
+    qr.innerHTML = svg;
     phone.hidden = false;
-  }
-
-  info.then((details) => {
-    if (unmounted || !details?.url) return;
-    boardUrl = details.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    renderPhone(calendar.getAccount());
   });
 
   if (kiosk) {
@@ -392,7 +368,17 @@ export function mount(root, { services, kiosk, info }) {
     linkButton.hidden = !account.configured;
     linkButton.textContent = account.linked ? 'Disconnect Google' : 'Connect Google Calendar';
     syncButton.hidden = !sources.configured;
-    renderPhone(account);
+    // Scanning the code only brings an event back here if the board reads that calendar.
+    // A connected account reads them all; a subscription only reads the one it names.
+    const subscribed = sources.calendars.some((entry) => entry.kind === 'ical');
+    phoneNote.hidden = account.linked;
+    if (subscribed) {
+      phoneNote.textContent = 'The board shows the calendars listed above, so add the event to one of those.';
+    } else {
+      phoneNote.textContent = account.configured
+        ? 'Connect the account above, or events you add there won’t reach the board.'
+        : 'Nothing is connected yet, so events added there won’t reach the board. The README has the steps.';
+    }
   }
 
   // The agenda

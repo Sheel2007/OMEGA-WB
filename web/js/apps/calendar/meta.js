@@ -1,7 +1,7 @@
 export const id = 'calendar';
 export const name = 'Calendar';
 export const description = 'Birthdays, holidays and what’s on';
-export const widgetSize = 'tall';
+export const widgetSize = 'medium';
 export const iconBackground = 'var(--icon-calendar)';
 export const iconGlyph = `<svg viewBox="0 0 64 64" aria-hidden="true">
   <rect x="19" y="8" width="5" height="10" rx="2.5" fill="#fff" fill-opacity=".75"/>

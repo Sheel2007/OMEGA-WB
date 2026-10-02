@@ -25,8 +25,12 @@ const LAYOUTS = {
 
 const ALT_KEYS = new Set(['backspace', 'shift', 'mode', 'hide']);
 
-export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, getSuggestions, onToggle }) {
+// `input` is the field being typed into; an app with several (title, location, notes)
+// passes them all as `inputs` and the keyboard follows whichever has the caret.
+export function createKeyboard({ input, inputs = [input], enterLabel = 'Add', onEnter, onPick, getSuggestions, onToggle }) {
+  const fields = inputs.filter(Boolean);
   const lifetime = new AbortController();
+  let active = fields[0];
   let layout = 'letters';
   let shift = true;
   let open = false;
@@ -90,7 +94,7 @@ export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, get
 
   function renderSuggestions() {
     if (!getSuggestions) return;
-    const names = getSuggestions(input.value).slice(0, SUGGESTION_COUNT);
+    const names = getSuggestions(active.value).slice(0, SUGGESTION_COUNT);
     suggestions.replaceChildren(
       ...Array.from({ length: SUGGESTION_COUNT }, (_, i) => {
         const name = names[i];
@@ -105,21 +109,21 @@ export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, get
   }
 
   function changed() {
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    active.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   function insert(text) {
-    const start = input.selectionStart ?? input.value.length;
-    const end = input.selectionEnd ?? input.value.length;
-    input.setRangeText(text, start, end, 'end');
+    const start = active.selectionStart ?? active.value.length;
+    const end = active.selectionEnd ?? active.value.length;
+    active.setRangeText(text, start, end, 'end');
     changed();
   }
 
   function backspace() {
-    const start = input.selectionStart ?? input.value.length;
-    const end = input.selectionEnd ?? input.value.length;
+    const start = active.selectionStart ?? active.value.length;
+    const end = active.selectionEnd ?? active.value.length;
     if (start === end && start === 0) return;
-    input.setRangeText('', start === end ? start - 1 : start, end, 'end');
+    active.setRangeText('', start === end ? start - 1 : start, end, 'end');
     changed();
   }
 
@@ -136,7 +140,7 @@ export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, get
         if (layout === 'letters') setShift(false);
         break;
       case 'space':
-        if (input.value && !input.value.endsWith(' ')) insert(' ');
+        if (active.value && !active.value.endsWith(' ')) insert(' ');
         break;
       case 'backspace':
         backspace();
@@ -201,29 +205,42 @@ export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, get
   );
 
   const listen = { signal: lifetime.signal };
-  input.addEventListener(
-    'input',
-    () => {
-      if (!input.value) setShift(true);
-      renderSuggestions();
-    },
-    listen,
-  );
-  input.addEventListener('pointerdown', () => show(), listen);
-  input.addEventListener('focus', () => show(), listen);
-  input.addEventListener('keydown', (event) => event.key === 'Escape' && hide(), listen);
+  for (const field of fields) {
+    field.addEventListener(
+      'input',
+      () => {
+        if (field !== active) return;
+        if (!field.value) setShift(true);
+        renderSuggestions();
+      },
+      listen,
+    );
+    const focus = () => {
+      active = field;
+      show();
+    };
+    field.addEventListener('pointerdown', focus, listen);
+    field.addEventListener('focus', focus, listen);
+    field.addEventListener('keydown', (event) => event.key === 'Escape' && hide(), listen);
+  }
 
   function show() {
-    if (open) return;
+    if (open) {
+      // Moving between fields keeps the keyboard up; only the shift state follows.
+      setShift(!active.value);
+      renderSuggestions();
+      if (document.activeElement !== active) active.focus({ preventScroll: true });
+      return;
+    }
     open = true;
     layout = 'letters';
-    shift = !input.value;
+    shift = !active.value;
     renderKeys();
     renderSuggestions();
     node.classList.add('keyboard--open');
     document.documentElement.style.setProperty('--kb-h', `${node.offsetHeight}px`);
     onToggle?.(true);
-    if (document.activeElement !== input) input.focus({ preventScroll: true });
+    if (document.activeElement !== active) active.focus({ preventScroll: true });
   }
 
   function hide() {
@@ -233,7 +250,7 @@ export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, get
     node.classList.remove('keyboard--open');
     document.documentElement.style.setProperty('--kb-h', '0px');
     onToggle?.(false);
-    input.blur();
+    active.blur();
   }
 
   renderKeys();
@@ -243,6 +260,12 @@ export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, get
     node,
     show,
     hide,
+    // Which field the keys type into, when an app wants to put the caret somewhere.
+    focusField(field) {
+      if (!fields.includes(field)) return;
+      active = field;
+      show();
+    },
     refresh: renderSuggestions,
     destroy() {
       hide();

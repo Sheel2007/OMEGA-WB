@@ -9,6 +9,6 @@ import * as weather from './weather/index.js';
 
 export const APPS = [shopping, weather, notes, calendar, games];
 
-// New screens start with all of them; page 1 holds the clock, the shopping list,
-// the weather and the notes, so the Calendar and Games start page 2.
+// New screens start with all of them. Page 1 fits the clock plus the shopping list,
+// the weather, the notes and the calendar; Games starts page 2.
 export const DEFAULT_WIDGETS = ['shopping', 'weather', 'notes', 'calendar', 'games'];

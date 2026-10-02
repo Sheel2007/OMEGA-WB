@@ -7,7 +7,8 @@ import unittest
 import urllib.error
 import urllib.request
 
-from board.calendar import CalendarFeeds, CalendarStore
+from board.calendar import CalendarSources, CalendarStore
+from board.google import GoogleAccount
 from board.notes import NotesBoard
 from board.server import BoardServer
 from board.shopping import ShoppingList
@@ -50,6 +51,8 @@ class ServerTest(unittest.TestCase):
         with open(os.path.join(cls.tmp.name, "secret.txt"), "w") as f:
             f.write("do not serve")
         feed = ChangeFeed()
+        cls.google = GoogleAccount(token_path=os.path.join(cls.tmp.name, "data", "google.json"))
+        cls.sources = CalendarSources(account=cls.google, feed=feed)
         cls.weather = FakeWeather()
         cls.kiosk = FakeKiosk()
         cls.server = BoardServer(
@@ -57,7 +60,8 @@ class ServerTest(unittest.TestCase):
             shopping=ShoppingList(os.path.join(cls.tmp.name, "data", "shopping.json"), feed=feed),
             notes=NotesBoard(os.path.join(cls.tmp.name, "data", "notes.json"), feed=feed),
             calendar=CalendarStore(os.path.join(cls.tmp.name, "data", "calendar.json"), feed=feed),
-            calendar_feeds=CalendarFeeds([]),
+            calendar_sources=cls.sources,
+            google=cls.google,
             feed=feed,
             weather=cls.weather,
             kiosk=cls.kiosk,
@@ -185,10 +189,10 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 4)
+            events = self._read_events(stream, 5)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
-            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes", "calendar"})
+            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes", "calendar", "calendar-sources"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/shopping/add", {"name": "live update"})
@@ -228,10 +232,16 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(body["error"]["message"], "Write something first.")
 
     def test_calendar_add_remove_and_restore(self):
-        status, body = self.post("/api/calendar/add", {"title": "Dentist", "date": "2026-10-20", "time": "15:00"})
+        status, body = self.post("/api/calendar/add", {
+            "title": "Dentist", "date": "2026-10-20", "time": "15:00", "endTime": "16:00",
+            "location": "Dr Patel", "description": "Bring the letter",
+        })
         self.assertEqual(status, 200)
         event_id = body["event"]["id"]
+        self.assertEqual(body["where"], "board")
         self.assertEqual(body["event"]["time"], "15:00")
+        self.assertEqual(body["event"]["endTime"], "16:00")
+        self.assertEqual(body["event"]["location"], "Dr Patel")
         status, body = self.post("/api/calendar/remove", {"id": event_id})
         self.assertNotIn(event_id, [e["id"] for e in body["state"]["events"]])
         status, body = self.post("/api/calendar/restore", {"ids": [event_id]})
@@ -246,10 +256,36 @@ class ServerTest(unittest.TestCase):
         status, body = self.post("/api/calendar/add", {"title": "Dentist", "date": "soon"})
         self.assertEqual(status, 400)
 
-    def test_calendar_feed_says_when_no_calendars_are_subscribed(self):
-        status, _, raw = self.request("/api/calendar/feed")
+    def test_calendar_sources_says_when_nothing_is_connected(self):
+        status, _, raw = self.request("/api/calendar/sources")
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(raw), {"configured": False, "calendars": [], "events": [], "updated": None, "stale": False})
+        sources = json.loads(raw)
+        self.assertFalse(sources["configured"])
+        self.assertEqual(sources["events"], [])
+        self.assertEqual(sources["account"], {"configured": False, "linked": False, "account": None,
+                                              "target": None, "pending": None})
+
+    def test_an_unwritable_calendar_is_refused(self):
+        status, body = self.post("/api/calendar/add", {"title": "X", "date": "2026-10-20", "calendar": "nope@example.com"})
+        self.assertEqual(status, 400)
+        self.assertIn("can\u2019t be written to", body["error"]["message"].replace("'", "\u2019"))
+
+    def test_connecting_google_needs_a_client_in_the_config(self):
+        status, body = self.post("/api/calendar/google/link", {})
+        self.assertEqual(status, 502)
+        self.assertIn("client ID", body["error"]["message"])
+
+    def test_the_google_return_page_is_html_and_sends_you_back_to_the_board(self):
+        status, headers, raw = self.request("/api/calendar/google/done?error=access_denied")
+        self.assertEqual(status, 200)
+        self.assertTrue(headers["Content-Type"].startswith("text/html"))
+        self.assertIn(b"access_denied", raw)
+        self.assertIn(b"/#/app/calendar", raw)
+
+    def test_the_google_return_page_escapes_what_google_sent(self):
+        _status, _headers, raw = self.request("/api/calendar/google/done?error=%3Cscript%3Ealert(1)%3C/script%3E")
+        self.assertNotIn(b"<script>", raw)
+        self.assertIn(b"&lt;script&gt;", raw)
 
     def test_weather_forecast(self):
         status, _, raw = self.request("/api/weather")

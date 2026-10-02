@@ -4,10 +4,15 @@
   "longitude": -74.01,
   "units": "fahrenheit",
   "timezone": "America/New_York",
+
+  "_google": "Two-way sync. Make a Google Cloud project, turn on the Calendar API, and create an OAuth client of type 'Desktop app'. Then connect the account from the board's own screen: Calendar app → Connect Google Calendar.",
+  "google": {
+    "client_id": "000000000000-yourclient.apps.googleusercontent.com",
+    "client_secret": "GOCSPX-yoursecret"
+  },
+
+  "_calendars": "Read-only, and needs no account: each calendar's 'Secret address in iCal format'. Use these instead of (or as well as) the Google account above.",
   "calendars": [
-    { "name": "Home", "url": "https://calendar.google.com/calendar/ical/your-address/private-yourkey/basic.ics", "color": "blue" },
-    { "name": "Birthdays", "url": "https://calendar.google.com/calendar/ical/addressbook%23contacts%40group.v.calendar.google.com/private-yourkey/basic.ics", "color": "pink" },
     { "name": "Holidays", "url": "https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics", "color": "orange" }
   ]
 }
-

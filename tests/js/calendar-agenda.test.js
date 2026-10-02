@@ -12,6 +12,8 @@ import {
   msUntilMidnight,
   nextLabel,
   shiftDay,
+  timeLabel,
+  detailLabel,
   upcoming,
 } from '../../web/js/apps/calendar/agenda.js';
 
@@ -188,6 +190,53 @@ test('upcoming gives a multi-day event one row, and shows an ongoing one as toda
 test('upcoming leaves out anything that has finished', () => {
   const events = mergeEvents({ feed: [theirs('2026-09-28', 'Over', { days: 2 })] });
   assert.deepEqual(upcoming(events, { from: TODAY }).rows, []);
+});
+
+test('an event the board keeps itself works out its own span from its last day', () => {
+  const [event] = mergeEvents({ events: [{ id: 'a', title: 'Trip', date: '2026-10-10', endDate: '2026-10-12' }] });
+  assert.equal(event.days, 3);
+  assert.equal(event.ours, true);
+  assert.equal(event.writable, true);
+});
+
+test('a read-only calendar s events cannot be removed from the board', () => {
+  const [mine, theirs] = mergeEvents({
+    events: [{ id: 'a', title: 'Mine', date: '2026-10-10' }],
+    feed: [{ id: 'g:h:1', title: 'Holiday', date: '2026-10-11', days: 1, writable: false, calendar: 'Holidays' }],
+  });
+  assert.equal(mine.writable, true);
+  assert.equal(theirs.writable, false);
+});
+
+test('an event on a writable Google calendar can be removed', () => {
+  const [event] = mergeEvents({
+    feed: [{ id: 'g:me:1', title: 'Dentist', date: '2026-10-11', days: 1, writable: true, calendar: 'Sheel' }],
+  });
+  assert.equal(event.writable, true);
+  assert.equal(event.ours, false);
+});
+
+test('merged events carry their location and notes through', () => {
+  const [event] = mergeEvents({
+    events: [{ id: 'a', title: 'Dentist', date: '2026-10-10', time: '15:00', endTime: '16:00',
+               location: '  Dr Patel ', description: 'Bring the letter' }],
+  });
+  assert.equal(event.location, 'Dr Patel');
+  assert.equal(event.description, 'Bring the letter');
+  assert.equal(event.endTime, '16:00');
+});
+
+test('timeLabel reads the way people say it', () => {
+  assert.equal(timeLabel({ time: null, days: 1 }), 'All day');
+  assert.equal(timeLabel({ time: null, days: 3 }), 'All day \u00b7 3 days');
+  assert.match(timeLabel({ time: '15:00', endTime: null, days: 1 }), /3[:.]00/);
+  assert.match(timeLabel({ time: '15:00', endTime: '16:30', days: 1 }), /3[:.]00.*\u2013.*4[:.]30/);
+});
+
+test('detailLabel joins up where it is, whose calendar it is, and which day of a run', () => {
+  assert.equal(detailLabel({ calendar: 'Home', location: 'Flat 2', days: 1 }), 'Home \u00b7 Flat 2');
+  assert.equal(detailLabel({ calendar: null, location: null, days: 1 }), '');
+  assert.equal(detailLabel({ calendar: 'Home', location: null, days: 3, dayOffset: 1 }), 'Home \u00b7 Day 2 of 3');
 });
 
 test('msUntilMidnight counts to the start of the next local day', () => {

@@ -11,7 +11,8 @@ import os
 import signal
 import sys
 
-from board.calendar import CalendarFeeds, CalendarStore, local_zone, sources_from
+from board.calendar import CalendarSources, CalendarStore, local_zone, sources_from
+from board.google import GoogleAccount
 from board.kiosk import Kiosk
 from board.notes import NotesBoard
 from board.server import ROOT, BoardServer, lan_address
@@ -34,6 +35,16 @@ def location_from(config):
     if isinstance(latitude, (int, float)) and isinstance(longitude, (int, float)):
         return {"latitude": latitude, "longitude": longitude}
     return None
+
+
+def google_from(config, data_folder):
+    """The Google account, from the OAuth client in config.json plus any saved sign-in."""
+    client = config.get("google") if isinstance(config.get("google"), dict) else {}
+    return GoogleAccount(
+        client.get("client_id"),
+        client.get("client_secret"),
+        os.path.join(data_folder, "google.json"),
+    )
 
 
 def weather_from(config, location):
@@ -59,17 +70,26 @@ def main():
 
     location = location_from(config)
     feed = ChangeFeed()
+    account = google_from(config, args.data)
+    sources = CalendarSources(
+        sources_from(config.get("calendars")),
+        account=account,
+        zone=local_zone(config.get("timezone")),
+        feed=feed,
+    )
     server = BoardServer(
         (args.host, port),
         shopping=ShoppingList(os.path.join(args.data, "shopping.json"), feed=feed),
         notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
         calendar=CalendarStore(os.path.join(args.data, "calendar.json"), feed=feed),
-        calendar_feeds=CalendarFeeds(sources_from(config.get("calendars")), zone=local_zone(config.get("timezone"))),
+        calendar_sources=sources,
+        google=account,
         feed=feed,
         weather=weather_from(config, location),
         kiosk=Kiosk(),
         location=location,
     )
+    sources.start()
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))

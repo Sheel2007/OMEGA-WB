@@ -1,12 +1,14 @@
 // Where widgets go on the home pages. Pure functions, so they're tested in node.
 //
-// Each page is a 12 × 4 grid; page 1 also has the clock in its top-left 7 × 2.
+// Each page is a 12 × 4 grid; page 1 also has the clock in its top-left 4 × 2.
 // Widgets keep the order the user chose: a page takes the longest run of the
 // list that fits (found with a small search), and the rest moves to the next page.
 
 export const GRID = { cols: 12, rows: 4 };
 export const SPANS = { tall: { w: 5, h: 4 }, wide: { w: 4, h: 2 }, medium: { w: 3, h: 2 } };
-export const CLOCK_AREA = { col: 1, row: 1, w: 7, h: 2 };
+// The clock only needs room for the time and the date under it; the rest of the
+// top row is left for widgets, so the five the board ships with share page 1.
+export const CLOCK_AREA = { col: 1, row: 1, w: 4, h: 2 };
 
 // Exact for every list of up to 8 widgets (checked against an unlimited search) and
 // under 1ms on a laptop; the cap stops a pathological input from hanging the board.

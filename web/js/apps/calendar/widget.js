@@ -4,7 +4,7 @@ import { dayBadge, dayKey, formatTime, mergeEvents, msUntilMidnight, nextLabel, 
 import * as meta from './meta.js';
 
 // fitRows() hides whichever of these don't fit the widget's height.
-const WIDGET_MAX_ITEMS = 12;
+const WIDGET_MAX_ITEMS = 8;
 
 export function createWidget({ services, openApp }) {
   const { calendar } = services;
@@ -71,9 +71,9 @@ export function createWidget({ services, openApp }) {
     time.textContent = event.time ? formatTime(event.time) : '';
   }
 
-  function render({ events: ours, feed }) {
+  function render({ events: ours, sources }) {
     const today = dayKey(new Date());
-    const events = mergeEvents({ events: ours, feed: feed.events });
+    const events = mergeEvents({ events: ours, feed: sources.events });
     const { rows, total: found } = upcoming(events, { from: today, limit: WIDGET_MAX_ITEMS });
     total = found;
     summary.textContent = nextLabel(events, today);

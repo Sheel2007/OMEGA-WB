@@ -1,4 +1,5 @@
 """HTTP server for the board: static files, a small JSON API, and live updates."""
+import html
 import json
 import logging
 import os
@@ -12,6 +13,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from . import qr
+from .google import GoogleError
 from .kiosk import is_local_address
 from .store import NotFound, ValidationError
 from .weather import WeatherUnavailable
@@ -27,6 +29,10 @@ EVENT_PING_SECONDS = 15
 KIOSK_CLOSE_DELAY_SECONDS = 0.5
 # An app id in ?app=, for the QR code a phone scans to open that app.
 APP_ID = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
+# Where Google sends the browser back to after someone signs in, and the word that
+# means "keep this event on the board rather than on a Google calendar".
+GOOGLE_REDIRECT_PATH = "/api/calendar/google/done"
+BOARD_CALENDAR = "board"
 # One QR code per app, drawn once; the handful of apps that ask for one.
 MAX_QR_CACHE = 8
 
@@ -55,12 +61,13 @@ class BoardServer(ThreadingHTTPServer):
     block_on_close = False
     allow_reuse_address = True
 
-    def __init__(self, address, *, shopping, notes, calendar, calendar_feeds, feed, weather, kiosk,
+    def __init__(self, address, *, shopping, notes, calendar, calendar_sources, google, feed, weather, kiosk,
                  web_dir=WEB_DIR, location=None):
         self.shopping = shopping
         self.notes = notes
         self.calendar = calendar
-        self.calendar_feeds = calendar_feeds
+        self.calendar_sources = calendar_sources
+        self.google = google
         self.feed = feed
         self.weather = weather
         self.kiosk = kiosk
@@ -74,7 +81,8 @@ class BoardServer(ThreadingHTTPServer):
 
     def live_stores(self):
         """Stores whose state is pushed over /api/events, by event name."""
-        return {"shopping": self.shopping, "notes": self.notes, "calendar": self.calendar}
+        return {"shopping": self.shopping, "notes": self.notes, "calendar": self.calendar,
+                "calendar-sources": self.calendar_sources}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -100,6 +108,7 @@ class BoardServer(ThreadingHTTPServer):
 
     def shutdown(self):
         self.wake_streams()
+        self.calendar_sources.stop()
         super().shutdown()
 
 
@@ -126,7 +135,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/shopping": "shopping_state",
         "/api/notes": "notes_state",
         "/api/calendar": "calendar_state",
-        "/api/calendar/feed": "calendar_feed",
+        "/api/calendar/sources": "calendar_sources",
+        # Where Google sends people back to after they sign in.
+        "/api/calendar/google/done": "google_done",
         "/api/weather": "weather_forecast",
     }
     POST_ROUTES = {
@@ -141,6 +152,10 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/calendar/add": "calendar_add",
         "/api/calendar/remove": "calendar_remove",
         "/api/calendar/restore": "calendar_restore",
+        "/api/calendar/refresh": "calendar_refresh",
+        "/api/calendar/google/link": "google_link",
+        "/api/calendar/google/unlink": "google_unlink",
+        "/api/calendar/google/target": "google_target",
         "/api/kiosk/exit": "kiosk_exit",
     }
 
@@ -173,6 +188,8 @@ class BoardHandler(SimpleHTTPRequestHandler):
             return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
         except NotFound as err:
             return self._send_error(HTTPStatus.NOT_FOUND, str(err))
+        except GoogleError as err:
+            return self._send_error(HTTPStatus.BAD_GATEWAY, str(err))
         self._send_json(HTTPStatus.OK, result)
 
     # Read endpoints
@@ -208,9 +225,22 @@ class BoardHandler(SimpleHTTPRequestHandler):
     def calendar_state(self):
         self._send_json(HTTPStatus.OK, self.server.calendar.snapshot())
 
-    def calendar_feed(self):
-        """The subscribed (Google) calendars. Never an error: it says so in the payload instead."""
-        self._send_json(HTTPStatus.OK, self.server.calendar_feeds.upcoming())
+    def calendar_sources(self):
+        """The connected calendars. Never an error: problems are reported inside the payload."""
+        self._send_json(HTTPStatus.OK, self.server.calendar_sources.snapshot())
+
+    def google_done(self):
+        """Where Google sends the browser back to once someone has signed in."""
+        query = parse_qs(urlsplit(self.path).query)
+        refused = query.get("error", [None])[0]
+        if refused:
+            return self._send_result_page("Google didn’t connect", "Google said: %s" % refused)
+        try:
+            self.server.google.finish_link(query.get("code", [None])[0], query.get("state", [None])[0])
+        except GoogleError as err:
+            return self._send_result_page("Google didn’t connect", str(err))
+        self.server.calendar_sources.refresh_soon()
+        self._send_result_page("Google Calendar connected", "Taking you back to the board…")
 
     def weather_forecast(self):
         try:
@@ -272,20 +302,57 @@ class BoardHandler(SimpleHTTPRequestHandler):
         return self.server.notes.restore(body.get("ids"))
 
     def calendar_add(self, body):
-        return self.server.calendar.add(body.get("title"), body.get("date"), body.get("time"), event_id=body.get("id"))
+        """Puts a new event on a connected Google calendar, or on the board's own list."""
+        sources = self.server.calendar_sources
+        wanted = body.get("calendar")
+        writable = sources.writable()
+        if wanted != BOARD_CALENDAR and writable and (not wanted or any(c["id"] == wanted for c in writable)):
+            event = sources.add(wanted, body)
+            return {"state": sources.snapshot(), "event": event, "where": "google"}
+        if wanted and wanted != BOARD_CALENDAR:
+            raise RequestError(HTTPStatus.BAD_REQUEST, "That calendar can't be written to.")
+        return {**self.server.calendar.add(body, event_id=body.get("id")), "where": "board"}
 
     def calendar_remove(self, body):
-        return self.server.calendar.remove(body.get("id"))
+        event_id = body.get("id")
+        if isinstance(event_id, str) and event_id.startswith("g:"):
+            event = self.server.calendar_sources.remove(event_id)
+            return {"state": self.server.calendar_sources.snapshot(), "event": event, "where": "google"}
+        return {**self.server.calendar.remove(event_id), "where": "board"}
 
     def calendar_restore(self, body):
-        return self.server.calendar.restore(body.get("ids"))
+        ids = body.get("ids")
+        if not isinstance(ids, list):
+            # Let the store raise the same message it always does for a bad list.
+            return self.server.calendar.restore(ids)
+        on_google = [i for i in ids if isinstance(i, str) and i.startswith("g:")]
+        result = self.server.calendar.restore([i for i in ids if i not in on_google])
+        # Google gives a re-created event a new id, so report the ids that came back.
+        back = self.server.calendar_sources.restore(on_google)
+        state = self.server.calendar_sources.snapshot() if on_google else result["state"]
+        return {"state": state, "restored": result["restored"] + [event["id"] for event in back]}
+
+    def calendar_refresh(self, body):
+        return {"state": self.server.calendar_sources.refresh()}
+
+    def google_link(self, body):
+        """Starts the Google sign-in. Only from the board itself: the redirect comes back to it."""
+        self._board_only("Connect Google Calendar from the board's own screen.")
+        redirect = "http://127.0.0.1:%d%s" % (self.server.server_address[1], GOOGLE_REDIRECT_PATH)
+        return {**self.server.google.begin_link(redirect), "redirect": redirect}
+
+    def google_unlink(self, body):
+        self._board_only("Disconnect Google Calendar from the board's own screen.")
+        status = self.server.google.unlink()
+        self.server.calendar_sources.refresh_soon()
+        return status
+
+    def google_target(self, body):
+        self.server.google.set_target(body.get("id"))
+        return {"state": self.server.calendar_sources.snapshot()}
 
     def kiosk_exit(self, body):
-        if not is_local_address(self.client_address[0]):
-            raise RequestError(HTTPStatus.FORBIDDEN, "Only the board's own screen can exit kiosk mode.")
-        # A plain form on some other web page can't send JSON, so this can't be triggered cross-site.
-        if self.headers.get_content_type() != "application/json":
-            raise RequestError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Send this as JSON.")
+        self._board_only("Only the board's own screen can exit kiosk mode.")
         running = self.server.kiosk.is_running()
         if running:
             timer = threading.Timer(self.server.kiosk_close_delay, self.server.kiosk.close)
@@ -294,6 +361,13 @@ class BoardHandler(SimpleHTTPRequestHandler):
         return {"closing": running}
 
     # Helpers
+
+    def _board_only(self, message):
+        if not is_local_address(self.client_address[0]):
+            raise RequestError(HTTPStatus.FORBIDDEN, message)
+        # A plain form on some other web page can't send JSON, so this can't be triggered cross-site.
+        if self.headers.get_content_type() != "application/json":
+            raise RequestError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Send this as JSON.")
 
     def _read_json(self):
         try:
@@ -319,6 +393,25 @@ class BoardHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_result_page(self, title, message):
+        """A plain page for the browser Google just sent back, which then returns to the board."""
+        body = (
+            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<meta http-equiv="refresh" content="3;url=/#/app/calendar"><title>%s</title>'
+            '<style>body{font:500 20px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;'
+            'min-height:100vh;background:#edf1f8;color:#0f1d3f;text-align:center;padding:2rem}'
+            'a{color:#17703c}</style></head><body><div><h1>%s</h1><p>%s</p>'
+            '<p><a href="/#/app/calendar">Back to the board</a></p></div></body></html>'
+        ) % (html.escape(title), html.escape(title), html.escape(message))
+        raw = body.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(raw)
 
     def _send_error(self, status, message):
         status = HTTPStatus(status)

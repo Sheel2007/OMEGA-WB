@@ -30,7 +30,7 @@ const now = () => fixedTime ?? new Date();
 
 // Services: the only code that talks to the server or to storage.
 
-const live = createLiveConnection({ streams: ['shopping', 'notes', 'calendar'], onServerRestart: () => location.reload() });
+const live = createLiveConnection({ streams: ['shopping', 'notes', 'calendar', 'calendar-sources'], onServerRestart: () => location.reload() });
 const services = {
   shopping: createShoppingService({ live }),
   notes: createNotesService({ live }),

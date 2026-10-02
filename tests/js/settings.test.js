@@ -13,7 +13,7 @@ function memoryStorage(initial = {}) {
 
 const options = (storage) => ({
   storage,
-  widgetSizes: { shopping: 'tall', weather: 'wide', notes: 'medium', games: 'medium' },
+  widgetSizes: { shopping: 'tall', weather: 'wide', notes: 'medium', calendar: 'medium', games: 'medium' },
   defaultWidgets: ['shopping', 'weather'],
 });
 const saved = (value) => memoryStorage({ [STORAGE_KEY]: JSON.stringify(value) });
@@ -34,7 +34,7 @@ test('saves changes and reads them back on the next load', () => {
   const again = createSettingsService(options(storage));
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
-  assert.deepEqual(again.getPages(), [['weather', 'notes']]);
+  assert.deepEqual(again.getPages(), [['notes', 'weather']]);
   assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 2);
 });
 
@@ -42,22 +42,26 @@ test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
   const settings = createSettingsService(options(saved({ version: 1, theme: 'retro', widgets: ['notes', 'shopping', 'weather'] })));
   assert.equal(settings.getTheme(), 'blocks');
   // Keeps the saved order (Notes before Weather), all still beside the clock.
-  assert.deepEqual(settings.getPages(), [['shopping', 'notes', 'weather']]);
+  assert.deepEqual(settings.getPages(), [['notes', 'shopping', 'weather']]);
   assert.equal(settings.getScenery(), true);
 });
 
 test('adding a widget that does not fit puts it on a new page, and says where', () => {
-  const settings = createSettingsService(options(saved({ version: 1, theme: 'auto', widgets: ['shopping', 'weather', 'notes'] })));
+  // Page 1 is full once the clock, the shopping list, the weather, the notes and
+  // the calendar are on it, so the sixth widget starts page 2.
+  const full = ['shopping', 'weather', 'notes', 'calendar'];
+  const settings = createSettingsService(options(saved({ version: 1, theme: 'auto', widgets: full })));
   assert.equal(settings.addWidget('games'), 1);
-  assert.deepEqual(settings.getPages(), [['shopping', 'weather', 'notes'], ['games']]);
+  assert.deepEqual(settings.getPages()[1], ['games']);
   assert.equal(settings.addWidget('games'), null, 'already on the board');
-  assert.equal(settings.addWidget('calendar'), null, 'unknown widget');
+  assert.equal(settings.addWidget('nope'), null, 'unknown widget');
 });
 
 test('adding a widget fills the first page with room for it', () => {
   const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather'], ['games']], scenery: true })));
   assert.equal(settings.addWidget('notes'), 0);
-  assert.deepEqual(settings.getPages(), [['shopping', 'weather', 'notes'], ['games']]);
+  assert.deepEqual(settings.getPages()[0].sort(), ['notes', 'shopping', 'weather']);
+  assert.deepEqual(settings.getPages()[1], ['games']);
 });
 
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {

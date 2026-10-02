@@ -10,7 +10,8 @@ It has five widgets:
 - **Shopping list.** Anyone can add to it on the board's touchscreen or from
   their phone (scan the QR code in the app). Changes show up everywhere instantly.
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
-  Google Calendars, plus events anyone adds on the board or from their phone.
+  Google Calendars. Anyone can add an event on the board or from their phone and
+  it goes straight into Google Calendar.
 - **Notes.** Sticky notes for everyone at home ("Rent is due Friday").
 - **Weather.** Today and the next four days, from [Open-Meteo](https://open-meteo.com) (free, no account).
 - **Games.** Four in a Row, Reversi, and Dots and Boxes, for two people taking
@@ -63,10 +64,18 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   Removing or clearing items can be undone from the message that pops up.
 - **Notes:** tap + on the Notes widget to post one. Tap × on a note to take
   it down (you can undo that too).
-- **Calendar:** type what's happening, tap the day (or pick a date), and leave it
-  as **All day** or set a time. Tap × to take an event off (undoable). Events from
-  your Google Calendars are read-only, and show which calendar they came from.
-  There's a QR code under "On your phone" for adding events from your phone.
+- **Calendar:** type what's happening, then fill in as much as you like:
+  - **When** — a day button (Today, Tomorrow, the week ahead) or the date picker.
+  - **Time** — leave it **All day** and pick how many days it runs, or set a start
+    time and tap **30 min / 1 hr / 2 hr / 4 hr** (or set the end time yourself).
+  - **Details** — a place and a note, both optional.
+  - **Goes on** — which Google calendar it lands on, or **This board**. Only shown
+    when more than one is available.
+
+  Tap × to take an event off; **Undo** puts it back, on Google too. Events from
+  calendars you can't write to (Holidays, Birthdays) have no × and say which
+  calendar they came from. There's a QR code under "On your phone" for adding
+  events from your phone.
 - **Pages:** swipe left and right (or tap the dots above the dock).
 - **Arranging widgets:** hold a widget for half a second (or pick **Edit home
   screen** in the menu). Then drag widgets around; hold one against the left or
@@ -99,40 +108,73 @@ the board estimates sunrise and sunset from your timezone (up to an hour off).
 to be online; it's fetched at most every 15 minutes and shared by every screen.
 Restart after changing settings: `sudo systemctl restart widget-board`.
 
-The shopping list, notes and the board's own calendar events are saved on the Pi
-in `data/shopping.json`, `data/notes.json` and `data/calendar.json`.
+The shopping list, notes and any calendar events kept on the board itself are
+saved on the Pi in `data/shopping.json`, `data/notes.json` and `data/calendar.json`.
 
 ### Google Calendar
 
-Add each calendar's **secret address in iCal format** to `config.json`:
+The board can read *and* write your Google calendars. Connecting an account is a
+one-off job on the Pi:
+
+1. Go to the [Google Cloud console](https://console.cloud.google.com/), make a
+   project, and under **APIs & Services** enable the **Google Calendar API**.
+2. Under **APIs & Services → OAuth consent screen**, pick **External**, fill in
+   the app name and your email, and add yourself as a **Test user**.
+3. Under **Credentials**, create an **OAuth client ID** of type **Desktop app**.
+   Copy the client ID and secret into `config.json`:
+
+   ```json
+   {
+     "google": {
+       "client_id": "000000000000-yourclient.apps.googleusercontent.com",
+       "client_secret": "GOCSPX-yoursecret"
+     }
+   }
+   ```
+
+4. Restart the server, open the **Calendar** app *on the board itself* and tap
+   **Connect Google Calendar**. Sign in, say yes, and Google sends you back to
+   the board.
+
+The board then shows every calendar on the account — your own, **Birthdays**,
+**Holidays in …** — and new events go onto the one marked *New events here*
+(change it with the **Goes on** buttons when adding an event). Deleting an event
+on the board deletes it in Google.
+
+Connecting has to happen on the board's screen, because Google sends you back to
+`http://127.0.0.1:8080`, which only means "the Pi" on the Pi itself. Everything
+after that works from any phone on the Wi-Fi. If you'd rather not use a keyboard
+on the board, plug one in for the sign-in, or use VNC.
+
+The sign-in is saved in `data/google.json`, readable only by the user the server
+runs as. **Disconnect Google** in the app removes it; you can also revoke the
+board from your [Google account's app list](https://myaccount.google.com/permissions).
+
+#### Without an account: read-only subscriptions
+
+If you only want to *see* a calendar, use its **secret address in iCal format**
+instead — no Google project, no sign-in:
 
 ```json
 {
-  "timezone": "America/New_York",
   "calendars": [
-    { "name": "Home", "url": "https://calendar.google.com/calendar/ical/.../private-.../basic.ics" },
-    { "name": "Birthdays", "url": "...", "color": "pink" }
+    { "name": "Holidays", "url": "https://calendar.google.com/calendar/ical/.../basic.ics", "color": "orange" }
   ]
 }
 ```
 
-To find a calendar's address, open Google Calendar on a computer, hover the
-calendar in the left sidebar → **⋮ → Settings and sharing**, scroll to
-**Integrate calendar**, and copy **Secret address in iCal format**. Do that for
-each calendar you want on the board — your own, **Birthdays** (from your
-contacts) and **Holidays in …** each have their own. Treat those addresses like
-passwords: anyone with one can read that calendar.
+Open Google Calendar on a computer, hover the calendar in the left sidebar →
+**⋮ → Settings and sharing**, scroll to **Integrate calendar**, and copy
+**Secret address in iCal format**. Treat those addresses like passwords: anyone
+with one can read that calendar. `name` is optional (the calendar's own name is
+used), `color` is one of `blue`, `purple`, `teal`, `pink`, `orange` or `green`,
+and up to six are read. These are read-only; events added on the board go to
+Google (if connected) or stay on the board.
 
-`name` is optional (the calendar's own name is used instead) and `color` is one
-of `blue`, `purple`, `teal`, `pink`, `orange` or `green`. Up to six calendars.
 `timezone` is an IANA name like `"Europe/London"`; without it the board uses the
-Pi's own time zone, which is usually right.
-
-The board reads these calendars, it doesn't write to them: events you add on the
-board stay on the board. (Writing to Google needs an OAuth client and a Google
-Cloud project, which this board deliberately doesn't have.) They're fetched at
-most every 15 minutes, shared by every screen, and the next four months of
-birthdays, holidays and repeating events are worked out on the Pi.
+Pi's own time zone, which is usually right. Calendars are read at most every 15
+minutes, shared by every screen, and the next four months of birthdays, holidays
+and repeating events are worked out on the Pi.
 
 ## Updating
 
@@ -163,7 +205,7 @@ Project layout:
 ```
 run.py                  start the server
 board/                  server: JSON stores, HTTP API + live updates, weather,
-                        iCalendar parsing, QR codes
+                        Google Calendar (OAuth + API), iCalendar parsing, QR codes
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks themes
@@ -232,6 +274,12 @@ a visit. To check on the Pi itself:
   been reset. Copy **Secret address in iCal format** again (it must end in
   `.ics`) and restart the server. The Calendar app lists each calendar and
   whether it's syncing.
+- **"Google turned the board away."** The sign-in was revoked or expired. Tap
+  **Disconnect Google**, then **Connect Google Calendar** again. While the OAuth
+  consent screen is still in *Testing*, Google expires the board's sign-in after
+  a week — publish the consent screen to stop that.
+- **Connect Google Calendar says it must be done on the board.** The sign-in has
+  to start from the Pi's own screen; a phone can't complete Google's redirect.
 - **Calendar events are an hour out.** Set `timezone` in `config.json` to your
   IANA time zone, or fix the Pi's with `sudo raspi-config`.
 

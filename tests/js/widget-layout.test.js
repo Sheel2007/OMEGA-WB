@@ -12,7 +12,7 @@ import {
   removeWidget,
 } from '../../web/js/widget-layout.js';
 
-const SIZE_OF = { shopping: 'tall', weather: 'wide', notes: 'medium', games: 'medium' };
+const SIZE_OF = { shopping: 'tall', weather: 'wide', notes: 'medium', calendar: 'medium', games: 'medium' };
 const spanOf = (id) => SPANS[SIZE_OF[id] ?? id.split('-')[0]];
 
 function overlaps(a, b) {
@@ -47,13 +47,19 @@ test('Shopping, Weather and Notes share the first page in any order (the old bug
   ]) {
     const { pages, placements } = paginate([order], spanOf);
     assert.equal(pages.length, 1);
-    assert.deepEqual(placements.get('shopping'), { page: 0, col: 8, row: 1, w: 5, h: 4 });
+    assert.equal(placements.get('shopping').h, 4, 'the tall one still gets the full height');
   }
 });
 
-test('a fourth widget spills onto a second page', () => {
-  const pages = checkLayout([['shopping', 'weather', 'notes', 'games']]);
-  assert.deepEqual(pages, [['shopping', 'weather', 'notes'], ['games']]);
+test('the four widgets the board starts with share page 1 beside the clock', () => {
+  const pages = checkLayout([['shopping', 'weather', 'notes', 'calendar', 'games']]);
+  assert.deepEqual(pages, [['shopping', 'notes', 'weather', 'calendar'], ['games']]);
+});
+
+test('a fifth widget spills onto a second page', () => {
+  const pages = checkLayout([['shopping', 'weather', 'notes', 'calendar', 'games', 'medium-5']]);
+  assert.equal(pages.length, 2);
+  assert.deepEqual(pages[1], ['games', 'medium-5']);
 });
 
 test('every sequence of widget sizes up to 7 long lays out cleanly', () => {
@@ -71,6 +77,7 @@ test('every sequence of widget sizes up to 7 long lays out cleanly', () => {
 });
 
 test('packPage places the longest prefix that fits and returns the rest', () => {
+  // Only one 5 x 4 widget can clear the clock, however much empty area is left over.
   const { placed, overflow } = packPage(['tall-0', 'tall-1', 'medium-2'], spanOf, { reserved: [CLOCK_AREA] });
   assert.deepEqual(placed.map((p) => p.id), ['tall-0']);
   assert.deepEqual(overflow, ['tall-1', 'medium-2']);

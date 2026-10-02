@@ -110,24 +110,25 @@
   display: none;
 }
 
-/* When and Time: day buttons plus a picker for anything further out. */
+/* The form under the add bar: when, how long, where, and whose calendar. */
 
 .calendar-app__when {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-top: 0.9rem;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
 }
 
 .when-row {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
 .when-row__label {
-  min-width: 4.4rem;
+  flex: none;
+  width: 5.4rem;
   font-size: var(--fs-body);
   font-weight: 700;
   color: var(--text-2);
@@ -135,14 +136,47 @@
 
 .when-row__chips {
   display: flex;
-  flex: 1;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.5rem;
+}
+
+/* The day buttons take the room that's going; the rest sit beside them. */
+.when-row > .when-row__chips:first-of-type {
+  flex: 1;
+}
+
+.when-row__text {
+  flex: 1;
+  min-width: 10rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 1.1rem;
+  border: var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+
+[data-theme="blocks"] .when-row__text {
+  border-radius: 0;
+}
+
+.when-row__text::placeholder {
+  color: var(--text-3);
+}
+
+.when-row__text:focus-visible,
+.when-row__picker:focus-visible {
+  outline: 0.15rem solid var(--focus);
+  outline-offset: 0.1rem;
 }
 
 .chip--choice {
-  min-height: var(--hit);
-  padding: 0.5rem 1.2rem;
+  /* 50px on the board, comfortably over the 48px floor, and four rows of form still fit. */
+  min-height: 2.5rem;
+  padding: 0.4rem 1.1rem;
   font-size: var(--fs-body);
   font-weight: 650;
 }
@@ -154,7 +188,7 @@
 }
 
 .when-row__picker {
-  min-height: var(--hit);
+  min-height: 2.5rem;
   min-width: 10rem;
   padding: 0.4rem 1rem;
   border: var(--control-border);
@@ -208,7 +242,7 @@
 .agenda__event {
   position: relative;
   display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr) auto auto;
+  grid-template-columns: 13rem minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 1rem;
   min-height: 4.4rem;
@@ -251,25 +285,38 @@
   font-weight: 650;
 }
 
+.agenda__body {
+  min-width: 0;
+}
+
 .agenda__title {
+  margin: 0;
   font-size: var(--fs-item);
   font-weight: 620;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
-.agenda__source {
-  justify-self: end;
-  max-width: 16rem;
-  overflow: hidden;
+.agenda__detail,
+.agenda__notes {
+  margin: 0.15rem 0 0;
   font-size: var(--fs-caption);
-  font-weight: 650;
+  font-weight: 600;
+  line-height: 1.3;
   color: var(--text-2);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.agenda__notes {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 500;
+  color: var(--text-3);
 }
 
 .agenda__remove {
+  align-self: center;
   display: grid;
   place-items: center;
   width: var(--hit);
@@ -289,6 +336,44 @@
 }
 
 /* Which calendars are syncing */
+
+.panel__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.panel__action {
+  flex: 1;
+  min-height: var(--hit);
+  padding: 0.5rem 1rem;
+  border: var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--text);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.panel__action--strong {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.panel__action:active {
+  background: var(--fill-strong);
+}
+
+.panel__action--strong:active {
+  background: var(--accent-pressed);
+}
+
+.panel__action:disabled {
+  opacity: 0.55;
+}
 
 .source-list {
   margin: 0;
@@ -346,7 +431,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.15rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -355,11 +440,11 @@
 
 .calendar-widget__item {
   display: grid;
-  grid-template-columns: 5.4rem minmax(0, 1fr) auto;
+  grid-template-columns: 4.2rem minmax(0, 1fr) auto;
   align-items: baseline;
-  column-gap: 0.8rem;
-  min-height: 2.9rem;
-  padding: 0.25rem 0 0.25rem 0.8rem;
+  column-gap: 0.6rem;
+  min-height: 2.5rem;
+  padding: 0.2rem 0 0.2rem 0.7rem;
   border-left: 0.3rem solid var(--event);
   border-radius: 0.2rem;
 }
@@ -389,8 +474,8 @@
 }
 
 .calendar-widget__more {
-  margin: 0.4rem 0 0;
-  font-size: var(--fs-body);
+  margin: 0.3rem 0 0;
+  font-size: var(--fs-caption);
   font-weight: 650;
   color: var(--text-2);
 }
@@ -474,23 +559,21 @@
     display: none;
   }
 
-  /* The day buttons become one swipeable strip, with the date picker pinned beside it. */
+  /* Each row wraps: its label on one line, then buttons that swipe sideways. */
   .when-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "label label"
-      "chips picker";
-    gap: 0.3rem 0.7rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.5rem;
   }
 
   .when-row__label {
-    grid-area: label;
-    min-width: auto;
+    width: 100%;
   }
 
-  .when-row__chips {
-    grid-area: chips;
+  .when-row__chips,
+  .when-row > .when-row__chips:first-of-type {
+    flex: 1 1 9rem;
     flex-wrap: nowrap;
     overflow-x: auto;
     padding-bottom: 0.2rem;
@@ -502,9 +585,15 @@
   }
 
   .when-row__picker {
-    grid-area: picker;
+    flex: 0 0 auto;
     min-width: 7.5rem;
     padding: 0.4rem 0.6rem;
+  }
+
+  /* A place and a note each get a line of their own; two together are unreadable. */
+  .when-row__text {
+    flex: 1 1 100%;
+    min-width: 0;
   }
 
   .chip--choice {
@@ -512,12 +601,13 @@
   }
 
   .agenda__event {
-    grid-template-columns: 7.2rem minmax(0, 1fr) auto auto;
+    grid-template-columns: 8.5rem minmax(0, 1fr) auto;
     min-height: 3.5rem;
+    column-gap: 0.7rem;
   }
 
-  .agenda__source {
-    display: none;
+  .when-row__text {
+    min-width: 100%;
   }
 
   .calendar-widget {

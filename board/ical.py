@@ -20,6 +20,8 @@ MAX_STEPS = 10000
 MAX_OCCURRENCES = 500
 # The longest an all-day event is shown for (a year-long "event" would flood the agenda).
 MAX_SPAN_DAYS = 30
+# Holiday feeds put essays in DESCRIPTION; the board only ever shows a line or two.
+MAX_DESCRIPTION = 500
 # TZIDs seen in feeds; a handful in practice, cleared if a feed invents hundreds.
 MAX_ZONE_CACHE = 64
 
@@ -403,7 +405,7 @@ def _at(day, start, all_day):
     return day if all_day else datetime.combine(day, start.timetz())
 
 
-def _describe(uid, title, location, moment, days, minutes, all_day, local):
+def _describe(uid, title, location, description, moment, days, minutes, all_day, local):
     if all_day:
         day, clock, finish = moment, None, None
     else:
@@ -421,6 +423,7 @@ def _describe(uid, title, location, moment, days, minutes, all_day, local):
         "end_time": finish,
         "days": days,
         "location": location,
+        "description": description,
     }
 
 
@@ -449,6 +452,7 @@ def _event_occurrences(uid, props, overrides, window_start, window_end, local, r
     days, minutes = _length(start, end, all_day)
     title = unescape(first(props, "SUMMARY", "") or "").strip() or NO_TITLE
     location = unescape(first(props, "LOCATION", "") or "").strip() or None
+    description = unescape(first(props, "DESCRIPTION", "") or "").strip()[:MAX_DESCRIPTION] or None
 
     first_day = start if all_day else start.date()
     moments = [start]
@@ -475,7 +479,7 @@ def _event_occurrences(uid, props, overrides, window_start, window_end, local, r
         key = moment_key(moment)
         if key in skip or (recurring and (uid, key) in overrides):
             continue
-        occurrence = _describe(uid, title, location, moment, days, minutes, all_day, local)
+        occurrence = _describe(uid, title, location, description, moment, days, minutes, all_day, local)
         if _in_window(occurrence, days, window_start, window_end):
             found.append(occurrence)
     return found

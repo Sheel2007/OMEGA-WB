@@ -56,6 +56,23 @@ export function formatTime(clock) {
   return timeFormat.format(new Date(2026, 0, 1, hours, minutes));
 }
 
+// '15:00' plus 90 minutes is '16:30'. It never runs past the end of the day.
+export function addMinutes(clock, minutes) {
+  if (!CLOCK.test(clock ?? '')) return null;
+  const [hours, mins] = clock.split(':').map(Number);
+  const total = hours * 60 + mins + minutes;
+  if (total >= 24 * 60) return '23:59';
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// How long a timed event runs, in minutes, or null if it has no end.
+export function minutesBetween(start, end) {
+  if (!CLOCK.test(start ?? '') || !CLOCK.test(end ?? '')) return null;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+}
+
 // The full name of a day, for the headings in the app.
 export function dayLabel(key, today) {
   const away = daysBetween(today, key);
@@ -86,6 +103,18 @@ export function nextLabel(events, today) {
   return `Next: ${monthDayFormat.format(dayDate(next.date))}`;
 }
 
+// "3:00 – 4:30 PM", "3:00 PM", "All day" or "All day · 3 days".
+export function timeLabel(event) {
+  if (!event.time) return event.days > 1 ? `All day · ${event.days} days` : 'All day';
+  return event.endTime ? `${formatTime(event.time)} – ${formatTime(event.endTime)}` : formatTime(event.time);
+}
+
+// The second line of an event: where it is, what calendar it's on, which day of a run.
+export function detailLabel(event) {
+  const run = event.days > 1 && event.dayOffset != null ? `Day ${event.dayOffset + 1} of ${event.days}` : null;
+  return [event.calendar, event.location, run].filter(Boolean).join(' · ');
+}
+
 export function countLabel(count) {
   if (count === 0) return 'Nothing on';
   return count === 1 ? '1 event' : `${count} events`;
@@ -97,35 +126,34 @@ function cleanTitle(title) {
   return typeof title === 'string' ? title.trim().replace(/\s+/g, ' ') : '';
 }
 
-function fromOurs(event) {
-  if (!DAY_KEY.test(event?.date ?? '') || !cleanTitle(event.title)) return null;
-  return {
-    id: event.id,
-    title: cleanTitle(event.title),
-    date: event.date,
-    time: CLOCK.test(event.time ?? '') ? event.time : null,
-    endTime: null,
-    days: 1,
-    location: null,
-    calendar: null,
-    color: null,
-    ours: true,
-  };
+const text = (value) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+
+function span(event) {
+  const last = DAY_KEY.test(event.endDate ?? '') ? event.endDate : event.date;
+  const counted = Number.isFinite(event.days) ? Math.trunc(event.days) : daysBetween(event.date, last) + 1;
+  return Math.min(Math.max(1, counted), MAX_SPAN_DAYS);
 }
 
-function fromFeed(event) {
+// Every event the board shows, wherever it came from, looks the same from here on.
+function normalise(event, { ours, writable }) {
   if (!DAY_KEY.test(event?.date ?? '') || !cleanTitle(event.title)) return null;
+  const days = span(event);
   return {
     id: event.id,
     title: cleanTitle(event.title),
     date: event.date,
     time: CLOCK.test(event.time ?? '') ? event.time : null,
     endTime: CLOCK.test(event.endTime ?? '') ? event.endTime : null,
-    days: Math.min(Math.max(1, Math.trunc(event.days) || 1), MAX_SPAN_DAYS),
-    location: typeof event.location === 'string' ? event.location : null,
-    calendar: typeof event.calendar === 'string' ? event.calendar : null,
-    color: typeof event.color === 'string' ? event.color : null,
-    ours: false,
+    endDate: shiftDay(event.date, days - 1),
+    days,
+    location: text(event.location),
+    description: text(event.description),
+    calendar: ours ? null : text(event.calendar),
+    calendarId: ours ? null : (text(event.calendarId) ?? null),
+    color: ours ? null : text(event.color),
+    ours,
+    // Only events the board can change get a remove button.
+    writable: ours || Boolean(writable ?? event.writable),
   };
 }
 
@@ -139,12 +167,12 @@ function order(a, b) {
   );
 }
 
-// `events` are the household's own and `feed` the ones from subscribed calendars.
-// Ours come first, so when the same thing is on a subscribed calendar too, the copy
-// that can be deleted from the board is the one kept.
+// `events` are the ones the board keeps itself and `feed` the ones from connected
+// calendars. Ours come first, so when the same thing is on a connected calendar too,
+// the copy kept is the one that still knows where it lives.
 export function mergeEvents({ events = [], feed = [] } = {}) {
-  const ours = Array.isArray(events) ? events.map(fromOurs) : [];
-  const theirs = Array.isArray(feed) ? feed.map(fromFeed) : [];
+  const ours = Array.isArray(events) ? events.map((event) => normalise(event, { ours: true })) : [];
+  const theirs = Array.isArray(feed) ? feed.map((event) => normalise(event, { ours: false })) : [];
   const seen = new Set();
   const merged = [];
   for (const event of [...ours, ...theirs]) {

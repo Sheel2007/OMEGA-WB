@@ -121,23 +121,15 @@ export function mount(root, { services, kiosk, info }) {
     el('div', { class: 'panel__buttons' }, linkButton, syncButton),
   );
 
-  const qr = el('div', { class: 'phone-link__qr', role: 'img', 'aria-label': 'QR code for the calendar' });
+  const qr = el('div', { class: 'phone-link__qr', role: 'img' });
   const url = el('p', { class: 'phone-link__url' });
+  const phoneTitle = el('h2', { class: 'panel__title' });
+  const phoneText = el('p', { class: 'phone-link__text' });
   const phone = el(
     'section',
     { class: 'panel panel--phone' },
-    el('h2', { class: 'panel__title', text: 'On your phone' }),
-    el(
-      'div',
-      { class: 'phone-link' },
-      qr,
-      el(
-        'div',
-        {},
-        el('p', { class: 'phone-link__text', text: 'Scan to add events from your phone. Works on the home Wi-Fi.' }),
-        url,
-      ),
-    ),
+    phoneTitle,
+    el('div', { class: 'phone-link' }, qr, el('div', {}, phoneText, url)),
   );
   phone.hidden = true;
 
@@ -156,13 +148,48 @@ export function mount(root, { services, kiosk, info }) {
   );
   root.append(view);
 
-  info.then(async (details) => {
-    if (!details?.url) return;
-    const svg = await fetchQrSvg(id);
-    if (unmounted) return;
-    url.textContent = details.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  // With a Google account connected, the quickest way to add something from a phone
+  // is Google Calendar itself: the board picks it up on its next sync. Without one,
+  // the code opens this app on the phone instead.
+  const PHONE_CODES = {
+    google: {
+      title: 'Add on your phone',
+      text: 'Scan to add an event in Google Calendar. It turns up here within a few minutes.',
+      label: 'QR code for Google Calendar',
+      where: () => 'calendar.google.com',
+      fetch: () => fetchQrSvg({ target: 'google-calendar' }),
+    },
+    board: {
+      title: 'On your phone',
+      text: 'Scan to add events from your phone. Works on the home Wi-Fi.',
+      label: 'QR code for the calendar',
+      where: (boardUrl) => boardUrl,
+      fetch: () => fetchQrSvg({ app: id }),
+    },
+  };
+  let boardUrl = null;
+  let showing = null;
+
+  async function renderPhone(account) {
+    const kind = account.linked ? 'google' : 'board';
+    const code = PHONE_CODES[kind];
+    phoneTitle.textContent = code.title;
+    phoneText.textContent = code.text;
+    qr.setAttribute('aria-label', code.label);
+    if (showing === kind || (kind === 'board' && !boardUrl)) return;
+    showing = kind;
+    const svg = await code.fetch();
+    // The account may have been connected or dropped while that was in flight.
+    if (unmounted || showing !== kind) return;
+    url.textContent = code.where(boardUrl) ?? '';
     if (svg) qr.innerHTML = svg;
     phone.hidden = false;
+  }
+
+  info.then((details) => {
+    if (unmounted || !details?.url) return;
+    boardUrl = details.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    renderPhone(calendar.getAccount());
   });
 
   if (kiosk) {
@@ -365,6 +392,7 @@ export function mount(root, { services, kiosk, info }) {
     linkButton.hidden = !account.configured;
     linkButton.textContent = account.linked ? 'Disconnect Google' : 'Connect Google Calendar';
     syncButton.hidden = !sources.configured;
+    renderPhone(account);
   }
 
   // The agenda

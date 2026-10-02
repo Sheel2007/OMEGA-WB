@@ -171,6 +171,15 @@ class ServerTest(unittest.TestCase):
         self.assertNotEqual(shopping, calendar)
         self.assertEqual(self.request("/api/qr.svg?app=../secret")[0], 400)
 
+    def test_qr_svg_can_point_at_google_calendar_but_nowhere_else(self):
+        status, _, raw = self.request("/api/qr.svg?target=google-calendar")
+        self.assertEqual(status, 200)
+        self.assertTrue(raw.startswith(b"<svg"))
+        self.assertNotEqual(raw, self.request("/api/qr.svg?app=calendar")[2])
+        # A phone can't ask the board to print a QR code for an address of its choosing.
+        self.assertEqual(self.request("/api/qr.svg?target=https://evil.example.com")[0], 400)
+        self.assertEqual(self.request("/api/qr.svg?target=nope")[0], 400)
+
     def test_serves_static_files_with_module_friendly_types(self):
         status, headers, raw = self.request("/")
         self.assertEqual(status, 200)

@@ -29,6 +29,9 @@ EVENT_PING_SECONDS = 15
 KIOSK_CLOSE_DELAY_SECONDS = 0.5
 # An app id in ?app=, for the QR code a phone scans to open that app.
 APP_ID = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
+# Places other than the board a QR code may point at. Only these: a phone shouldn't
+# be able to ask the board to print a QR code for any address it likes.
+QR_TARGETS = {"google-calendar": "https://calendar.google.com/calendar/u/0/r/eventedit"}
 # Where Google sends the browser back to after someone signs in, and the word that
 # means "keep this event on the board rather than on a Google calendar".
 GOOGLE_REDIRECT_PATH = "/api/calendar/google/done"
@@ -94,8 +97,9 @@ class BoardServer(ThreadingHTTPServer):
         base = "http://%s:%d/" % (lan_address(), self.server_address[1])
         return base + ("#/app/%s" % app if app else "")
 
-    def qr_svg(self, app=None):
-        url = self.phone_url(app)
+    def qr_svg(self, url=None, *, app=None):
+        """A QR code for `url`, or for this board's own address (optionally one app)."""
+        url = url or self.phone_url(app)
         if url not in self._qr_cache:
             if len(self._qr_cache) >= MAX_QR_CACHE:
                 self._qr_cache.clear()
@@ -205,10 +209,14 @@ class BoardHandler(SimpleHTTPRequestHandler):
         })
 
     def qr_code(self):
-        app = parse_qs(urlsplit(self.path).query).get("app", [None])[0]
+        query = parse_qs(urlsplit(self.path).query)
+        target = query.get("target", [None])[0]
+        if target is not None and target not in QR_TARGETS:
+            return self._send_error(HTTPStatus.BAD_REQUEST, "The board has no QR code for that.")
+        app = query.get("app", [None])[0]
         if app is not None and not APP_ID.match(app):
             return self._send_error(HTTPStatus.BAD_REQUEST, "That isn't an app on the board.")
-        body = self.server.qr_svg(app).encode()
+        body = self.server.qr_svg(QR_TARGETS[target] if target else None, app=app).encode()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "image/svg+xml")
         self.send_header("Content-Length", str(len(body)))

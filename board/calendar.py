@@ -49,6 +49,9 @@ WINDOW_DAYS = 120
 FETCH_TIMEOUT_SECONDS = 15
 MAX_FEED_BYTES = 4 * 1024 * 1024
 REFRESH_SECONDS = 15 * 60
+# With an account connected, people add events on their phones in Google Calendar
+# and expect to see them on the board, so check more often.
+LINKED_REFRESH_SECONDS = 5 * 60
 # After a refresh that reached nothing, try again sooner (the Pi may have been offline).
 RETRY_SECONDS = 2 * 60
 # Deleted Google events kept in memory so "Undo" can put them back.
@@ -385,8 +388,13 @@ class CalendarSources:
                 self.refresh()
             except Exception:  # A sync must never take the board's server down with it.
                 log.exception("The calendar refresh failed")
-            self._wake.wait(REFRESH_SECONDS if self._reached else RETRY_SECONDS)
+            self._wake.wait(self._delay())
             self._wake.clear()
+
+    def _delay(self):
+        if not self._reached:
+            return RETRY_SECONDS
+        return LINKED_REFRESH_SECONDS if self._account and self._account.linked else REFRESH_SECONDS
 
     def refresh(self):
         """Reads every calendar once and replaces the snapshot. Safe to call from anywhere."""

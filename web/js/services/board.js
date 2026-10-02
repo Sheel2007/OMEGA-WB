@@ -9,10 +9,11 @@ export async function fetchInfo() {
   }
 }
 
-// The QR code a phone scans. With an app id it opens straight into that app.
-export async function fetchQrSvg(app) {
+// The QR code a phone scans: this board (optionally straight into one app), or one
+// of the places the server knows about, such as Google Calendar's new-event page.
+export async function fetchQrSvg({ app, target } = {}) {
   try {
-    const query = app ? `?app=${encodeURIComponent(app)}` : '';
+    const query = target ? `?target=${encodeURIComponent(target)}` : app ? `?app=${encodeURIComponent(app)}` : '';
     const response = await fetch(`/api/qr.svg${query}`, { cache: 'no-store' });
     const svg = response.ok ? await response.text() : '';
     return svg.startsWith('<svg') ? svg : null;

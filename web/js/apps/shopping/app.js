@@ -91,7 +91,7 @@ export function mount(root, { services, kiosk, info }) {
 
   info.then(async (details) => {
     if (!details?.url) return;
-    const svg = await fetchQrSvg(id);
+    const svg = await fetchQrSvg({ app: id });
     if (unmounted) return;
     url.textContent = details.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
     if (svg) qr.innerHTML = svg;

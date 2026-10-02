@@ -7,8 +7,33 @@ import unittest
 import urllib.error
 import urllib.request
 
+from board.notes import NotesBoard
 from board.server import BoardServer
 from board.shopping import ShoppingList
+from board.store import ChangeFeed
+from board.weather import WeatherUnavailable
+
+
+class FakeWeather:
+    def __init__(self):
+        self.error = None
+
+    def forecast(self):
+        if self.error:
+            raise WeatherUnavailable(self.error)
+        return {"unit": "F", "current": {"temperature": 70, "code": 0, "is_day": True}, "daily": [], "stale": False}
+
+
+class FakeKiosk:
+    def __init__(self):
+        self.running = True
+        self.closed = threading.Event()
+
+    def is_running(self):
+        return self.running
+
+    def close(self):
+        self.closed.set()
 
 
 class ServerTest(unittest.TestCase):
@@ -23,8 +48,20 @@ class ServerTest(unittest.TestCase):
             f.write("export {};")
         with open(os.path.join(cls.tmp.name, "secret.txt"), "w") as f:
             f.write("do not serve")
-        cls.store = ShoppingList(os.path.join(cls.tmp.name, "data", "shopping.json"))
-        cls.server = BoardServer(("127.0.0.1", 0), cls.store, web_dir=web, location={"latitude": 1.5, "longitude": 2})
+        feed = ChangeFeed()
+        cls.weather = FakeWeather()
+        cls.kiosk = FakeKiosk()
+        cls.server = BoardServer(
+            ("127.0.0.1", 0),
+            shopping=ShoppingList(os.path.join(cls.tmp.name, "data", "shopping.json"), feed=feed),
+            notes=NotesBoard(os.path.join(cls.tmp.name, "data", "notes.json"), feed=feed),
+            feed=feed,
+            weather=cls.weather,
+            kiosk=cls.kiosk,
+            web_dir=web,
+            location={"latitude": 1.5, "longitude": 2},
+        )
+        cls.server.kiosk_close_delay = 0
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.base = "http://127.0.0.1:%d" % cls.server.server_address[1]
@@ -35,11 +72,11 @@ class ServerTest(unittest.TestCase):
         cls.server.server_close()
         cls.tmp.cleanup()
 
-    def request(self, path, body=None, method=None):
+    def request(self, path, body=None, method=None, content_type="application/json"):
         data = None if body is None else json.dumps(body).encode()
         req = urllib.request.Request(self.base + path, data=data, method=method or ("POST" if data else "GET"))
         if data is not None:
-            req.add_header("Content-Type", "application/json")
+            req.add_header("Content-Type", content_type)
         try:
             with urllib.request.urlopen(req, timeout=5) as res:
                 return res.status, res.headers, res.read()
@@ -134,24 +171,89 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.request("/../secret.txt")[0], 404)
         self.assertEqual(self.request("/%2e%2e/secret.txt")[0], 404)
 
-    def test_event_stream_sends_hello_state_and_updates(self):
-        sock = socket.create_connection(self.server.server_address[:2], timeout=5)
+    def test_event_stream_sends_hello_then_each_store_then_updates(self):
+        sock = self._open_stream("/api/events")
         try:
-            sock.sendall(b"GET /api/shopping/events HTTP/1.1\r\nHost: test\r\n\r\n")
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 2)
+            events = self._read_events(stream, 3)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
-            self.assertEqual(events[1][0], "state")
-            version = events[1][1]["version"]
+            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes"})
+            versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/shopping/add", {"name": "live update"})
             name, state = self._read_events(stream, 1)[0]
-            self.assertEqual(name, "state")
-            self.assertGreater(state["version"], version)
+            self.assertEqual(name, "shopping")
+            self.assertGreater(state["version"], versions["shopping"])
             self.assertIn("Live update", [i["name"] for i in state["items"]])
+
+            self.post("/api/notes/add", {"text": "live note"})
+            name, state = self._read_events(stream, 1)[0]
+            self.assertEqual(name, "notes")
+            self.assertIn("live note", [n["text"] for n in state["notes"]])
         finally:
             sock.close()
+
+    def test_old_event_url_still_says_hello_so_old_pages_reload(self):
+        sock = self._open_stream("/api/shopping/events")
+        try:
+            self.assertEqual(self._read_events(sock.makefile("rb"), 1)[0][0], "hello")
+        finally:
+            sock.close()
+
+    def test_notes_add_remove_and_restore(self):
+        status, body = self.post("/api/notes/add", {"text": "Rent is due"})
+        self.assertEqual(status, 200)
+        note_id = body["note"]["id"]
+        status, body = self.post("/api/notes/remove", {"id": note_id})
+        self.assertNotIn(note_id, [n["id"] for n in body["state"]["notes"]])
+        status, body = self.post("/api/notes/restore", {"ids": [note_id]})
+        self.assertEqual(body["restored"], [note_id])
+        status, _, raw = self.request("/api/notes")
+        self.assertIn(note_id, [n["id"] for n in json.loads(raw)["notes"]])
+
+    def test_notes_validation_is_400(self):
+        status, body = self.post("/api/notes/add", {"text": " "})
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"]["message"], "Write something first.")
+
+    def test_weather_forecast(self):
+        status, _, raw = self.request("/api/weather")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw)["current"]["temperature"], 70)
+
+    def test_weather_problems_are_503_with_a_message(self):
+        self.weather.error = "Add your latitude and longitude to config.json to see the weather."
+        try:
+            status, _, raw = self.request("/api/weather")
+        finally:
+            self.weather.error = None
+        self.assertEqual(status, 503)
+        self.assertIn("config.json", json.loads(raw)["error"]["message"])
+
+    def test_kiosk_exit_from_the_pi_closes_the_browser(self):
+        self.kiosk.closed.clear()
+        status, body = self.post("/api/kiosk/exit", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(body, {"closing": True})
+        self.assertTrue(self.kiosk.closed.wait(2))
+
+    def test_kiosk_exit_reports_when_no_kiosk_is_running(self):
+        self.kiosk.running = False
+        try:
+            status, body = self.post("/api/kiosk/exit", {})
+        finally:
+            self.kiosk.running = True
+        self.assertEqual(body, {"closing": False})
+
+    def test_kiosk_exit_only_accepts_json(self):
+        status, _, _ = self.request("/api/kiosk/exit", {}, method="POST", content_type="text/plain")
+        self.assertEqual(status, 415)
+
+    def _open_stream(self, path):
+        sock = socket.create_connection(self.server.server_address[:2], timeout=5)
+        sock.sendall(("GET %s HTTP/1.1\r\nHost: test\r\n\r\n" % path).encode())
+        return sock
 
     @staticmethod
     def _read_events(stream, count):

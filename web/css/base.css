@@ -1,76 +1,5 @@
-/* Tokens, theme, wallpaper and the pieces shared by every screen. */
-
-:root {
-  --font-display: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "DejaVu Sans", sans-serif;
-  --font-emoji: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
-
-  --basil: #1b7f45;
-  --basil-light: #3ccb72;
-  --tomato: #d8443a;
-  --icon-shopping: linear-gradient(155deg, #4fd681 0%, #22a45a 48%, #157a40 100%);
-
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-spring: cubic-bezier(0.34, 1.32, 0.5, 1);
-
-  --status-h: 2.6rem;
-  --gutter: clamp(1rem, 3.4vw, 3.6rem);
-  --kb-h: 0px;
-
-  /* Painted by sky.js from the sun's real position. */
-  --sky-top: #7db1ea;
-  --sky-mid: #bfdaf3;
-  --sky-low: #eef0ea;
-  --glow: #ffffff;
-  --glow-alpha: 0.5;
-  --glow-x: 70%;
-  --glow-y: 24%;
-  --stars: 0;
-
-  color-scheme: light;
-  --text: #0f1d3f;
-  --text-2: rgb(15 29 63 / 0.64);
-  --text-3: rgb(15 29 63 / 0.4);
-  --accent-text: #1b7f45;
-  --surface: rgb(255 255 255 / 0.74);
-  --surface-edge: rgb(255 255 255 / 0.75);
-  --card: #ffffff;
-  --fill: rgb(15 29 63 / 0.06);
-  --fill-strong: rgb(15 29 63 / 0.11);
-  --hairline: rgb(15 29 63 / 0.09);
-  --shadow: 0 0.1rem 0.3rem rgb(16 32 72 / 0.06), 0 1rem 2.8rem rgb(16 32 72 / 0.13);
-  --shadow-sm: 0 0.05rem 0.15rem rgb(16 32 72 / 0.06), 0 0.3rem 1rem rgb(16 32 72 / 0.06);
-  --dock: rgb(255 255 255 / 0.42);
-  --app-bg: #edf1f8;
-  --check: var(--basil);
-  --inverse-bg: #0f1d3f;
-  --inverse-text: #f4f6ff;
-  --inverse-accent: #7ee2a8;
-  --focus: #1b7f45;
-}
-
-[data-theme="dark"] {
-  color-scheme: dark;
-  --text: #f1f3ff;
-  --text-2: rgb(241 243 255 / 0.68);
-  --text-3: rgb(241 243 255 / 0.42);
-  --accent-text: #6ee09c;
-  --surface: rgb(13 18 44 / 0.6);
-  --surface-edge: rgb(255 255 255 / 0.09);
-  --card: #161c3b;
-  --fill: rgb(255 255 255 / 0.07);
-  --fill-strong: rgb(255 255 255 / 0.13);
-  --hairline: rgb(255 255 255 / 0.08);
-  --shadow: 0 0.1rem 0.3rem rgb(0 0 0 / 0.2), 0 1rem 2.8rem rgb(0 0 0 / 0.32);
-  --shadow-sm: 0 0.3rem 1rem rgb(0 0 0 / 0.2);
-  --dock: rgb(255 255 255 / 0.1);
-  --app-bg: #0b1029;
-  --check: var(--basil-light);
-  --inverse-bg: #f1f3ff;
-  --inverse-text: #0f1d3f;
-  --inverse-accent: #1b7f45;
-  --focus: #7ee2a8;
-}
+/* Reset, the board canvas, wallpaper, status bar, app shell, toasts, and the
+   small components shared by every app (add bar, panels, chips, empty states). */
 
 *,
 *::before,
@@ -79,9 +8,6 @@
 }
 
 html {
-  /* Scales with the screen so the board reads from across the room on a TV
-     and still fits a phone. */
-  font-size: clamp(15px, calc(1.1vmin + 0.4vmax), 40px);
   height: 100%;
   -webkit-text-size-adjust: 100%;
 }
@@ -93,6 +19,7 @@ body {
   background: var(--sky-mid);
   color: var(--text);
   font-family: var(--font-body);
+  font-size: var(--fs-body);
   font-optical-sizing: auto;
   line-height: 1.3;
   -webkit-font-smoothing: antialiased;
@@ -120,21 +47,12 @@ input {
 }
 
 :focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
+  outline: 0.2rem solid var(--focus);
+  outline-offset: 0.2rem;
 }
 
 [hidden] {
   display: none !important;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .hide-cursor,
@@ -142,10 +60,17 @@ input {
   cursor: none !important;
 }
 
-.emoji {
-  font-family: var(--font-emoji);
-  font-style: normal;
-  line-height: 1;
+/* Board canvas: 96rem × 54rem (1920×1080 on the Pi), centred if the screen's shape differs.
+   Layout containment makes it the containing block for its fixed-position children. */
+
+.board {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: 96rem;
+  height: 54rem;
+  overflow: hidden;
+  contain: layout;
 }
 
 /* Wallpaper */
@@ -180,6 +105,37 @@ input {
   opacity: var(--stars);
 }
 
+/* Retro scenery: static pixel art (clouds, hills, a brick floor). No animation. */
+.sky__scenery {
+  display: none;
+  position: absolute;
+  inset: 0;
+  image-rendering: pixelated;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 12' shape-rendering='crispEdges'%3E%3Cg fill='%231d1d1d'%3E%3Crect x='4' y='4' width='18' height='8'/%3E%3Crect x='2' y='6' width='22' height='6'/%3E%3Crect x='6' y='2' width='7' height='5'/%3E%3Crect x='11' y='0' width='8' height='7'/%3E%3Crect x='16' y='3' width='5' height='4'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Crect x='5' y='5' width='16' height='6'/%3E%3Crect x='3' y='7' width='20' height='4'/%3E%3Crect x='7' y='3' width='5' height='3'/%3E%3Crect x='12' y='1' width='6' height='5'/%3E%3Crect x='17' y='4' width='3' height='2'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 12' shape-rendering='crispEdges'%3E%3Cg fill='%231d1d1d'%3E%3Crect x='4' y='4' width='18' height='8'/%3E%3Crect x='2' y='6' width='22' height='6'/%3E%3Crect x='6' y='2' width='7' height='5'/%3E%3Crect x='11' y='0' width='8' height='7'/%3E%3Crect x='16' y='3' width='5' height='4'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Crect x='5' y='5' width='16' height='6'/%3E%3Crect x='3' y='7' width='20' height='4'/%3E%3Crect x='7' y='3' width='5' height='3'/%3E%3Crect x='12' y='1' width='6' height='5'/%3E%3Crect x='17' y='4' width='3' height='2'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 20' shape-rendering='crispEdges'%3E%3Cg fill='%231d1d1d'%3E%3Crect x='0' y='13' width='48' height='7'/%3E%3Crect x='5' y='9' width='38' height='5'/%3E%3Crect x='10' y='5' width='28' height='5'/%3E%3Crect x='16' y='1' width='16' height='5'/%3E%3C/g%3E%3Cg fill='%232fa84f'%3E%3Crect x='1' y='14' width='46' height='6'/%3E%3Crect x='6' y='10' width='36' height='5'/%3E%3Crect x='11' y='6' width='26' height='5'/%3E%3Crect x='17' y='2' width='14' height='5'/%3E%3C/g%3E%3Cg fill='%231f7a38'%3E%3Crect x='14' y='15' width='2' height='2'/%3E%3Crect x='30' y='12' width='2' height='2'/%3E%3Crect x='22' y='8' width='2' height='2'/%3E%3Crect x='37' y='16' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 20' shape-rendering='crispEdges'%3E%3Cg fill='%231d1d1d'%3E%3Crect x='0' y='13' width='48' height='7'/%3E%3Crect x='5' y='9' width='38' height='5'/%3E%3Crect x='10' y='5' width='28' height='5'/%3E%3Crect x='16' y='1' width='16' height='5'/%3E%3C/g%3E%3Cg fill='%232fa84f'%3E%3Crect x='1' y='14' width='46' height='6'/%3E%3Crect x='6' y='10' width='36' height='5'/%3E%3Crect x='11' y='6' width='26' height='5'/%3E%3Crect x='17' y='2' width='14' height='5'/%3E%3C/g%3E%3Cg fill='%231f7a38'%3E%3Crect x='14' y='15' width='2' height='2'/%3E%3Crect x='30' y='12' width='2' height='2'/%3E%3Crect x='22' y='8' width='2' height='2'/%3E%3Crect x='37' y='16' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%235a230a'/%3E%3Cg fill='%23c8642b'%3E%3Crect x='0' y='0' width='7' height='7'/%3E%3Crect x='8' y='0' width='7' height='7'/%3E%3Crect x='0' y='8' width='3' height='7'/%3E%3Crect x='4' y='8' width='7' height='7'/%3E%3Crect x='12' y='8' width='4' height='7'/%3E%3C/g%3E%3Cg fill='%23ec9a62'%3E%3Crect x='0' y='0' width='7' height='1'/%3E%3Crect x='8' y='0' width='7' height='1'/%3E%3Crect x='0' y='8' width='3' height='1'/%3E%3Crect x='4' y='8' width='7' height='1'/%3E%3Crect x='12' y='8' width='4' height='1'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat-x;
+  background-size: 10.4rem 4.8rem, 7.8rem 3.6rem, 19.2rem 8rem, 14.4rem 6rem, 3.2rem 3.2rem;
+  background-position:
+    40% 1.6rem,
+    55% 4.4rem,
+    left 3rem bottom 2.6rem,
+    right 4rem bottom 2.6rem,
+    left bottom;
+}
+
+[data-theme="retro"] .sky__scenery {
+  display: block;
+}
+
+[data-theme="retro"] .sky__glow,
+[data-theme="retro"] .sky__stars {
+  display: none;
+}
+
 /* Status bar */
 
 .statusbar {
@@ -191,12 +147,17 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  color: var(--sky-text);
+  text-shadow: var(--sky-text-shadow-sm);
   pointer-events: none;
-  transition: color 0.8s;
+}
+
+.is-app-open .statusbar {
+  color: var(--text);
+  text-shadow: none;
 }
 
 .statusbar__time {
@@ -208,45 +169,87 @@ input {
   opacity: 1;
 }
 
+.statusbar__end {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  pointer-events: auto;
+}
+
 .sync {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 
 .sync svg {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 1.4rem;
+  height: 1.4rem;
 }
 
-.sync[data-status="offline"] {
-  color: #e2584f;
+/* Offline gets a solid pill so the warning reads on any sky. */
+.sync--offline {
+  min-height: var(--hit);
+  padding: 0 1.1rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--card);
+  color: var(--danger);
+  text-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 
-[data-theme="dark"] .sync[data-status="offline"] {
-  color: #ff8d84;
+.sync__label {
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 /* App icons */
 
-.appicon {
+.app-icon {
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
-  border-radius: 23%;
+  border-radius: var(--radius-icon);
+  border: var(--control-border);
   background: var(--icon-bg);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 0.25rem 0.8rem rgb(10 40 20 / 0.22);
 }
 
-.appicon svg {
+[data-theme="retro"] .app-icon {
+  box-shadow: 0.2rem 0.2rem 0 rgb(0 0 0 / 0.3);
+}
+
+.app-icon svg {
   width: 74%;
   height: 74%;
 }
 
-/* App layer */
+/* Item glyphs: emoji for known things, a letter tile otherwise. */
 
-.app-layer {
+.glyph--emoji {
+  font-family: var(--font-emoji);
+  font-style: normal;
+  line-height: 1;
+}
+
+.glyph--letter {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 0.55rem;
+  background: var(--fill);
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* App shell (the full-screen layer apps open in) */
+
+.app-shell {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -255,71 +258,72 @@ input {
   padding-top: var(--status-h);
   overflow: hidden;
   /* A whisper of the current sky at the top ties each app back to the wallpaper. */
-  background: linear-gradient(180deg, color-mix(in srgb, var(--sky-top) 16%, var(--app-bg)) 0, var(--app-bg) 45vh);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sky-top) 16%, var(--app-bg)) 0, var(--app-bg) 22rem);
   background-color: var(--app-bg);
 }
 
-.app__bar {
+[data-theme="retro"] .app-shell {
+  background: var(--app-bg);
+}
+
+.app-shell__bar {
   display: flex;
   align-items: center;
-  padding: 0.35rem var(--gutter) 0;
+  padding: 0.3rem var(--gutter) 0;
 }
 
-.home-button {
+.app-shell__home {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0.5rem 1.15rem 0.5rem 0.85rem;
-  border-radius: 999px;
+  gap: 0.55rem;
+  min-height: var(--hit);
+  padding: 0.5rem 1.3rem 0.5rem 1rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
   background: var(--fill);
   font-weight: 650;
-  font-size: 1.05rem;
-  transition: background-color 0.2s, transform 0.15s var(--ease-out);
+  font-size: var(--fs-body);
 }
 
-.home-button svg {
-  width: 1.15rem;
-  height: 1.15rem;
+.app-shell__home svg {
+  width: 1.3rem;
+  height: 1.3rem;
 }
 
-.home-button:active {
-  transform: scale(0.96);
+.app-shell__home:active {
   background: var(--fill-strong);
 }
 
-.app__body {
+.app-shell__body {
   position: relative;
   flex: 1;
   min-height: 0;
 }
 
-.home-indicator {
+.app-shell__indicator {
   position: absolute;
   left: 50%;
   bottom: env(safe-area-inset-bottom);
   z-index: 5;
   width: 18rem;
-  height: 2.2rem;
+  height: var(--hit);
   transform: translateX(-50%);
   display: grid;
   place-items: center;
   touch-action: none;
 }
 
-.home-indicator::before {
+.app-shell__indicator::before {
   content: "";
   width: 9.5rem;
   height: 0.34rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--text);
-  opacity: 0.32;
-  transition: opacity 0.2s, transform 0.2s var(--ease-out);
+  opacity: 0.4;
 }
 
-.home-indicator:active::before {
-  opacity: 0.6;
-  transform: scaleX(1.08);
+.app-shell__indicator:active::before {
+  opacity: 0.7;
 }
 
 /* Toasts */
@@ -332,11 +336,9 @@ input {
   transform: translateX(-50%);
   display: grid;
   justify-items: center;
-  gap: 0.6rem;
   width: max-content;
-  max-width: calc(100vw - 2rem);
+  max-width: calc(100% - 2rem);
   pointer-events: none;
-  transition: bottom 0.3s var(--ease-out);
 }
 
 .toast {
@@ -344,33 +346,205 @@ input {
   display: flex;
   align-items: center;
   gap: 1.1rem;
-  min-height: 3.4rem;
-  padding: 0.5rem 0.5rem 0.5rem 1.35rem;
-  border-radius: 999px;
+  min-height: 3.6rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.4rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
   background: var(--inverse-bg);
   color: var(--inverse-text);
   font-weight: 600;
-  font-size: 1.08rem;
+  font-size: var(--fs-body);
   box-shadow: var(--shadow);
   animation: toast-in 0.4s var(--ease-spring);
 }
 
 .toast:not(:has(.toast__action)) {
-  padding-right: 1.35rem;
+  padding-right: 1.4rem;
 }
 
 .toast__action {
-  min-height: 2.6rem;
-  padding: 0.45rem 1.1rem;
-  border-radius: 999px;
+  min-height: var(--hit);
+  min-width: var(--hit);
+  padding: 0.45rem 1.2rem;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--inverse-accent) 20%, transparent);
   color: var(--inverse-accent);
   font-weight: 750;
 }
 
-.toast.is-leaving {
+.toast--leaving {
   animation: toast-out 0.22s ease-in forwards;
 }
+
+/* Add bar: the text field + button at the top of the shopping and notes apps. */
+
+.add-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.4rem 0.4rem 0.4rem 1rem;
+  border-radius: var(--radius-panel);
+  border: var(--control-border);
+  background: var(--card);
+  box-shadow: 0 0 0 0.15rem transparent, var(--shadow-sm);
+}
+
+.add-bar:focus-within {
+  box-shadow: 0 0 0 0.15rem var(--check), var(--shadow-sm);
+}
+
+.add-bar.is-nudged {
+  animation: nudge 0.35s ease-in-out;
+}
+
+.add-bar__plus {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--text-2);
+}
+
+.add-bar__plus svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.add-bar__input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--hit);
+  padding: 0.6rem 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-item);
+  font-weight: 560;
+  caret-color: var(--check);
+}
+
+.add-bar__input::placeholder {
+  color: var(--text-3);
+  opacity: 1;
+}
+
+.add-bar__submit {
+  flex: none;
+  min-height: var(--hit);
+  min-width: 6rem;
+  padding: 0.6rem 1.6rem;
+  border-radius: var(--radius-control);
+  border: var(--control-border);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.add-bar__submit:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.add-bar__submit:not(:disabled):active {
+  background: var(--accent-pressed);
+}
+
+/* Panels and chips */
+
+.panel {
+  padding: 1.2rem 1.2rem 1.3rem;
+  border-radius: var(--radius-panel);
+  border: var(--card-border);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel__title {
+  margin: 0 0 0.9rem;
+  font-size: var(--fs-body);
+  font-weight: 750;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--hit);
+  padding: 0.5rem 1.1rem 0.5rem 0.9rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--fill);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip:active {
+  background: var(--fill-strong);
+}
+
+.chip__glyph.glyph--emoji {
+  font-size: 1.3rem;
+}
+
+.chip__glyph.glyph--letter {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.9rem;
+  border-radius: 0.4rem;
+}
+
+/* Empty states */
+
+.empty-state {
+  padding: 4rem 1rem;
+  text-align: center;
+}
+
+.empty-state__art {
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 6rem;
+  margin: 0 auto 1.3rem;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--text-3);
+}
+
+.empty-state__art svg {
+  width: 62%;
+  height: 62%;
+}
+
+.empty-state__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-weight: 650;
+  font-size: var(--fs-empty);
+  letter-spacing: -0.02em;
+}
+
+.empty-state__text {
+  margin: 0.5rem 0 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+}
+
+/* Shared animations (one-shot, never looping) */
 
 @keyframes toast-in {
   from {
@@ -413,20 +587,35 @@ input {
   }
 }
 
-/* Phones get their own status bar from the OS; only show ours when offline. */
-@media (max-width: 760px) {
-  :root {
-    --status-h: calc(0.6rem + env(safe-area-inset-top));
+/* Phones: fill the screen; the OS draws its own status bar, so ours only shows the menu (and offline). */
+@media (max-width: 900px), (max-height: 560px) {
+  .board {
+    width: 100%;
+    height: 100%;
   }
 
   .statusbar {
-    height: calc(2.2rem + env(safe-area-inset-top));
+    height: calc(var(--hit) + 1rem + env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
     justify-content: flex-end;
   }
 
   .statusbar__time,
-  .sync:not([data-status="offline"]) {
+  .sync:not(.sync--offline) {
     display: none;
+  }
+
+  .is-app-open .statusbar {
+    pointer-events: none;
+  }
+
+  .is-app-open .statusbar__end {
+    display: none;
+  }
+
+  .sky__scenery {
+    background-size: 6.5rem 3rem, 4.9rem 2.25rem, 12rem 5rem, 9rem 3.75rem, 2rem 2rem;
+    /* Clouds stay above the date so they never sit behind text. */
+    background-position: left 1rem top 0.6rem, 48% 0.3rem, left 1rem bottom 1.6rem, right 1rem bottom 1.6rem, left bottom;
   }
 }

@@ -4,6 +4,8 @@ import { el, icons, itemGlyph } from './ui.js';
 
 const REPEAT_DELAY_MS = 450;
 const REPEAT_EVERY_MS = 70;
+const PRESS_FLASH_MS = 150;
+const SUGGESTION_COUNT = 3;
 
 // Each row is 23 half-key columns wide; letters span 2.
 const LAYOUTS = {
@@ -21,13 +23,18 @@ const LAYOUTS = {
   ],
 };
 
-export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggle }) {
+const ALT_KEYS = new Set(['backspace', 'shift', 'mode', 'hide']);
+
+export function createKeyboard({ input, enterLabel = 'Add', onEnter, onPick, getSuggestions, onToggle }) {
+  const lifetime = new AbortController();
   let layout = 'letters';
   let shift = true;
   let open = false;
   let repeatTimer = null;
+  let releaseCurrent = null;
 
   const suggestions = el('div', { class: 'keyboard__suggestions' });
+  suggestions.hidden = !getSuggestions;
   const rows = el('div', { class: 'keyboard__rows' });
   const node = el(
     'div',
@@ -39,12 +46,11 @@ export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggl
     rows.replaceChildren(
       ...LAYOUTS[layout].flat().map((spec) => {
         const def = typeof spec === 'string' ? { key: 'char', char: spec } : spec;
-        const span = def.span || 2;
         const button = el('button', {
           type: 'button',
           tabindex: '-1',
-          class: `key key--${def.key}`,
-          style: `--span: ${span}`,
+          class: `keyboard__key keyboard__key--${def.key}${ALT_KEYS.has(def.key) ? ' keyboard__key--alt' : ''}`,
+          style: `--span: ${def.span || 2}`,
           dataset: { key: def.key, char: def.char ?? '' },
         });
         switch (def.key) {
@@ -52,28 +58,24 @@ export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggl
             button.textContent = shift ? def.char.toUpperCase() : def.char;
             break;
           case 'backspace':
-            button.classList.add('key--alt');
             button.innerHTML = icons.backspace;
             button.setAttribute('aria-label', 'Delete');
             break;
           case 'enter':
-            button.textContent = 'Add';
+            button.textContent = enterLabel;
             break;
           case 'shift':
-            button.classList.add('key--alt');
             button.innerHTML = icons.shift;
             button.setAttribute('aria-label', 'Shift');
             button.setAttribute('aria-pressed', String(shift));
             break;
           case 'mode':
-            button.classList.add('key--alt');
             button.textContent = def.label;
             break;
           case 'space':
             button.setAttribute('aria-label', 'Space');
             break;
           case 'hide':
-            button.classList.add('key--alt');
             button.innerHTML = icons.hideKeyboard;
             button.setAttribute('aria-label', 'Hide keyboard');
             break;
@@ -87,14 +89,15 @@ export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggl
   }
 
   function renderSuggestions() {
-    const names = getSuggestions(input.value).slice(0, 3);
+    if (!getSuggestions) return;
+    const names = getSuggestions(input.value).slice(0, SUGGESTION_COUNT);
     suggestions.replaceChildren(
-      ...[0, 1, 2].map((i) => {
+      ...Array.from({ length: SUGGESTION_COUNT }, (_, i) => {
         const name = names[i];
-        const button = el('button', { type: 'button', tabindex: '-1', class: 'suggestion' });
+        const button = el('button', { type: 'button', tabindex: '-1', class: 'keyboard__suggestion' });
         if (name) {
           button.dataset.pick = name;
-          button.append(itemGlyph(name, 'suggestion__glyph'), el('span', { text: name }));
+          button.append(itemGlyph(name, 'keyboard__glyph'), el('span', { class: 'keyboard__suggestion-text', text: name }));
         }
         return button;
       }),
@@ -161,42 +164,54 @@ export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggl
   }
 
   // pointerdown + preventDefault keeps the caret in the text field.
-  node.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    const pick = event.target.closest('[data-pick]');
-    if (pick) {
-      pick.classList.add('is-down');
-      setTimeout(() => pick.classList.remove('is-down'), 150);
-      onPick(pick.dataset.pick);
-      return;
-    }
-    const key = event.target.closest('.key');
-    if (!key || key.disabled) return;
-    key.classList.add('is-down');
-    const release = () => {
-      key.classList.remove('is-down');
-      stopRepeat();
-    };
-    key.addEventListener('pointerup', release, { once: true });
-    key.addEventListener('pointerleave', release, { once: true });
-    key.addEventListener('pointercancel', release, { once: true });
-    press(key.dataset.key, key.dataset.char);
-    if (key.dataset.key === 'backspace') {
-      repeatTimer = setTimeout(() => {
-        repeatTimer = setInterval(backspace, REPEAT_EVERY_MS);
-      }, REPEAT_DELAY_MS);
-    }
-  });
+  node.addEventListener(
+    'pointerdown',
+    (event) => {
+      event.preventDefault();
+      const pick = event.target.closest('[data-pick]');
+      if (pick) {
+        pick.classList.add('keyboard__suggestion--down');
+        setTimeout(() => pick.classList.remove('keyboard__suggestion--down'), PRESS_FLASH_MS);
+        onPick?.(pick.dataset.pick);
+        return;
+      }
+      const key = event.target.closest('.keyboard__key');
+      if (!key || key.disabled) return;
+      releaseCurrent?.();
+      key.classList.add('keyboard__key--down');
+      // One set of release listeners per press, all removed together.
+      const pressListeners = new AbortController();
+      releaseCurrent = () => {
+        key.classList.remove('keyboard__key--down');
+        stopRepeat();
+        pressListeners.abort();
+        releaseCurrent = null;
+      };
+      for (const type of ['pointerup', 'pointerleave', 'pointercancel']) {
+        key.addEventListener(type, () => releaseCurrent?.(), { signal: pressListeners.signal });
+      }
+      press(key.dataset.key, key.dataset.char);
+      if (key.dataset.key === 'backspace') {
+        repeatTimer = setTimeout(() => {
+          repeatTimer = setInterval(backspace, REPEAT_EVERY_MS);
+        }, REPEAT_DELAY_MS);
+      }
+    },
+    { signal: lifetime.signal },
+  );
 
-  input.addEventListener('input', () => {
-    if (!input.value) setShift(true);
-    renderSuggestions();
-  });
-  input.addEventListener('pointerdown', () => show());
-  input.addEventListener('focus', () => show());
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') hide();
-  });
+  const listen = { signal: lifetime.signal };
+  input.addEventListener(
+    'input',
+    () => {
+      if (!input.value) setShift(true);
+      renderSuggestions();
+    },
+    listen,
+  );
+  input.addEventListener('pointerdown', () => show(), listen);
+  input.addEventListener('focus', () => show(), listen);
+  input.addEventListener('keydown', (event) => event.key === 'Escape' && hide(), listen);
 
   function show() {
     if (open) return;
@@ -205,7 +220,7 @@ export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggl
     shift = !input.value;
     renderKeys();
     renderSuggestions();
-    node.classList.add('is-open');
+    node.classList.add('keyboard--open');
     document.documentElement.style.setProperty('--kb-h', `${node.offsetHeight}px`);
     onToggle?.(true);
     if (document.activeElement !== input) input.focus({ preventScroll: true });
@@ -214,8 +229,8 @@ export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggl
   function hide() {
     if (!open) return;
     open = false;
-    stopRepeat();
-    node.classList.remove('is-open');
+    releaseCurrent?.();
+    node.classList.remove('keyboard--open');
     document.documentElement.style.setProperty('--kb-h', '0px');
     onToggle?.(false);
     input.blur();
@@ -231,6 +246,7 @@ export function createKeyboard({ input, onEnter, onPick, getSuggestions, onToggl
     refresh: renderSuggestions,
     destroy() {
       hide();
+      lifetime.abort();
       node.remove();
     },
   };

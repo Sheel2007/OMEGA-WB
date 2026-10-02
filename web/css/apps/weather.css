@@ -1,0 +1,120 @@
+/* Weather widget: now (icon, temperature, conditions) and the next four days. */
+
+.weather-widget__now {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  min-height: 0;
+}
+
+.weather-widget__icon {
+  flex: none;
+  display: grid;
+  width: 5.6rem;
+  height: 5.6rem;
+}
+
+.weather-widget__icon svg,
+.weather-widget__day-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.weather-widget__temp {
+  flex: none;
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-size: 5rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="retro"] .weather-widget__temp {
+  font-size: 3.2rem;
+  letter-spacing: 0;
+}
+
+.weather-widget__details {
+  min-width: 0;
+}
+
+.weather-widget__label {
+  margin: 0;
+  font-size: var(--fs-item);
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.weather-widget__range {
+  margin: 0.3rem 0 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.weather-widget__days {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: auto 0 0;
+  padding: 0.9rem 0 0;
+  list-style: none;
+  border-top: 1px solid var(--hairline);
+}
+
+.weather-widget__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.weather-widget__day-name {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.weather-widget__day-icon {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+}
+
+.weather-widget__day-temps {
+  display: flex;
+  gap: 0.6rem;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.weather-widget__high {
+  font-weight: 700;
+}
+
+.weather-widget__low {
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.weather-widget__message {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 1rem 1rem;
+  text-align: center;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+  .weather-widget__days {
+    margin-top: 1rem;
+  }
+}

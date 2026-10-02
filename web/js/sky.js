@@ -1,9 +1,31 @@
 // The wallpaper is the sky outside: colours follow the real sun, and the
-// widgets switch to their dark look once it sets.
+// widgets switch to their dark look once it sets. The Light, Dark and Retro
+// themes hold the sky still instead.
+import { mixHex } from './color.js';
 
 const RAD = Math.PI / 180;
-// Below this solar elevation (degrees) the board uses its dark theme.
-const DARK_BELOW = 2;
+// Below this solar elevation (degrees) the board uses its dark theme. Chosen so
+// the clock keeps at least 3:1 contrast through sunset (see sky.test.js).
+const DARK_BELOW = 2.75;
+const REPAINT_MS = 60 * 1000;
+
+export const THEME_MODES = ['auto', 'light', 'dark', 'retro'];
+
+// Where the sun "sits" for the themes that don't follow the real one.
+const FIXED_SUN = {
+  light: { elevation: 45, hourAngle: 28, noonElevation: 60 },
+  dark: { elevation: -18, hourAngle: 150, noonElevation: 60 },
+};
+
+const RETRO_SKY = {
+  top: '#5c7ef5',
+  mid: '#5c7ef5',
+  low: '#5c7ef5',
+  glow: '#ffffff',
+  glowAlpha: 0,
+  stars: 0,
+  theme: 'retro',
+};
 // The sun glow fades out here and the night glow takes over.
 const NIGHT_GLOW_BELOW = -7;
 
@@ -41,13 +63,6 @@ export function solarPosition(date, latitude, longitude) {
   return { elevation, hourAngle, noonElevation };
 }
 
-function mix(a, b, t) {
-  const pa = parseInt(a.slice(1), 16);
-  const pb = parseInt(b.slice(1), 16);
-  const channel = (shift) => Math.round(((pa >> shift) & 255) * (1 - t) + ((pb >> shift) & 255) * t);
-  return '#' + ((channel(16) << 16) | (channel(8) << 8) | channel(0)).toString(16).padStart(6, '0');
-}
-
 export function skyAt(elevation) {
   const e = clamp(elevation, KEYFRAMES[0].at, KEYFRAMES[KEYFRAMES.length - 1].at);
   let i = 0;
@@ -56,14 +71,20 @@ export function skyAt(elevation) {
   const b = KEYFRAMES[i + 1];
   const t = (e - a.at) / (b.at - a.at);
   return {
-    top: mix(a.top, b.top, t),
-    mid: mix(a.mid, b.mid, t),
-    low: mix(a.low, b.low, t),
-    glow: mix(a.glow, b.glow, t),
+    top: mixHex(a.top, b.top, t),
+    mid: mixHex(a.mid, b.mid, t),
+    low: mixHex(a.low, b.low, t),
+    glow: mixHex(a.glow, b.glow, t),
     glowAlpha: a.glowA + (b.glowA - a.glowA) * t,
     stars: a.stars + (b.stars - a.stars) * t,
     theme: elevation < DARK_BELOW ? 'dark' : 'light',
   };
+}
+
+export function skyFor(mode, elevation) {
+  if (mode === 'retro') return { ...RETRO_SKY };
+  if (FIXED_SUN[mode]) return skyAt(FIXED_SUN[mode].elevation);
+  return skyAt(elevation);
 }
 
 // getTimezoneOffset() is minutes *behind* UTC, and the sun moves 15° per hour.
@@ -121,13 +142,15 @@ function starField(count = 120) {
   return stars.join(',');
 }
 
-export function startSky({ root = document.documentElement, starsEl, getLocation, getTime = () => new Date() }) {
+export function startSky({ root = document.documentElement, starsEl, getLocation, getTime = () => new Date(), mode = 'auto' }) {
   if (starsEl) starsEl.style.boxShadow = starField();
+  const lifetime = new AbortController();
+  let timer = null;
 
   function paint() {
     const { latitude, longitude } = getLocation();
-    const sun = solarPosition(getTime(), latitude, longitude);
-    const sky = skyAt(sun.elevation);
+    const sun = FIXED_SUN[mode] ?? solarPosition(getTime(), latitude, longitude);
+    const sky = skyFor(mode, sun.elevation);
     const glow = glowPosition(sun);
     const style = root.style;
     style.setProperty('--sky-top', sky.top);
@@ -144,8 +167,26 @@ export function startSky({ root = document.documentElement, starsEl, getLocation
     }
   }
 
+  // Only the real sky moves, so only Auto needs repainting.
+  function schedule() {
+    clearInterval(timer);
+    timer = mode === 'auto' ? setInterval(paint, REPAINT_MS) : null;
+  }
+
   paint();
-  const timer = setInterval(paint, 60 * 1000);
-  document.addEventListener('visibilitychange', () => document.hidden || paint());
-  return { repaint: paint, stop: () => clearInterval(timer) };
+  schedule();
+  document.addEventListener('visibilitychange', () => document.hidden || paint(), { signal: lifetime.signal });
+
+  return {
+    repaint: paint,
+    setMode(next) {
+      mode = THEME_MODES.includes(next) ? next : 'auto';
+      paint();
+      schedule();
+    },
+    stop() {
+      clearInterval(timer);
+      lifetime.abort();
+    },
+  };
 }

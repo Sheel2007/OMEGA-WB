@@ -6,16 +6,17 @@
   --key-alt: #abb3c3;
   --key-text: #0f1d3f;
   --key-shadow: 0 1px 0 rgb(15 29 63 / 0.32);
-  --key-h: clamp(2.6rem, 8.6vh, 4.4rem);
+  --key-border: 0 solid transparent;
+  --key-h: 4.2rem;
 
   position: fixed;
   inset: auto 0 0;
   z-index: 30;
   padding: 0 0.6rem calc(0.6rem + env(safe-area-inset-bottom));
   background: var(--kb-bg);
-  box-shadow: 0 -1px 0 rgb(15 29 63 / 0.08), 0 -0.6rem 2rem rgb(16 32 72 / 0.12);
+  box-shadow: 0 -1px 0 rgb(15 29 63 / 0.08);
   transform: translateY(105%);
-  transition: transform 0.32s var(--ease-out), background-color 0.8s;
+  transition: transform 0.32s var(--ease-out);
 }
 
 [data-theme="dark"] .keyboard {
@@ -26,7 +27,16 @@
   --key-shadow: 0 1px 0 rgb(0 0 0 / 0.45);
 }
 
-.keyboard.is-open {
+[data-theme="retro"] .keyboard {
+  --kb-bg: #3a3a3a;
+  --key: #fff6dc;
+  --key-alt: #c9b98f;
+  --key-text: #1d1d1d;
+  --key-shadow: 0.2rem 0.2rem 0 #1d1d1d;
+  --key-border: 0.15rem solid #1d1d1d;
+}
+
+.keyboard--open {
   transform: none;
 }
 
@@ -42,7 +52,7 @@
   margin-bottom: 0.25rem;
 }
 
-.suggestion {
+.keyboard__suggestion {
   position: relative;
   display: flex;
   align-items: center;
@@ -50,17 +60,17 @@
   gap: 0.5rem;
   min-width: 0;
   padding: 0 0.8rem;
-  color: var(--key-text);
-  font-size: 1.2rem;
-  font-weight: 600;
   border-radius: 0.7rem;
+  color: var(--key-text);
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 
-.suggestion:empty {
+.keyboard__suggestion:empty {
   pointer-events: none;
 }
 
-.suggestion + .suggestion::before {
+.keyboard__suggestion + .keyboard__suggestion::before {
   content: "";
   position: absolute;
   left: 0;
@@ -70,14 +80,27 @@
   background: color-mix(in srgb, var(--key-text) 22%, transparent);
 }
 
-.suggestion span:last-child {
+.keyboard__suggestion-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.suggestion.is-down {
+.keyboard__suggestion--down {
   background: color-mix(in srgb, var(--key-text) 10%, transparent);
+}
+
+.keyboard__glyph.glyph--emoji {
+  flex: none;
+  font-size: 1.4rem;
+}
+
+.keyboard__glyph.glyph--letter {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.9rem;
+  border-radius: 0.45rem;
 }
 
 .keyboard__rows {
@@ -87,67 +110,59 @@
   gap: 0.5rem 0.42rem;
 }
 
-.key {
+.keyboard__key {
   grid-column: span var(--span, 2);
   display: grid;
   place-items: center;
   border-radius: 0.7rem;
+  border: var(--key-border);
   background: var(--key);
   color: var(--key-text);
   box-shadow: var(--key-shadow);
-  font-size: 1.55rem;
+  font-size: 1.6rem;
   font-weight: 450;
   touch-action: none;
 }
 
-.key svg {
-  width: 1.55rem;
-  height: 1.55rem;
+[data-theme="retro"] .keyboard__key {
+  border-radius: 0;
 }
 
-.key--alt {
+.keyboard__key svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.keyboard__key--alt {
   background: var(--key-alt);
-  font-size: 1.1rem;
+  font-size: var(--fs-body);
   font-weight: 650;
 }
 
-.key--enter {
-  background: var(--basil);
-  color: #fff;
-  font-size: 1.2rem;
+.keyboard__key--enter {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-body);
   font-weight: 700;
 }
 
-.key--shift[aria-pressed="true"] {
+.keyboard__key--shift[aria-pressed="true"] {
   background: var(--key);
 }
 
-.key.is-down {
+.keyboard__key--down {
   background: var(--key-alt);
 }
 
-.key--alt.is-down,
-.key--shift[aria-pressed="true"].is-down {
+.keyboard__key--alt.keyboard__key--down,
+.keyboard__key--shift[aria-pressed="true"].keyboard__key--down {
   background: var(--key);
 }
 
-.key--enter.is-down {
-  background: #146536;
+.keyboard__key--enter.keyboard__key--down {
+  background: var(--accent-pressed);
 }
 
-.key--spacer {
+.keyboard__key--spacer {
   visibility: hidden;
-}
-
-.suggestion .emoji {
-  flex: none;
-  font-size: 1.35rem;
-}
-
-.suggestion .letter {
-  flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  font-size: 0.85rem;
-  border-radius: 0.45rem;
 }

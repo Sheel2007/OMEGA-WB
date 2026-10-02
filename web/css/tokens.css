@@ -1,0 +1,227 @@
+/* Design tokens and the three themes (light, dark, retro).
+   Components only use these variables, so a theme is just a set of values. */
+
+/* The board is designed on a 1920×1080 canvas where 1rem = 20px (96rem × 54rem).
+   On the Pi that's exact; other screens scale it to fit. Phones use 16px and the compact layout. */
+html {
+  font-size: min(calc(100vw / 96), calc(100vh / 54));
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+:root {
+  --font-display: "Bricolage Grotesque", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "DejaVu Sans", sans-serif;
+  --font-emoji: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-title: var(--font-body);
+  --display-stretch: 82%;
+
+  /* Type scale. Nothing on the board is smaller than --fs-caption (20px). */
+  --fs-caption: 1rem;
+  --fs-body: 1.2rem;
+  --fs-item: 1.4rem;
+  --fs-title: 1.6rem;
+  --fs-heading: 3rem;
+  --fs-empty: 2.1rem;
+
+  /* Smallest touch target: 60px on the board, 48px on phones. */
+  --hit: 3rem;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.5, 1);
+
+  --status-h: 3.6rem;
+  --gutter: 2.4rem;
+  --kb-h: 0px;
+
+  --radius-card: 1.9rem;
+  --radius-panel: 1.4rem;
+  --radius-control: 1rem;
+  --radius-pill: 999px;
+  --radius-icon: 23%;
+  --card-border: 0 solid transparent;
+  --control-border: 0 solid transparent;
+
+  /* Painted by sky.js. */
+  --sky-top: #7db1ea;
+  --sky-mid: #bfdaf3;
+  --sky-low: #eef0ea;
+  --glow: #ffffff;
+  --glow-alpha: 0.5;
+  --glow-x: 70%;
+  --glow-y: 24%;
+  --stars: 0;
+
+  --icon-shopping: linear-gradient(155deg, #4fd681 0%, #22a45a 48%, #157a40 100%);
+  --icon-notes: linear-gradient(155deg, #ffd66b 0%, #f4b323 55%, #d98f0f 100%);
+  --icon-weather: linear-gradient(160deg, #74bcff 0%, #2f7de1 100%);
+}
+
+/* Light (also the default) */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --text: #0f1d3f;
+  --text-2: #46506a;
+  --text-3: #5b6580;
+  --line: #7c86a2;
+  --card: #ffffff;
+  /* Near-opaque instead of blurred glass: readable over any sky, cheap for the Pi's GPU. */
+  --surface: rgb(255 255 255 / 0.9);
+  --fill: rgb(15 29 63 / 0.07);
+  --fill-strong: rgb(15 29 63 / 0.13);
+  --hairline: rgb(15 29 63 / 0.12);
+  --accent: #1b7f45;
+  --accent-pressed: #146536;
+  --on-accent: #ffffff;
+  --accent-text: #17703c;
+  --check: #1b7f45;
+  --danger: #b42318;
+  --app-bg: #edf1f8;
+  --dock: rgb(255 255 255 / 0.6);
+  --shadow: 0 0.1rem 0.3rem rgb(16 32 72 / 0.06), 0 1rem 2.8rem rgb(16 32 72 / 0.13);
+  --shadow-sm: 0 0.05rem 0.15rem rgb(16 32 72 / 0.06), 0 0.3rem 1rem rgb(16 32 72 / 0.06);
+  --focus: #1b7f45;
+  --inverse-bg: #0f1d3f;
+  --inverse-text: #f4f6ff;
+  --inverse-accent: #7ee2a8;
+  --sky-text: #0f1d3f;
+  --sky-text-shadow: none;
+  --sky-text-shadow-sm: none;
+
+  --note-text: #2a2412;
+  --note-yellow: #fff1a8;
+  --note-pink: #ffd9e5;
+  --note-blue: #d6e9ff;
+  --note-green: #d6f5dd;
+
+  --wx-sun: #f2a51a;
+  --wx-moon: #e9b928;
+  --wx-cloud: #eef2f9;
+  --wx-cloud-edge: #66718e;
+  --wx-rain: #2f7de1;
+  --wx-snow: #4c95e0;
+  --wx-bolt: #f5b301;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --text: #f1f3ff;
+  --text-2: #c4c9dd;
+  --text-3: #a7aec8;
+  --line: #8a92b0;
+  --card: #161c3b;
+  --surface: rgb(20 26 56 / 0.92);
+  --fill: rgb(255 255 255 / 0.08);
+  --fill-strong: rgb(255 255 255 / 0.15);
+  --hairline: rgb(255 255 255 / 0.12);
+  --accent-text: #6ee09c;
+  --check: #3ccb72;
+  --danger: #ff9a91;
+  --app-bg: #0b1029;
+  --dock: rgb(255 255 255 / 0.12);
+  --shadow: 0 0.1rem 0.3rem rgb(0 0 0 / 0.2), 0 1rem 2.8rem rgb(0 0 0 / 0.32);
+  --shadow-sm: 0 0.3rem 1rem rgb(0 0 0 / 0.2);
+  --focus: #7ee2a8;
+  --inverse-bg: #f1f3ff;
+  --inverse-text: #0f1d3f;
+  --inverse-accent: #1b7f45;
+  --sky-text: #f1f3ff;
+
+  --note-text: #17140a;
+  --note-yellow: #d8c46a;
+  --note-pink: #dba9bb;
+  --note-blue: #a6c3e6;
+  --note-green: #a9d5b3;
+
+  --wx-moon: #f3d36b;
+  --wx-cloud: #3a4370;
+  --wx-cloud-edge: #b3bbd6;
+  --wx-rain: #7ab6ff;
+  --wx-snow: #d4e6ff;
+}
+
+/* Retro: an original 8-bit platformer look. Flat colours, hard pixel shadows, no rounding. */
+:root[data-theme="retro"] {
+  color-scheme: light;
+  --font-display: "Press Start 2P", ui-monospace, monospace;
+  --font-body: "Pixelify Sans", "Figtree", ui-sans-serif, sans-serif;
+  --font-title: var(--font-display);
+  --display-stretch: 100%;
+  --fs-title: 1.2rem;
+  --fs-heading: 2.2rem;
+  --fs-empty: 1.4rem;
+
+  --radius-card: 0;
+  --radius-panel: 0;
+  --radius-control: 0;
+  --radius-pill: 0;
+  --radius-icon: 0;
+  --card-border: 0.3rem solid #1d1d1d;
+  --control-border: 0.2rem solid #1d1d1d;
+
+  --text: #1d1d1d;
+  --text-2: #3a3a3a;
+  --text-3: #4d4d4d;
+  --line: #1d1d1d;
+  --card: #fff6dc;
+  --surface: #fff6dc;
+  --fill: rgb(29 29 29 / 0.08);
+  --fill-strong: rgb(29 29 29 / 0.16);
+  --hairline: rgb(29 29 29 / 0.3);
+  --accent: #c8321f;
+  --accent-pressed: #9e2414;
+  --on-accent: #ffffff;
+  --accent-text: #a32617;
+  --check: #2b8a3e;
+  --danger: #a32617;
+  --app-bg: #a8bbff;
+  --dock: #fff6dc;
+  --shadow: 0.5rem 0.5rem 0 rgb(0 0 0 / 0.35);
+  --shadow-sm: 0.3rem 0.3rem 0 rgb(0 0 0 / 0.3);
+  --focus: #c8321f;
+  --inverse-bg: #1d1d1d;
+  --inverse-text: #fff6dc;
+  --inverse-accent: #ffd23f;
+  --sky-text: #ffffff;
+  --sky-text-shadow: 0.3rem 0.3rem 0 #1d1d1d;
+  --sky-text-shadow-sm: 0.12rem 0.12rem 0 #1d1d1d;
+
+  --icon-shopping: #2b8a3e;
+  --icon-notes: #e8a40c;
+  --icon-weather: #3d6cf0;
+
+  --note-text: #1d1d1d;
+  --note-yellow: #ffe066;
+  --note-pink: #ffa8c9;
+  --note-blue: #9ccfff;
+  --note-green: #a3e6a3;
+
+  --wx-sun: #ffb300;
+  --wx-moon: #ffd23f;
+  --wx-cloud: #ffffff;
+  --wx-cloud-edge: #1d1d1d;
+  --wx-rain: #2f6ff0;
+  --wx-snow: #2f6ff0;
+  --wx-bolt: #ffd23f;
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+  :root {
+    --status-h: calc(0.75rem + env(safe-area-inset-top));
+    --gutter: 1rem;
+    --fs-item: 1.25rem;
+    --fs-body: 1.1rem;
+  }
+
+  /* Retro keeps its own (pixel-font) sizes and square corners. */
+  :root:not([data-theme="retro"]) {
+    --fs-heading: 2.3rem;
+    --fs-title: 1.3rem;
+    --radius-card: 1.6rem;
+  }
+}

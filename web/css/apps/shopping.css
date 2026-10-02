@@ -1,0 +1,512 @@
+/* Shopping list: the full-screen app (.shopping-app, .check-list, .phone-link)
+   and the home-screen widget (.shopping-widget). */
+
+/* App layout */
+
+.shopping-app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 26rem;
+  column-gap: 3rem;
+  padding: 0 var(--gutter);
+}
+
+.shopping-app__main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shopping-app__header {
+  margin: 0.9rem 0 1.2rem;
+}
+
+.shopping-app__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-weight: 700;
+  font-size: var(--fs-heading);
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+[data-theme="retro"] .shopping-app__title {
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.shopping-app__meta {
+  margin: 0.5rem 0 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.shopping-app__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.2rem 0 calc(4.5rem + var(--kb-h));
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.shopping-app__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.shopping-app__overflow {
+  margin: 0.8rem 0 0 1.2rem;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.shopping-app__done {
+  margin-top: 1.8rem;
+}
+
+.shopping-app__done-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.2rem 0.5rem 1.2rem;
+}
+
+.shopping-app__done-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.shopping-app__clear {
+  min-height: var(--hit);
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--radius-pill);
+  color: var(--accent-text);
+  font-weight: 700;
+  font-size: var(--fs-body);
+}
+
+.shopping-app__clear:active {
+  background: var(--fill);
+}
+
+.shopping-app__side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.9rem 0 calc(4.5rem + var(--kb-h));
+  scrollbar-width: none;
+}
+
+/* Check list: a card of rows you tick off. */
+
+.check-list {
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  border-radius: var(--radius-panel);
+  border: var(--card-border);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.check-list--quiet {
+  background: color-mix(in srgb, var(--card) 62%, transparent);
+  box-shadow: none;
+}
+
+.check-list__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 4rem;
+  border-radius: var(--radius-control);
+}
+
+.check-list__item + .check-list__item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 4.6rem;
+  right: 1.2rem;
+  height: 1px;
+  background: var(--hairline);
+}
+
+.check-list__item.is-flashing {
+  animation: flash 1.4s var(--ease-out);
+}
+
+.check-list__toggle {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--hit);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem 0 0.7rem 1.2rem;
+  text-align: left;
+}
+
+.check-list__check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: 0.15rem solid var(--line);
+  transition: background-color 0.25s, border-color 0.25s;
+}
+
+[data-theme="retro"] .check-list__check {
+  border-radius: 0;
+}
+
+.check-list__check svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  color: #ffffff;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset 0.3s 0.05s var(--ease-out);
+}
+
+.check-list__item--done .check-list__check {
+  background: var(--check);
+  border-color: var(--check);
+}
+
+.check-list__item--done .check-list__check svg {
+  stroke-dashoffset: 0;
+}
+
+.check-list__glyph.glyph--emoji {
+  flex: none;
+  width: 2.2rem;
+  font-size: 1.7rem;
+  text-align: center;
+}
+
+.check-list__glyph.glyph--letter {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1.1rem;
+}
+
+.check-list__name {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-item);
+  font-weight: 560;
+  transition: color 0.3s;
+}
+
+/* Strike-through that draws across the name when an item is bought. */
+.check-list__name::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 54%;
+  width: 100%;
+  height: 0.12rem;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.35s var(--ease-out);
+}
+
+.check-list__item--done .check-list__name {
+  color: var(--text-3);
+}
+
+.check-list__item--done .check-list__name::after {
+  transform: scaleX(1);
+}
+
+.check-list__remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  margin-right: 0.25rem;
+  border-radius: var(--radius-control);
+  color: var(--text-3);
+}
+
+.check-list__remove svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.check-list__remove:active {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+/* "On your phone" panel */
+
+.phone-link {
+  display: grid;
+  grid-template-columns: minmax(6rem, 42%) 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+.phone-link__qr {
+  aspect-ratio: 1;
+  padding: 0.3rem;
+  border-radius: 0.9rem;
+  background: #ffffff;
+  color: #0f1d3f;
+}
+
+/* Still high-contrast enough to scan, but not a white glare at night. */
+[data-theme="dark"] .phone-link__qr {
+  background: #dfe3ee;
+}
+
+.phone-link__qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.phone-link__text {
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: 1.38;
+  color: var(--text-2);
+}
+
+.phone-link__url {
+  margin: 0.55rem 0 0;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Widget */
+
+.shopping-widget__list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.shopping-widget__item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 3.4rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.shopping-widget__ring {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  margin-left: -0.65rem;
+}
+
+.shopping-widget__ring::before {
+  content: "";
+  grid-area: 1 / 1;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 0.15rem solid var(--line);
+  transition: background-color 0.25s, border-color 0.25s;
+}
+
+[data-theme="retro"] .shopping-widget__ring::before {
+  border-radius: 0;
+}
+
+.shopping-widget__ring svg {
+  grid-area: 1 / 1;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #ffffff;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset 0.3s 0.05s var(--ease-out);
+}
+
+.shopping-widget__item--done .shopping-widget__ring::before {
+  background: var(--check);
+  border-color: var(--check);
+}
+
+.shopping-widget__item--done .shopping-widget__ring svg {
+  stroke-dashoffset: 0;
+}
+
+.shopping-widget__glyph.glyph--emoji {
+  flex: none;
+  width: 2rem;
+  font-size: 1.6rem;
+  text-align: center;
+}
+
+.shopping-widget__glyph.glyph--letter {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+}
+
+.shopping-widget__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-item);
+  font-weight: 560;
+}
+
+.shopping-widget__item--done .shopping-widget__name {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.12rem;
+}
+
+.shopping-widget__more {
+  margin: 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--hairline);
+  font-size: var(--fs-body);
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.shopping-widget__empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 2rem;
+}
+
+.shopping-widget__empty-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-weight: 650;
+  font-size: var(--fs-empty);
+  letter-spacing: -0.02em;
+}
+
+.shopping-widget__empty-text {
+  margin: 0.4rem 0 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+}
+
+/* While typing on a short screen, make room for the keyboard. */
+@media (max-height: 620px) {
+  .is-typing .app-shell__bar,
+  .is-typing .shopping-app__header {
+    display: none;
+  }
+}
+
+/* Phones: one scrolling column, Buy again just under the add bar. */
+@media (max-width: 900px), (max-height: 560px) {
+  .shopping-app {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  .shopping-app__main {
+    display: contents;
+  }
+
+  .shopping-app__header,
+  .add-bar,
+  .shopping-app__side,
+  .shopping-app__scroll {
+    flex-shrink: 0;
+    min-height: auto;
+  }
+
+  .shopping-app__header {
+    order: 1;
+    margin-top: 0.6rem;
+  }
+
+  .shopping-app .add-bar {
+    order: 2;
+    position: sticky;
+    top: 0.5rem;
+    z-index: 3;
+  }
+
+  .shopping-app__side {
+    order: 3;
+    overflow: visible;
+    padding: 1rem 0 0;
+  }
+
+  .shopping-app__scroll {
+    order: 4;
+    flex: none;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .panel--again {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .panel--again .panel__title {
+    margin: 0 0 0.6rem 0.2rem;
+    color: var(--text-2);
+  }
+
+  .panel--again .chip-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: 0 calc(var(--gutter) * -1);
+    padding: 0 var(--gutter) 0.3rem;
+    scrollbar-width: none;
+  }
+
+  .panel--phone {
+    display: none;
+  }
+
+  .check-list__item {
+    min-height: 3.5rem;
+  }
+}

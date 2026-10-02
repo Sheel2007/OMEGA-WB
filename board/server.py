@@ -11,7 +11,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from . import qr
-from .shopping import NotFound, ValidationError
+from .kiosk import is_local_address
+from .store import NotFound, ValidationError
+from .weather import WeatherUnavailable
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +22,8 @@ WEB_DIR = os.path.join(ROOT, "web")
 MAX_BODY_BYTES = 16 * 1024
 # Keeps idle event streams alive through routers and lets dead ones get noticed.
 EVENT_PING_SECONDS = 15
+# Lets the "Exit to desktop" response reach the browser before the browser closes.
+KIOSK_CLOSE_DELAY_SECONDS = 0.5
 
 
 class RequestError(Exception):
@@ -46,14 +50,23 @@ class BoardServer(ThreadingHTTPServer):
     block_on_close = False
     allow_reuse_address = True
 
-    def __init__(self, address, store, web_dir=WEB_DIR, location=None):
-        self.store = store
+    def __init__(self, address, *, shopping, notes, feed, weather, kiosk, web_dir=WEB_DIR, location=None):
+        self.shopping = shopping
+        self.notes = notes
+        self.feed = feed
+        self.weather = weather
+        self.kiosk = kiosk
+        self.kiosk_close_delay = KIOSK_CLOSE_DELAY_SECONDS
         self.web_dir = web_dir
         self.location = location
         self.boot_id = uuid.uuid4().hex[:8]
         self.stopping = threading.Event()
         self._qr_cache = (None, None)
         super().__init__(address, BoardHandler)
+
+    def live_stores(self):
+        """Stores whose state is pushed over /api/events, by event name."""
+        return {"shopping": self.shopping, "notes": self.notes}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -69,9 +82,12 @@ class BoardServer(ThreadingHTTPServer):
             self._qr_cache = (url, qr.to_svg(url))
         return self._qr_cache[1]
 
-    def shutdown(self):
+    def wake_streams(self):
         self.stopping.set()
-        self.store.wake_waiters()
+        self.feed.wake()
+
+    def shutdown(self):
+        self.wake_streams()
         super().shutdown()
 
 
@@ -92,8 +108,12 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/health": "health",
         "/api/info": "info",
         "/api/qr.svg": "qr_code",
+        "/api/events": "events",
+        # Pages loaded before the update listen here; "hello" tells them to reload.
+        "/api/shopping/events": "events",
         "/api/shopping": "shopping_state",
-        "/api/shopping/events": "shopping_events",
+        "/api/notes": "notes_state",
+        "/api/weather": "weather_forecast",
     }
     POST_ROUTES = {
         "/api/shopping/add": "shopping_add",
@@ -101,6 +121,10 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/shopping/remove": "shopping_remove",
         "/api/shopping/restore": "shopping_restore",
         "/api/shopping/clear-checked": "shopping_clear_checked",
+        "/api/notes/add": "notes_add",
+        "/api/notes/remove": "notes_remove",
+        "/api/notes/restore": "notes_restore",
+        "/api/kiosk/exit": "kiosk_exit",
     }
 
     def __init__(self, request, client_address, server):
@@ -156,46 +180,82 @@ class BoardHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def shopping_state(self):
-        self._send_json(HTTPStatus.OK, self.server.store.snapshot())
+        self._send_json(HTTPStatus.OK, self.server.shopping.snapshot())
 
-    def shopping_events(self):
+    def notes_state(self):
+        self._send_json(HTTPStatus.OK, self.server.notes.snapshot())
+
+    def weather_forecast(self):
+        try:
+            forecast = self.server.weather.forecast()
+        except WeatherUnavailable as err:
+            return self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, str(err))
+        self._send_json(HTTPStatus.OK, forecast)
+
+    def events(self):
+        """One stream for every screen: the state of each store now, then again whenever it changes."""
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.close_connection = True
-        version = None
+        feed = self.server.feed
+        sent = {}
         try:
             self._send_event("hello", {"boot": self.server.boot_id})
+            seq = feed.seq
             while not self.server.stopping.is_set():
-                state = self.server.store.wait_for_change(version, timeout=EVENT_PING_SECONDS)
-                if self.server.stopping.is_set():
-                    break
-                if state["version"] != version:
-                    version = state["version"]
-                    self._send_event("state", state)
-                else:
+                for name, store in self.server.live_stores().items():
+                    state = store.snapshot()
+                    if state["version"] != sent.get(name):
+                        sent[name] = state["version"]
+                        self._send_event(name, state)
+                latest = feed.wait(seq, timeout=EVENT_PING_SECONDS)
+                if latest == seq and not self.server.stopping.is_set():
                     self.wfile.write(b": ping\n\n")
                     self.wfile.flush()
+                seq = latest
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, socket.timeout):
             pass
 
     # Write endpoints
 
     def shopping_add(self, body):
-        return self.server.store.add(body.get("name"), item_id=body.get("id"))
+        return self.server.shopping.add(body.get("name"), item_id=body.get("id"))
 
     def shopping_check(self, body):
-        return self.server.store.check(body.get("id"), body.get("done", True))
+        return self.server.shopping.check(body.get("id"), body.get("done", True))
 
     def shopping_remove(self, body):
-        return self.server.store.remove(body.get("id"))
+        return self.server.shopping.remove(body.get("id"))
 
     def shopping_restore(self, body):
-        return self.server.store.restore(body.get("ids"))
+        return self.server.shopping.restore(body.get("ids"))
 
     def shopping_clear_checked(self, body):
-        return self.server.store.clear_checked()
+        return self.server.shopping.clear_checked()
+
+    def notes_add(self, body):
+        return self.server.notes.add(body.get("text"), note_id=body.get("id"))
+
+    def notes_remove(self, body):
+        return self.server.notes.remove(body.get("id"))
+
+    def notes_restore(self, body):
+        return self.server.notes.restore(body.get("ids"))
+
+    def kiosk_exit(self, body):
+        if not is_local_address(self.client_address[0]):
+            raise RequestError(HTTPStatus.FORBIDDEN, "Only the board's own screen can exit kiosk mode.")
+        # A plain form on some other web page can't send JSON, so this can't be triggered cross-site.
+        if self.headers.get_content_type() != "application/json":
+            raise RequestError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Send this as JSON.")
+        running = self.server.kiosk.is_running()
+        if running:
+            timer = threading.Timer(self.server.kiosk_close_delay, self.server.kiosk.close)
+            timer.daemon = True
+            timer.start()
+        return {"closing": running}
 
     # Helpers
 

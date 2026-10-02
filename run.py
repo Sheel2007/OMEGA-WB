@@ -11,8 +11,12 @@ import os
 import signal
 import sys
 
+from board.kiosk import Kiosk
+from board.notes import NotesBoard
 from board.server import ROOT, BoardServer, lan_address
 from board.shopping import ShoppingList
+from board.store import ChangeFeed
+from board.weather import WeatherService
 
 DEFAULT_PORT = 8080
 
@@ -31,20 +35,38 @@ def location_from(config):
     return None
 
 
+def weather_from(config, location):
+    unit = config.get("units", "celsius")
+    try:
+        return WeatherService(location, unit)
+    except ValueError as err:
+        logging.warning("%s Using celsius.", err)
+        return WeatherService(location)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run the Widget Board server.")
     parser.add_argument("--host", default="0.0.0.0", help="address to listen on (default: all interfaces)")
     parser.add_argument("--port", type=int, help="port to listen on (default: config.json or %d)" % DEFAULT_PORT)
     parser.add_argument("--config", default=os.path.join(ROOT, "config.json"))
-    parser.add_argument("--data", default=os.path.join(ROOT, "data"), help="folder for saved lists")
+    parser.add_argument("--data", default=os.path.join(ROOT, "data"), help="folder for the saved list and notes")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     config = load_config(args.config)
     port = args.port or config.get("port") or DEFAULT_PORT
 
-    store = ShoppingList(os.path.join(args.data, "shopping.json"))
-    server = BoardServer((args.host, port), store, location=location_from(config))
+    location = location_from(config)
+    feed = ChangeFeed()
+    server = BoardServer(
+        (args.host, port),
+        shopping=ShoppingList(os.path.join(args.data, "shopping.json"), feed=feed),
+        notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
+        feed=feed,
+        weather=weather_from(config, location),
+        kiosk=Kiosk(),
+        location=location,
+    )
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -56,8 +78,7 @@ def main():
     except (KeyboardInterrupt, SystemExit):
         pass
     finally:
-        server.stopping.set()
-        store.wake_waiters()
+        server.wake_streams()
         server.server_close()
 
 

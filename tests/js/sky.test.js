@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { solarPosition, skyAt, longitudeFromOffset, parseTimeOverride } from '../../web/js/sky.js';
+import { solarPosition, skyAt, skyFor, longitudeFromOffset, parseTimeOverride, THEME_MODES } from '../../web/js/sky.js';
+import { contrastRatio, mixHex } from '../../web/js/color.js';
 
 test('sun is high at midsummer noon and below the horizon at midnight', () => {
   const noon = solarPosition(new Date('2026-06-21T12:02:00Z'), 40, 0);
@@ -47,4 +48,34 @@ test('parseTimeOverride understands HH:MM for previewing other times of day', ()
   assert.equal(at.getMinutes(), 45);
   assert.equal(parseTimeOverride('nope', base), null);
   assert.equal(parseTimeOverride(null, base), null);
+});
+
+test('the clock stays readable against the sky at every sun height (WCAG AA large text, 3:1)', () => {
+  const text = { light: '#0f1d3f', dark: '#f1f3ff' };
+  for (let elevation = -20; elevation <= 90; elevation += 0.25) {
+    const sky = skyAt(elevation);
+    // The clock covers roughly the top 70% of the way from the sky's top colour to its middle colour.
+    for (const t of [0, 0.25, 0.5, 0.72]) {
+      const behind = mixHex(sky.top, sky.mid, t);
+      const ratio = contrastRatio(text[sky.theme], behind);
+      assert.ok(ratio >= 3, `${sky.theme} clock on ${behind} at ${elevation}° is only ${ratio.toFixed(2)}:1`);
+    }
+  }
+});
+
+test('skyFor follows the sun in auto mode and holds still otherwise', () => {
+  assert.deepEqual(skyFor('auto', -10), skyAt(-10));
+  assert.equal(skyFor('light', -10).theme, 'light');
+  assert.equal(skyFor('light', -10).stars, 0);
+  assert.equal(skyFor('dark', 60).theme, 'dark');
+  assert.ok(skyFor('dark', 60).stars > 0.8);
+  assert.equal(skyFor('retro', -10).theme, 'retro');
+  assert.deepEqual(skyFor('mystery', 20), skyAt(20));
+  assert.deepEqual(THEME_MODES, ['auto', 'light', 'dark', 'retro']);
+});
+
+test('contrastRatio and mixHex follow the WCAG maths', () => {
+  assert.equal(contrastRatio('#000000', '#ffffff').toFixed(1), '21.0');
+  assert.equal(contrastRatio('#777777', '#777777'), 1);
+  assert.equal(mixHex('#000000', '#ffffff', 0.5), '#808080');
 });

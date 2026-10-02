@@ -146,6 +146,8 @@ for (const [emoji, ...keys] of GROUPS) {
 }
 MULTI.sort((a, b) => b.length - a.length);
 
+// Names seen on the board, newest last. Bounded so weeks of uptime can't grow it forever.
+const CACHE_LIMIT = 500;
 const cache = new Map();
 
 function simplify(text) {
@@ -183,6 +185,7 @@ export function emojiFor(name) {
       }
     }
   }
+  if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value);
   cache.set(name, found);
   return found;
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Opens the board full screen in Chromium (no tabs, no address bar).
 # install.sh makes this run automatically when the Pi's desktop starts.
-# To leave kiosk mode for maintenance, press Alt+F4.
+# To leave kiosk mode, use "Exit to desktop" in the board's menu (or press Alt+F4).
 set -u
 
 PORT="${WIDGET_BOARD_PORT:-8080}"

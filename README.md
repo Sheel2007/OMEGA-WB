@@ -5,9 +5,16 @@ looks like an iPad home screen: a big clock, widgets, and a dock of apps. The
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-The first app is a **shopping list**. Anyone can add to it on the board's
-touchscreen or from their phone (scan the QR code in the app). Changes show
-up everywhere instantly.
+It has three widgets:
+
+- **Shopping list.** Anyone can add to it on the board's touchscreen or from
+  their phone (scan the QR code in the app). Changes show up everywhere instantly.
+- **Notes.** Sticky notes for everyone at home ("Rent is due Friday").
+- **Weather.** Today and the next four days, from [Open-Meteo](https://open-meteo.com) (free, no account).
+
+The menu button in the top-right corner switches the theme (Auto, Light, Dark,
+or Retro, an 8-bit look), adds and removes widgets, and on the board itself
+exits full screen.
 
 Everything runs on what ships with Raspberry Pi OS: a small Python server
 (standard library only) and plain HTML/CSS/JS. There's nothing to install
@@ -32,7 +39,11 @@ After the reboot, the board opens full screen by itself. The install script:
 - installs the color emoji font used for item icons
 - turns off screen blanking so the board stays on
 
-To get out of kiosk mode for maintenance, press **Alt+F4** with a keyboard plugged in.
+- adds **Widget Board** to the Pi's app menu, for reopening the board after you exit it
+
+To get out of kiosk mode for maintenance, open the menu (top right) and tap
+**Exit to desktop** twice. You can also press **Alt+F4** with a keyboard plugged in.
+To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot.
 
 ## Using it
 
@@ -44,6 +55,11 @@ To get out of kiosk mode for maintenance, press **Alt+F4** with a keyboard plugg
   same Wi-Fi.
 - Tap an item to mark it bought. Tap **Clear bought** once things are put away.
   Removing or clearing items can be undone from the message that pops up.
+- **Notes:** tap + on the Notes widget to post one. Tap × on a note to take
+  it down (you can undo that too).
+- **Menu (top right):** pick a theme, or tap **Add widget** to add or remove
+  widgets. These choices are saved separately on each screen, so your phone
+  can look different from the board.
 - In kiosk mode, the board goes back to the home screen after 90 seconds
   untouched, and it reloads itself once a night at 4am to stay fresh.
 
@@ -52,15 +68,18 @@ To get out of kiosk mode for maintenance, press **Alt+F4** with a keyboard plugg
 `config.json` is optional:
 
 ```json
-{ "port": 8080, "latitude": 40.71, "longitude": -74.01 }
+{ "port": 8080, "latitude": 40.71, "longitude": -74.01, "units": "fahrenheit" }
 ```
 
-Set your latitude and longitude so the sky's sunrise and sunset match yours
-exactly. Without them, the board estimates your location from the timezone,
-which can put sunrise and sunset off by up to an hour. Restart after
-changing it: `sudo systemctl restart widget-board`.
+Set your latitude and longitude to get the **weather** and to match the sky's
+sunrise and sunset to yours. Without them, the Weather widget asks for them and
+the board estimates sunrise and sunset from your timezone (up to an hour off).
+`units` is `"fahrenheit"` or `"celsius"` (the default). The weather needs the Pi
+to be online; it's fetched at most every 15 minutes and shared by every screen.
+Restart after changing settings: `sudo systemctl restart widget-board`.
 
-The list is saved in `data/shopping.json`.
+The shopping list and notes are saved on the Pi in `data/shopping.json` and
+`data/notes.json`.
 
 ## Updating
 
@@ -80,26 +99,41 @@ npm test                       # Python + JS tests (no packages needed)
 
 Add `?at=19:30` to the URL to preview the board at another time of day.
 
+The rules for working on the board (Pi performance limits, the 1920×1080
+layout, text sizes, contrast, touch targets) are in [CLAUDE.md](CLAUDE.md).
+Claude Code follows them automatically, and they're worth a read for people too.
+
 Project layout:
 
 ```
-run.py              start the server
-board/              server: shopping list store, HTTP API + live updates, QR codes
-web/                the board itself
-  js/main.js        home screen, clock, opening and closing apps
-  js/sky.js         sun position and the wallpaper colors
-  js/apps/          one module per app (shopping.js has the app and its widget)
-  js/keyboard.js    on-screen keyboard for kiosk mode
-pi/                 Raspberry Pi install script, kiosk launcher, service file
-tests/              unit tests (Python unittest + node --test)
+run.py                  start the server
+board/                  server: JSON stores, HTTP API + live updates, weather, QR codes
+web/
+  index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
+  css/tokens.css        colours, type sizes and the Light / Dark / Retro themes
+  js/main.js            starts everything
+  js/services/          the only code that talks to the server or localStorage
+  js/apps/<id>/         one folder per app: index.js, widget.js, app.js
+  js/menu.js            the top-right menu
+  js/sky.js             sun position and the wallpaper colours
+pi/                     Raspberry Pi install script, kiosk launcher, service file
+tests/                  unit tests (Python unittest + node --test)
 ```
 
 ### Adding an app
 
-Create `web/js/apps/<name>.js` exporting `id`, `name`, `iconBackground`,
-`iconGlyph`, `mount(root, context)` and, if it has one, `widget(context)`.
-Then list it in `web/js/apps/index.js`. It will show up in the dock, and its
-widget will appear on the home screen. Use `shopping.js` as the example.
+Make a folder `web/js/apps/<id>/` like `notes/`:
+
+- `meta.js` exports `id`, `name`, `description`, `widgetSize` (`tall`, `wide` or
+  `medium`), `iconBackground` and `iconGlyph`.
+- `widget.js` exports `createWidget(context)`, which returns `{ node, destroy }`.
+  `destroy()` must undo every subscription, timer and observer the widget made.
+- `app.js` (optional) exports `mount(root, context)` for a full-screen app.
+  Apps with one get a dock icon.
+- `index.js` re-exports all of that.
+
+Add its styles in `web/css/apps/<id>.css`, link that file in `index.html`, and
+list the app in `web/js/apps/index.js`. It then shows up in **Add widget**.
 
 ## Troubleshooting
 
@@ -114,5 +148,10 @@ widget will appear on the home screen. Use `shopping.js` as the example.
   board shows under "On your phone".
 - **The screen still goes to sleep.** Turn off Screen Blanking in
   Raspberry Pi Configuration → Display.
+- **The Weather widget says to add your location.** Put `latitude` and
+  `longitude` in `config.json` (see Settings) and restart the server.
+- **"Can't reach the weather service."** The Pi is offline, or Open-Meteo is
+  down. The board keeps showing the last forecast for up to 6 hours.
 
-Anyone on your Wi-Fi can open and edit the list. There are no accounts.
+Anyone on your Wi-Fi can open and edit the list and notes. There are no
+accounts. Only the board's own screen can use Exit to desktop.

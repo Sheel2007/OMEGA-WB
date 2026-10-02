@@ -1,0 +1,297 @@
+/* The top-right menu: theme picker, widget picker, and Exit to desktop. */
+
+.board-menu {
+  position: relative;
+  font-weight: 400;
+  text-shadow: none;
+}
+
+.board-menu__toggle {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.board-menu__toggle svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.board-menu--open .board-menu__toggle {
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+}
+
+/* Catches taps outside the panel. Fixed to the board, under the panel. */
+.board-menu__scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(8 12 30 / 0.18);
+}
+
+.board-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.8rem);
+  right: 0;
+  z-index: 1;
+  width: 30rem;
+  max-height: calc(54rem - var(--status-h) - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.4rem;
+  border-radius: var(--radius-card);
+  border: var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-body);
+  cursor: default;
+}
+
+.board-menu__panel:focus {
+  outline: none;
+}
+
+.board-menu__heading {
+  margin: 0 0 0.8rem 0.2rem;
+  font-size: var(--fs-body);
+  font-weight: 750;
+  color: var(--text-2);
+}
+
+.board-menu__heading--inline {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-title);
+  font-size: var(--fs-title);
+}
+
+/* Menu rows */
+
+.board-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 4rem;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-panel);
+  border: var(--control-border);
+  background: var(--fill);
+  font-size: var(--fs-body);
+  font-weight: 650;
+  text-align: left;
+}
+
+.board-menu__item + .board-menu__item {
+  margin-top: 0.6rem;
+}
+
+.board-menu__item:active {
+  background: var(--fill-strong);
+}
+
+.board-menu__item-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.board-menu__item-icon svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.board-menu__item-label {
+  flex: 1;
+}
+
+.board-menu__item-chevron {
+  display: grid;
+  color: var(--text-3);
+}
+
+.board-menu__item-chevron svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.board-menu__item--danger {
+  color: var(--danger);
+}
+
+/* Same red in every theme so white text always reads on it. */
+.board-menu__item--confirm,
+.board-menu__item--confirm:active {
+  background: #b42318;
+  color: #ffffff;
+}
+
+/* Theme picker */
+
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 1.3rem;
+}
+
+.theme-picker__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: var(--hit);
+  padding: 0.8rem 0.3rem 0.7rem;
+  border-radius: var(--radius-panel);
+  border: 0.2rem solid transparent;
+  background: var(--fill);
+}
+
+.theme-picker__option[aria-checked="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+}
+
+.theme-picker__swatch {
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  border: 0.15rem solid var(--hairline);
+}
+
+.theme-picker__swatch--auto {
+  background: linear-gradient(135deg, #7db1ea 0 50%, #1b2156 50% 100%);
+}
+
+.theme-picker__swatch--light {
+  background: linear-gradient(180deg, #7db1ea, #eef0ea);
+}
+
+.theme-picker__swatch--dark {
+  background:
+    radial-gradient(circle at 34% 34%, #f3d36b 0 10%, transparent 11%),
+    linear-gradient(180deg, #050918, #1a1b3f);
+}
+
+.theme-picker__swatch--retro {
+  border-radius: 0;
+  border-color: #1d1d1d;
+  background: linear-gradient(180deg, #5c7ef5 0 62%, #1d1d1d 62% 66%, #c8642b 66% 100%);
+}
+
+.theme-picker__label {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+
+/* Widget picker */
+
+.board-menu__subhead {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.board-menu__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: var(--hit);
+  padding: 0 1.1rem 0 0.7rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--fill);
+  font-weight: 650;
+}
+
+.board-menu__back svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.widget-picker {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.widget-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem;
+  border-radius: var(--radius-panel);
+  border: var(--control-border);
+  background: var(--fill);
+}
+
+.widget-picker__icon {
+  flex: none;
+  width: 3.4rem;
+  height: 3.4rem;
+}
+
+.widget-picker__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.widget-picker__name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.widget-picker__description {
+  margin: 0.15rem 0 0;
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.widget-picker__button {
+  flex: none;
+  min-height: var(--hit);
+  min-width: 7.5rem;
+  padding: 0 1.2rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.widget-picker__button:active {
+  background: var(--accent-pressed);
+}
+
+.widget-picker__button--remove,
+.widget-picker__button--remove:active {
+  background: var(--fill-strong);
+  color: var(--text);
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+  .board-menu__panel {
+    width: min(30rem, calc(100vw - 2 * var(--gutter)));
+    max-height: calc(100dvh - var(--hit) - 3rem - env(safe-area-inset-top));
+    padding: 1rem;
+  }
+
+  .theme-picker__swatch {
+    width: 2.8rem;
+    height: 2.8rem;
+  }
+}

@@ -45,6 +45,20 @@ X-GNOME-Autostart-enabled=true
 EOF
 chown "$RUN_USER:$RUN_USER" "${AUTOSTART_DIR}/widget-board.desktop"
 
+# After "Exit to desktop" in the board's menu, this brings the board back from the app menu.
+APPS_DIR="${RUN_HOME}/.local/share/applications"
+install -d -o "$RUN_USER" -g "$RUN_USER" "${RUN_HOME}/.local" "${RUN_HOME}/.local/share" "$APPS_DIR"
+cat > "${APPS_DIR}/widget-board.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Widget Board
+Comment=Open the home board full screen
+Exec=env WIDGET_BOARD_PORT=${PORT} ${APP_DIR}/pi/kiosk.sh
+Icon=${APP_DIR}/web/icon.svg
+Categories=Utility;
+EOF
+chown "$RUN_USER:$RUN_USER" "${APPS_DIR}/widget-board.desktop"
+
 echo "→ Keeping the screen awake"
 if command -v raspi-config >/dev/null; then
   raspi-config nonint do_blanking 1 || echo "  (couldn't change screen blanking; turn it off in Raspberry Pi Configuration > Display)"

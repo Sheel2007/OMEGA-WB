@@ -2,13 +2,14 @@
 import json
 import logging
 import os
+import re
 import socket
 import socketserver
 import threading
 import uuid
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from . import qr
 from .kiosk import is_local_address
@@ -24,6 +25,10 @@ MAX_BODY_BYTES = 16 * 1024
 EVENT_PING_SECONDS = 15
 # Lets the "Exit to desktop" response reach the browser before the browser closes.
 KIOSK_CLOSE_DELAY_SECONDS = 0.5
+# An app id in ?app=, for the QR code a phone scans to open that app.
+APP_ID = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
+# One QR code per app, drawn once; the handful of apps that ask for one.
+MAX_QR_CACHE = 8
 
 
 class RequestError(Exception):
@@ -50,9 +55,12 @@ class BoardServer(ThreadingHTTPServer):
     block_on_close = False
     allow_reuse_address = True
 
-    def __init__(self, address, *, shopping, notes, feed, weather, kiosk, web_dir=WEB_DIR, location=None):
+    def __init__(self, address, *, shopping, notes, calendar, calendar_feeds, feed, weather, kiosk,
+                 web_dir=WEB_DIR, location=None):
         self.shopping = shopping
         self.notes = notes
+        self.calendar = calendar
+        self.calendar_feeds = calendar_feeds
         self.feed = feed
         self.weather = weather
         self.kiosk = kiosk
@@ -61,26 +69,30 @@ class BoardServer(ThreadingHTTPServer):
         self.location = location
         self.boot_id = uuid.uuid4().hex[:8]
         self.stopping = threading.Event()
-        self._qr_cache = (None, None)
+        self._qr_cache = {}
         super().__init__(address, BoardHandler)
 
     def live_stores(self):
         """Stores whose state is pushed over /api/events, by event name."""
-        return {"shopping": self.shopping, "notes": self.notes}
+        return {"shopping": self.shopping, "notes": self.notes, "calendar": self.calendar}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
         socketserver.TCPServer.server_bind(self)
         self.server_name, self.server_port = self.server_address[:2]
 
-    def phone_url(self):
-        return "http://%s:%d/#/app/shopping" % (lan_address(), self.server_address[1])
+    def phone_url(self, app=None):
+        """The board's address on the home Wi-Fi, opening straight into `app` if given."""
+        base = "http://%s:%d/" % (lan_address(), self.server_address[1])
+        return base + ("#/app/%s" % app if app else "")
 
-    def qr_svg(self):
-        url = self.phone_url()
-        if self._qr_cache[0] != url:
-            self._qr_cache = (url, qr.to_svg(url))
-        return self._qr_cache[1]
+    def qr_svg(self, app=None):
+        url = self.phone_url(app)
+        if url not in self._qr_cache:
+            if len(self._qr_cache) >= MAX_QR_CACHE:
+                self._qr_cache.clear()
+            self._qr_cache[url] = qr.to_svg(url)
+        return self._qr_cache[url]
 
     def wake_streams(self):
         self.stopping.set()
@@ -113,6 +125,8 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/shopping/events": "events",
         "/api/shopping": "shopping_state",
         "/api/notes": "notes_state",
+        "/api/calendar": "calendar_state",
+        "/api/calendar/feed": "calendar_feed",
         "/api/weather": "weather_forecast",
     }
     POST_ROUTES = {
@@ -124,6 +138,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/notes/add": "notes_add",
         "/api/notes/remove": "notes_remove",
         "/api/notes/restore": "notes_restore",
+        "/api/calendar/add": "calendar_add",
+        "/api/calendar/remove": "calendar_remove",
+        "/api/calendar/restore": "calendar_restore",
         "/api/kiosk/exit": "kiosk_exit",
     }
 
@@ -171,7 +188,10 @@ class BoardHandler(SimpleHTTPRequestHandler):
         })
 
     def qr_code(self):
-        body = self.server.qr_svg().encode()
+        app = parse_qs(urlsplit(self.path).query).get("app", [None])[0]
+        if app is not None and not APP_ID.match(app):
+            return self._send_error(HTTPStatus.BAD_REQUEST, "That isn't an app on the board.")
+        body = self.server.qr_svg(app).encode()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "image/svg+xml")
         self.send_header("Content-Length", str(len(body)))
@@ -184,6 +204,13 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def notes_state(self):
         self._send_json(HTTPStatus.OK, self.server.notes.snapshot())
+
+    def calendar_state(self):
+        self._send_json(HTTPStatus.OK, self.server.calendar.snapshot())
+
+    def calendar_feed(self):
+        """The subscribed (Google) calendars. Never an error: it says so in the payload instead."""
+        self._send_json(HTTPStatus.OK, self.server.calendar_feeds.upcoming())
 
     def weather_forecast(self):
         try:
@@ -243,6 +270,15 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def notes_restore(self, body):
         return self.server.notes.restore(body.get("ids"))
+
+    def calendar_add(self, body):
+        return self.server.calendar.add(body.get("title"), body.get("date"), body.get("time"), event_id=body.get("id"))
+
+    def calendar_remove(self, body):
+        return self.server.calendar.remove(body.get("id"))
+
+    def calendar_restore(self, body):
+        return self.server.calendar.restore(body.get("ids"))
 
     def kiosk_exit(self, body):
         if not is_local_address(self.client_address[0]):

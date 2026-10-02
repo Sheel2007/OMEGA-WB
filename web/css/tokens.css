@@ -60,6 +60,7 @@ html {
   --icon-notes: linear-gradient(155deg, #ffd66b 0%, #f4b323 55%, #d98f0f 100%);
   --icon-weather: linear-gradient(160deg, #74bcff 0%, #2f7de1 100%);
   --icon-games: linear-gradient(155deg, #ff8a6b 0%, #e5483a 100%);
+  --icon-calendar: linear-gradient(155deg, #a99bff 0%, #6d4df6 52%, #5132d4 100%);
 }
 
 /* Light (also the default) */
@@ -100,6 +101,14 @@ html {
   --note-blue: #d6e9ff;
   --note-green: #d6f5dd;
 
+  /* One per subscribed calendar. Each is at least 3:1 against --card in its theme. */
+  --event-blue: #1f6fd0;
+  --event-purple: #6b42c8;
+  --event-teal: #0f7a76;
+  --event-pink: #c42d73;
+  --event-orange: #a8550a;
+  --event-green: #1b7f45;
+
   --wx-sun: #f2a51a;
   --wx-moon: #e9b928;
   --wx-cloud: #eef2f9;
@@ -138,6 +147,13 @@ html {
   --note-pink: #dba9bb;
   --note-blue: #a6c3e6;
   --note-green: #a9d5b3;
+
+  --event-blue: #7cb4ff;
+  --event-purple: #b79cff;
+  --event-teal: #53cfc6;
+  --event-pink: #ff9cc4;
+  --event-orange: #f5b06a;
+  --event-green: #6fd996;
 
   --wx-moon: #f3d36b;
   --wx-cloud: #3a4370;
@@ -196,6 +212,14 @@ html {
   --icon-notes: #d99a0b;
   --icon-weather: #3d6cf0;
   --icon-games: #c8392b;
+  --icon-calendar: #6d4df6;
+
+  --event-blue: #2f5fd6;
+  --event-purple: #6a33c8;
+  --event-teal: #0f7a76;
+  --event-pink: #c42d73;
+  --event-orange: #a8550a;
+  --event-green: #2f7a22;
 
   --note-text: #1d1d1d;
   --note-yellow: #f6d55c;
@@ -242,6 +266,13 @@ html {
   --note-pink: #c98ba3;
   --note-blue: #86a8d2;
   --note-green: #86b378;
+
+  --event-blue: #7cb4ff;
+  --event-purple: #b79cff;
+  --event-teal: #53cfc6;
+  --event-pink: #ff9cc4;
+  --event-orange: #f5b06a;
+  --event-green: #6fd996;
 
   --wx-cloud: #4a4f63;
   --wx-cloud-edge: #cfd1d8;

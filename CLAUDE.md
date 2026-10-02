@@ -10,7 +10,7 @@ You MUST strictly adhere to the following architectural, performance, and scope 
 - **Primary Languages:** Vanilla HTML5, modern CSS3, and standard modern ES6+ JavaScript ONLY for the board UI. The server is Python 3 standard library only (`board/`), with no pip packages.
 - **FORBIDDEN:** Do NOT use C++, Qt, Electron, Tauri, Python GUI libraries (Tkinter/PyQt), React Native, or heavy full-stack frameworks (Next.js/Nuxt) unless explicitly commanded.
 - **FORBIDDEN DEPENDENCIES:** Do NOT introduce build-tool requirements (Webpack, Vite, Babel) or heavy npm dependency graphs for simple UI tasks. All scripts should run natively in standard Chromium without a bundling step.
-- **Widget Scope:** The board has four widgets: **Shopping list**, **Weather**, **Notes**, and **Games** (Four in a Row, Reversi, Dots and Boxes). Do not invent new widgets or games unless the user asks for one.
+- **Widget Scope:** The board has five widgets: **Shopping list**, **Weather**, **Notes**, **Calendar**, and **Games** (Four in a Row, Reversi, Dots and Boxes). Do not invent new widgets or games unless the user asks for one.
 
 ---
 
@@ -39,7 +39,8 @@ The screen is a fixed wall/counter monitor viewed from 3 to 10 feet away.
 ### 4. DATA PERSISTENCE & CONCURRENCY
 - When generating data storage code, isolate state operations behind a clean API or storage service interface (e.g., `ShoppingService.getItems()`, `ShoppingService.addItem()`).
 - Use atomic updates for list actions (toggle item, remove item, add item) rather than blindly replacing the entire state with stale closures.
-- **Shared data** (shopping list, notes) is stored in local JSON files on the Pi (`data/*.json`), written atomically by the Python server, and pushed to every screen over one event stream (`/api/events`). UI components only talk to the services in `web/js/services/`.
+- **Shared data** (shopping list, notes, the calendar's own events) is stored in local JSON files on the Pi (`data/*.json`), written atomically by the Python server, and pushed to every screen over one event stream (`/api/events`). UI components only talk to the services in `web/js/services/`.
+- **Outside data** (weather, subscribed Google Calendars) is fetched and cached by the server, shared by every screen, and polled by the client only while something is subscribed. Google Calendar sync is read-only, over each calendar's secret iCal address (`board/ical.py` parses it; no OAuth, no pip packages). Do not add a Google API client or a write path to Google without being asked.
 - **Per-device settings** (theme, which widgets are shown) live in browser `localStorage` behind `SettingsService`, with a versioned schema and safe defaults when the stored value is missing or corrupt.
 
 ---

@@ -7,6 +7,7 @@ import unittest
 import urllib.error
 import urllib.request
 
+from board.calendar import CalendarFeeds, CalendarStore
 from board.notes import NotesBoard
 from board.server import BoardServer
 from board.shopping import ShoppingList
@@ -55,6 +56,8 @@ class ServerTest(unittest.TestCase):
             ("127.0.0.1", 0),
             shopping=ShoppingList(os.path.join(cls.tmp.name, "data", "shopping.json"), feed=feed),
             notes=NotesBoard(os.path.join(cls.tmp.name, "data", "notes.json"), feed=feed),
+            calendar=CalendarStore(os.path.join(cls.tmp.name, "data", "calendar.json"), feed=feed),
+            calendar_feeds=CalendarFeeds([]),
             feed=feed,
             weather=cls.weather,
             kiosk=cls.kiosk,
@@ -148,7 +151,7 @@ class ServerTest(unittest.TestCase):
         info = json.loads(raw)
         self.assertEqual(status, 200)
         self.assertTrue(info["url"].startswith("http://"))
-        self.assertTrue(info["url"].endswith("/#/app/shopping"))
+        self.assertTrue(info["url"].endswith("/"))
         self.assertEqual(info["location"], {"latitude": 1.5, "longitude": 2})
 
     def test_qr_svg(self):
@@ -156,6 +159,13 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers["Content-Type"], "image/svg+xml")
         self.assertTrue(raw.startswith(b"<svg"))
+
+    def test_qr_svg_can_point_at_one_app(self):
+        shopping = self.request("/api/qr.svg?app=shopping")[2]
+        calendar = self.request("/api/qr.svg?app=calendar")[2]
+        self.assertTrue(calendar.startswith(b"<svg"))
+        self.assertNotEqual(shopping, calendar)
+        self.assertEqual(self.request("/api/qr.svg?app=../secret")[0], 400)
 
     def test_serves_static_files_with_module_friendly_types(self):
         status, headers, raw = self.request("/")
@@ -175,10 +185,10 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 3)
+            events = self._read_events(stream, 4)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
-            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes"})
+            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes", "calendar"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/shopping/add", {"name": "live update"})
@@ -216,6 +226,30 @@ class ServerTest(unittest.TestCase):
         status, body = self.post("/api/notes/add", {"text": " "})
         self.assertEqual(status, 400)
         self.assertEqual(body["error"]["message"], "Write something first.")
+
+    def test_calendar_add_remove_and_restore(self):
+        status, body = self.post("/api/calendar/add", {"title": "Dentist", "date": "2026-10-20", "time": "15:00"})
+        self.assertEqual(status, 200)
+        event_id = body["event"]["id"]
+        self.assertEqual(body["event"]["time"], "15:00")
+        status, body = self.post("/api/calendar/remove", {"id": event_id})
+        self.assertNotIn(event_id, [e["id"] for e in body["state"]["events"]])
+        status, body = self.post("/api/calendar/restore", {"ids": [event_id]})
+        self.assertEqual(body["restored"], [event_id])
+        status, _, raw = self.request("/api/calendar")
+        self.assertIn(event_id, [e["id"] for e in json.loads(raw)["events"]])
+
+    def test_calendar_validation_is_400(self):
+        status, body = self.post("/api/calendar/add", {"title": " ", "date": "2026-10-20"})
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"]["message"], "Give the event a name first.")
+        status, body = self.post("/api/calendar/add", {"title": "Dentist", "date": "soon"})
+        self.assertEqual(status, 400)
+
+    def test_calendar_feed_says_when_no_calendars_are_subscribed(self):
+        status, _, raw = self.request("/api/calendar/feed")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw), {"configured": False, "calendars": [], "events": [], "updated": None, "stale": False})
 
     def test_weather_forecast(self):
         status, _, raw = self.request("/api/weather")

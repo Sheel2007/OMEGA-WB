@@ -5,10 +5,12 @@ looks like an iPad home screen: a big clock, widgets, and a dock of apps. The
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has four widgets:
+It has five widgets:
 
 - **Shopping list.** Anyone can add to it on the board's touchscreen or from
   their phone (scan the QR code in the app). Changes show up everywhere instantly.
+- **Calendar.** What's coming up: birthdays, holidays and appointments from your
+  Google Calendars, plus events anyone adds on the board or from their phone.
 - **Notes.** Sticky notes for everyone at home ("Rent is due Friday").
 - **Weather.** Today and the next four days, from [Open-Meteo](https://open-meteo.com) (free, no account).
 - **Games.** Four in a Row, Reversi, and Dots and Boxes, for two people taking
@@ -61,6 +63,10 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   Removing or clearing items can be undone from the message that pops up.
 - **Notes:** tap + on the Notes widget to post one. Tap × on a note to take
   it down (you can undo that too).
+- **Calendar:** type what's happening, tap the day (or pick a date), and leave it
+  as **All day** or set a time. Tap × to take an event off (undoable). Events from
+  your Google Calendars are read-only, and show which calendar they came from.
+  There's a QR code under "On your phone" for adding events from your phone.
 - **Pages:** swipe left and right (or tap the dots above the dock).
 - **Arranging widgets:** hold a widget for half a second (or pick **Edit home
   screen** in the menu). Then drag widgets around; hold one against the left or
@@ -80,7 +86,7 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 
 ## Settings
 
-`config.json` is optional:
+`config.json` is optional; see `config.example.json` for the whole thing:
 
 ```json
 { "port": 8080, "latitude": 40.71, "longitude": -74.01, "units": "fahrenheit" }
@@ -93,8 +99,40 @@ the board estimates sunrise and sunset from your timezone (up to an hour off).
 to be online; it's fetched at most every 15 minutes and shared by every screen.
 Restart after changing settings: `sudo systemctl restart widget-board`.
 
-The shopping list and notes are saved on the Pi in `data/shopping.json` and
-`data/notes.json`.
+The shopping list, notes and the board's own calendar events are saved on the Pi
+in `data/shopping.json`, `data/notes.json` and `data/calendar.json`.
+
+### Google Calendar
+
+Add each calendar's **secret address in iCal format** to `config.json`:
+
+```json
+{
+  "timezone": "America/New_York",
+  "calendars": [
+    { "name": "Home", "url": "https://calendar.google.com/calendar/ical/.../private-.../basic.ics" },
+    { "name": "Birthdays", "url": "...", "color": "pink" }
+  ]
+}
+```
+
+To find a calendar's address, open Google Calendar on a computer, hover the
+calendar in the left sidebar → **⋮ → Settings and sharing**, scroll to
+**Integrate calendar**, and copy **Secret address in iCal format**. Do that for
+each calendar you want on the board — your own, **Birthdays** (from your
+contacts) and **Holidays in …** each have their own. Treat those addresses like
+passwords: anyone with one can read that calendar.
+
+`name` is optional (the calendar's own name is used instead) and `color` is one
+of `blue`, `purple`, `teal`, `pink`, `orange` or `green`. Up to six calendars.
+`timezone` is an IANA name like `"Europe/London"`; without it the board uses the
+Pi's own time zone, which is usually right.
+
+The board reads these calendars, it doesn't write to them: events you add on the
+board stay on the board. (Writing to Google needs an OAuth client and a Google
+Cloud project, which this board deliberately doesn't have.) They're fetched at
+most every 15 minutes, shared by every screen, and the next four months of
+birthdays, holidays and repeating events are worked out on the Pi.
 
 ## Updating
 
@@ -124,7 +162,8 @@ Project layout:
 
 ```
 run.py                  start the server
-board/                  server: JSON stores, HTTP API + live updates, weather, QR codes
+board/                  server: JSON stores, HTTP API + live updates, weather,
+                        iCalendar parsing, QR codes
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks themes
@@ -189,6 +228,12 @@ a visit. To check on the Pi itself:
   `longitude` in `config.json` (see Settings) and restart the server.
 - **"Can't reach the weather service."** The Pi is offline, or Open-Meteo is
   down. The board keeps showing the last forecast for up to 6 hours.
+- **A calendar says "Couldn't read this calendar."** The address is wrong or has
+  been reset. Copy **Secret address in iCal format** again (it must end in
+  `.ics`) and restart the server. The Calendar app lists each calendar and
+  whether it's syncing.
+- **Calendar events are an hour out.** Set `timezone` in `config.json` to your
+  IANA time zone, or fix the Pi's with `sudo raspi-config`.
 
 Anyone on your Wi-Fi can open and edit the list and notes. There are no
 accounts. Only the board's own screen can use Exit to desktop.

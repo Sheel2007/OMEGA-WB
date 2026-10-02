@@ -2,5 +2,12 @@
   "port": 8080,
   "latitude": 40.71,
   "longitude": -74.01,
-  "units": "fahrenheit"
+  "units": "fahrenheit",
+  "timezone": "America/New_York",
+  "calendars": [
+    { "name": "Home", "url": "https://calendar.google.com/calendar/ical/your-address/private-yourkey/basic.ics", "color": "blue" },
+    { "name": "Birthdays", "url": "https://calendar.google.com/calendar/ical/addressbook%23contacts%40group.v.calendar.google.com/private-yourkey/basic.ics", "color": "pink" },
+    { "name": "Holidays", "url": "https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics", "color": "orange" }
+  ]
 }
+

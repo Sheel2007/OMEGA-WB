@@ -42,6 +42,8 @@ export const icons = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>',
   note:
     '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M14 12h36a3 3 0 0 1 3 3v24L39 53H14a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z" fill="currentColor"/><path d="M53 39H42a3 3 0 0 0-3 3v11z" fill="currentColor" fill-opacity=".55"/></svg>',
+  calendar:
+    '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="19" y="6" width="5" height="11" rx="2.5" fill="currentColor" fill-opacity=".5"/><rect x="40" y="6" width="5" height="11" rx="2.5" fill="currentColor" fill-opacity=".5"/><path d="M11 16h42a3 3 0 0 1 3 3v31a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V19a3 3 0 0 1 3-3z" fill="currentColor" fill-opacity=".4"/><rect x="8" y="26" width="48" height="27" rx="3" fill="currentColor"/></svg>',
   bag:
     '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M31.5 23.5c-.6-6.2-4.4-10.6-10.5-11.5-.5 6.3 3.6 10.9 10.5 11.5z" fill="currentColor" fill-opacity=".55"/><path d="M33 23.5c.2-7.6 5.2-13.2 13-14.2.4 7.9-4.8 13.6-13 14.2z" fill="currentColor" fill-opacity=".8"/><path d="M14.5 25.5h35a2 2 0 0 1 2 2.2l-2.4 23.6a4.5 4.5 0 0 1-4.5 4.1H19.4a4.5 4.5 0 0 1-4.5-4.1L12.5 27.7a2 2 0 0 1 2-2.2z" fill="currentColor"/></svg>',
 };

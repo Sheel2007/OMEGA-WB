@@ -11,6 +11,7 @@ import os
 import signal
 import sys
 
+from board.calendar import CalendarFeeds, CalendarStore, local_zone, sources_from
 from board.kiosk import Kiosk
 from board.notes import NotesBoard
 from board.server import ROOT, BoardServer, lan_address
@@ -62,6 +63,8 @@ def main():
         (args.host, port),
         shopping=ShoppingList(os.path.join(args.data, "shopping.json"), feed=feed),
         notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
+        calendar=CalendarStore(os.path.join(args.data, "calendar.json"), feed=feed),
+        calendar_feeds=CalendarFeeds(sources_from(config.get("calendars")), zone=local_zone(config.get("timezone"))),
         feed=feed,
         weather=weather_from(config, location),
         kiosk=Kiosk(),

@@ -3,7 +3,7 @@ import { buyAgain, nameKey, suggest } from '../../groceries.js';
 import { createKeyboard } from '../../keyboard.js';
 import { fetchQrSvg } from '../../services/board.js';
 import { animateLayout, el, flash, icons, itemGlyph, MAX_ROWS, nudge, reconcile, toast } from '../../ui.js';
-import { name } from './meta.js';
+import { id, name } from './meta.js';
 import { boughtOf, countLabel, shownDone, toBuyOf, toggleItem } from './settle.js';
 
 const BUY_AGAIN_COUNT = 10;
@@ -91,9 +91,9 @@ export function mount(root, { services, kiosk, info }) {
 
   info.then(async (details) => {
     if (!details?.url) return;
-    const svg = await fetchQrSvg();
+    const svg = await fetchQrSvg(id);
     if (unmounted) return;
-    url.textContent = details.url.replace(/^https?:\/\//, '').replace(/\/#.*$/, '');
+    url.textContent = details.url.replace(/^https?:\/\//, '').replace(/\/$/, '');
     if (svg) qr.innerHTML = svg;
     phone.hidden = false;
   });

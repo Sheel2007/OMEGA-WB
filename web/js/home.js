@@ -1,6 +1,7 @@
-// Home-screen widgets: mounts the ones this screen has chosen, in order, and
-// fully tears down the ones that were removed.
+// Home-screen widgets: mounts the ones this screen has chosen (biggest first, see
+// widget-layout.js) and fully tears down the ones that were removed.
 import { reducedMotion } from './ui.js';
+import { layoutOrder } from './widget-layout.js';
 
 const APPEAR_MS = 280;
 
@@ -17,7 +18,7 @@ export function createWidgetHost({ container, apps, context }) {
     }
 
     const added = [];
-    const nodes = ids
+    const nodes = layoutOrder(ids, apps)
       .map((id) => {
         const app = apps.find((a) => a.id === id);
         if (!app?.createWidget) return null;

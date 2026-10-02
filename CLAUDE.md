@@ -10,7 +10,7 @@ You MUST strictly adhere to the following architectural, performance, and scope 
 - **Primary Languages:** Vanilla HTML5, modern CSS3, and standard modern ES6+ JavaScript ONLY for the board UI. The server is Python 3 standard library only (`board/`), with no pip packages.
 - **FORBIDDEN:** Do NOT use C++, Qt, Electron, Tauri, Python GUI libraries (Tkinter/PyQt), React Native, or heavy full-stack frameworks (Next.js/Nuxt) unless explicitly commanded.
 - **FORBIDDEN DEPENDENCIES:** Do NOT introduce build-tool requirements (Webpack, Vite, Babel) or heavy npm dependency graphs for simple UI tasks. All scripts should run natively in standard Chromium without a bundling step.
-- **Widget Scope:** The board has three widgets: **Shopping list**, **Weather**, and **Notes**. Do not invent new widgets unless the user asks for one.
+- **Widget Scope:** The board has four widgets: **Shopping list**, **Weather**, **Notes**, and **Games** (Four in a Row, Reversi, Dots and Boxes). Do not invent new widgets or games unless the user asks for one.
 
 ---
 
@@ -19,6 +19,7 @@ The target device is a Raspberry Pi 4 running 24/7 in an ambient room.
 - **FORBIDDEN (GPU Killers):**
   - Do NOT use heavy CSS blurs (`backdrop-filter: blur(...)`) across large surfaces or full-page containers. Emulate frosted glass using semi-transparent solid hex/RGBA colors (`rgba(255, 255, 255, 0.85)` or `#1c1c1e`) instead of hardware-intensive blur filters.
   - Do NOT use continuous unthrottled canvas animations, unoptimized SVG filters, or multi-layered `box-shadow` animations.
+  - Ambient motion (the Blocks scenery) runs on one low-rate `setTimeout` ticker that only writes `transform` on elements already promoted with `will-change`, and stops completely when paused. Do NOT use looping CSS animations for it: measured in Chromium, an infinite `steps()` animation keeps the compositor producing ~60 frames/s even when it only changes once a second. One-shot CSS animations (a tap reaction, a page settling) are fine.
 - **Memory & Lifecycle Safety:**
   - Every `setInterval`, `setTimeout`, and event listener must be strictly bounded and cleanable. Never introduce unbounded memory arrays or persistent event listener leaks that could cause Chromium to crash over days of uptime.
   - Keep the DOM light. Virtualize or truncate list items if they exceed 100 elements.
@@ -57,7 +58,9 @@ python3 run.py      # http://localhost:8080 (add ?kiosk=1 for kiosk behaviour, ?
 npm test            # Python unittest + node --test, no packages needed
 ```
 
-- Each app lives in `web/js/apps/<id>/` (`index.js` metadata, `widget.js`, and `app.js` if it opens full screen) with styles in `web/css/apps/<id>.css`. Register it in `web/js/apps/index.js`.
-- A widget is `createWidget(context) → { node, destroy }`. `destroy()` must remove every subscription, timer, and observer it created, because widgets are added and removed at runtime.
-- Themes are `data-theme="light|dark|retro"` on `<html>`. Colors come from tokens in `web/css/base.css`; never hard-code a color in a component that should change with the theme.
-- The retro theme is an original 8-bit look. Don't copy Nintendo characters or sprites.
+- Each app lives in `web/js/apps/<id>/` (`meta.js` with `id`, `name`, `description`, `widgetSize` of `tall|wide|medium`, icon; `widget.js`; `app.js` if it opens full screen; `index.js` re-exporting them) with styles in `web/css/apps/<id>.css`. Register it in `web/js/apps/index.js`.
+- A widget is `createWidget(context) → { node, destroy }`. `destroy()` must remove every subscription, timer, and observer it created, because widgets are added, removed and moved between pages at runtime.
+- The home screen is swipeable pages of a 12 × 4 grid (page 1 also holds the clock). Where widgets go is decided by the pure functions in `web/js/widget-layout.js` (order-preserving packing, tested exhaustively) and stored per screen as `pages` in `SettingsService`. Never rely on CSS auto-placement for widget positions. Edit mode has no jiggle animation.
+- Pure logic lives in node-testable modules (layout, swipe maths, sky, critter director, game rules); DOM modules can't be imported in node because `ui.js` touches `matchMedia`.
+- Themes are `data-theme="light|dark|blocks"` on `<html>` (Blocks also sets `data-night`). Colors come from tokens in `web/css/tokens.css`; never hard-code a color in a component that should change with the theme. Game boards use their own fixed colors, checked for 3:1 contrast.
+- **Copyright:** the Blocks theme is an original blocky world. Its critters (cat, fox, slime blob, robot) are our own pixel art. Don't copy Mojang/Minecraft (or Nintendo) characters, mobs, textures, fonts or names, and don't use trademarked game names in the UI ("Four in a Row", not the brand name).

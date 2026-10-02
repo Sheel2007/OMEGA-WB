@@ -1,4 +1,4 @@
-/* Design tokens and the three themes (light, dark, retro).
+/* Design tokens and the three themes (light, dark, blocks).
    Components only use these variables, so a theme is just a set of values. */
 
 /* The board is designed on a 1920×1080 canvas where 1rem = 20px (96rem × 54rem).
@@ -59,6 +59,7 @@ html {
   --icon-shopping: linear-gradient(155deg, #4fd681 0%, #22a45a 48%, #157a40 100%);
   --icon-notes: linear-gradient(155deg, #ffd66b 0%, #f4b323 55%, #d98f0f 100%);
   --icon-weather: linear-gradient(160deg, #74bcff 0%, #2f7de1 100%);
+  --icon-games: linear-gradient(155deg, #ff8a6b 0%, #e5483a 100%);
 }
 
 /* Light (also the default) */
@@ -145,16 +146,15 @@ html {
   --wx-snow: #d4e6ff;
 }
 
-/* Retro: an original 8-bit platformer look. Flat colours, hard pixel shadows, no rounding. */
-:root[data-theme="retro"] {
+/* Blocks: an original blocky world (no game's real art or names). Flat colours,
+   hard pixel shadows, square corners. Stone-and-paper cards by day, dark stone
+   at night (sky.js sets data-night). */
+:root[data-theme="blocks"] {
   color-scheme: light;
-  --font-display: "Press Start 2P", ui-monospace, monospace;
+  --font-display: "Pixelify Sans", "Figtree", ui-sans-serif, sans-serif;
   --font-body: "Pixelify Sans", "Figtree", ui-sans-serif, sans-serif;
   --font-title: var(--font-display);
   --display-stretch: 100%;
-  --fs-title: 1.2rem;
-  --fs-heading: 2.2rem;
-  --fs-empty: 1.4rem;
 
   --radius-card: 0;
   --radius-panel: 0;
@@ -166,48 +166,87 @@ html {
 
   --text: #1d1d1d;
   --text-2: #3a3a3a;
-  --text-3: #4d4d4d;
+  --text-3: #4a4a4a;
   --line: #1d1d1d;
-  --card: #fff6dc;
-  --surface: #fff6dc;
+  --card: #ece6d6;
+  --surface: #ece6d6;
   --fill: rgb(29 29 29 / 0.08);
   --fill-strong: rgb(29 29 29 / 0.16);
   --hairline: rgb(29 29 29 / 0.3);
-  --accent: #c8321f;
-  --accent-pressed: #9e2414;
+  --accent: #2f7a22;
+  --accent-pressed: #245e1a;
   --on-accent: #ffffff;
-  --accent-text: #a32617;
-  --check: #2b8a3e;
+  --accent-text: #2a6b1e;
+  --check: #2f7a22;
   --danger: #a32617;
-  --app-bg: #a8bbff;
-  --dock: #fff6dc;
+  --app-bg: #a9c4f5;
+  --dock: #ece6d6;
   --shadow: 0.5rem 0.5rem 0 rgb(0 0 0 / 0.35);
   --shadow-sm: 0.3rem 0.3rem 0 rgb(0 0 0 / 0.3);
-  --focus: #c8321f;
+  --focus: #2f7a22;
   --inverse-bg: #1d1d1d;
-  --inverse-text: #fff6dc;
-  --inverse-accent: #ffd23f;
+  --inverse-text: #ece6d6;
+  --inverse-accent: #9be07c;
   --sky-text: #ffffff;
-  --sky-text-shadow: 0.3rem 0.3rem 0 #1d1d1d;
-  --sky-text-shadow-sm: 0.12rem 0.12rem 0 #1d1d1d;
+  /* A hard outline all round, so white text reads over sky, clouds or sun. */
+  --sky-text-shadow: 0.25rem 0 0 #1d1d1d, -0.25rem 0 0 #1d1d1d, 0 0.25rem 0 #1d1d1d, 0 -0.25rem 0 #1d1d1d, 0.5rem 0.5rem 0 #1d1d1d;
+  --sky-text-shadow-sm: 0.1rem 0 0 #1d1d1d, -0.1rem 0 0 #1d1d1d, 0 0.1rem 0 #1d1d1d, 0 -0.1rem 0 #1d1d1d;
 
-  --icon-shopping: #2b8a3e;
-  --icon-notes: #e8a40c;
+  --icon-shopping: #2f7a22;
+  --icon-notes: #d99a0b;
   --icon-weather: #3d6cf0;
+  --icon-games: #c8392b;
 
   --note-text: #1d1d1d;
-  --note-yellow: #ffe066;
-  --note-pink: #ffa8c9;
-  --note-blue: #9ccfff;
-  --note-green: #a3e6a3;
+  --note-yellow: #f6d55c;
+  --note-pink: #f2a0bf;
+  --note-blue: #9cc7f5;
+  --note-green: #9ad28c;
 
-  --wx-sun: #ffb300;
+  --wx-sun: #f4b400;
   --wx-moon: #ffd23f;
   --wx-cloud: #ffffff;
   --wx-cloud-edge: #1d1d1d;
   --wx-rain: #2f6ff0;
   --wx-snow: #2f6ff0;
   --wx-bolt: #ffd23f;
+}
+
+:root[data-theme="blocks"][data-night="true"] {
+  color-scheme: dark;
+  --card-border: 0.3rem solid #0b0c10;
+  --control-border: 0.2rem solid #0b0c10;
+  --text: #f1f1f1;
+  --text-2: #cfd1d8;
+  --text-3: #b0b3bd;
+  --line: #9a9daa;
+  --card: #2b2e38;
+  --surface: #2b2e38;
+  --fill: rgb(255 255 255 / 0.08);
+  --fill-strong: rgb(255 255 255 / 0.15);
+  --hairline: rgb(255 255 255 / 0.2);
+  --accent-text: #8fd47a;
+  --check: #58b043;
+  --danger: #ff9a91;
+  --app-bg: #161925;
+  --dock: #2b2e38;
+  --shadow: 0.5rem 0.5rem 0 rgb(0 0 0 / 0.5);
+  --shadow-sm: 0.3rem 0.3rem 0 rgb(0 0 0 / 0.45);
+  --focus: #8fd47a;
+  --inverse-bg: #f1f1f1;
+  --inverse-text: #1d1d1d;
+  --inverse-accent: #2f7a22;
+
+  --note-text: #15130a;
+  --note-yellow: #c9b04e;
+  --note-pink: #c98ba3;
+  --note-blue: #86a8d2;
+  --note-green: #86b378;
+
+  --wx-cloud: #4a4f63;
+  --wx-cloud-edge: #cfd1d8;
+  --wx-rain: #7ab6ff;
+  --wx-snow: #d4e6ff;
 }
 
 @media (max-width: 900px), (max-height: 560px) {
@@ -218,8 +257,8 @@ html {
     --fs-body: 1.1rem;
   }
 
-  /* Retro keeps its own (pixel-font) sizes and square corners. */
-  :root:not([data-theme="retro"]) {
+  /* Blocks keeps its own (pixel-font) sizes and square corners. */
+  :root:not([data-theme="blocks"]) {
     --fs-heading: 2.3rem;
     --fs-title: 1.3rem;
     --radius-card: 1.6rem;

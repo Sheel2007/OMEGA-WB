@@ -1,42 +1,74 @@
-// Home-screen widgets: mounts the ones this screen has chosen (biggest first, see
-// widget-layout.js) and fully tears down the ones that were removed.
-import { reducedMotion } from './ui.js';
-import { layoutOrder } from './widget-layout.js';
+// Home-screen widgets: puts each chosen widget on its page at the grid area
+// widget-layout.js worked out, moves widgets between pages without rebuilding
+// them, and fully tears down the ones that were removed.
+import { el, reducedMotion } from './ui.js';
+import { paginate, SPANS } from './widget-layout.js';
 
 const APPEAR_MS = 280;
 
-export function createWidgetHost({ container, apps, context }) {
+export function gridArea({ col, row, w, h }) {
+  return `${row} / ${col} / span ${h} / span ${w}`;
+}
+
+export function createWidgetHost({ track, apps, context, pager }) {
   const mounted = new Map();
+  const firstPage = track.firstElementChild;
+  const clock = firstPage.querySelector('.clock');
+  const spanOf = (id) => SPANS[apps.find((a) => a.id === id).widgetSize];
   let firstRender = true;
 
-  function render(ids) {
+  function pageElement(index) {
+    while (track.children.length <= index) {
+      track.append(el('section', { class: 'home-page', 'aria-label': `Page ${track.children.length + 1}` }));
+    }
+    return track.children[index];
+  }
+
+  function widgetFor(id) {
+    let widget = mounted.get(id);
+    if (!widget) {
+      const app = apps.find((a) => a.id === id);
+      widget = app.createWidget(context);
+      widget.node.classList.add('widget', `widget--${app.widgetSize}`);
+      widget.node.dataset.widget = id;
+      widget.node.dataset.key = id;
+      widget.isNew = true;
+      mounted.set(id, widget);
+    }
+    return widget;
+  }
+
+  // ghost: { id, element } puts `element` (the drop placeholder) where widget `id`
+  // would go, while the widget itself is being dragged around.
+  function render(pages, { ghost = null } = {}) {
+    const wanted = new Set(pages.flat());
     for (const [id, widget] of mounted) {
-      if (ids.includes(id)) continue;
+      if (wanted.has(id)) continue;
       widget.destroy();
       widget.node.remove();
       mounted.delete(id);
     }
 
+    const { placements } = paginate(pages, spanOf);
     const added = [];
-    const nodes = layoutOrder(ids, apps)
-      .map((id) => {
-        const app = apps.find((a) => a.id === id);
-        if (!app?.createWidget) return null;
-        let widget = mounted.get(id);
-        if (!widget) {
-          widget = app.createWidget(context);
-          widget.node.classList.add('widget', `widget--${app.widgetSize}`);
-          widget.node.dataset.widget = id;
-          mounted.set(id, widget);
+    pages.forEach((ids, p) => {
+      const pageEl = pageElement(p);
+      let previous = p === 0 ? clock : null;
+      for (const id of ids) {
+        const widget = widgetFor(id);
+        const node = ghost?.id === id ? ghost.element : widget.node;
+        node.style.gridArea = gridArea(placements.get(id));
+        const expected = previous ? previous.nextSibling : pageEl.firstChild;
+        if (expected !== node) pageEl.insertBefore(node, expected);
+        previous = node;
+        if (widget.isNew) {
+          widget.isNew = false;
           added.push(widget.node);
         }
-        return widget.node;
-      })
-      .filter(Boolean);
-
-    nodes.forEach((node, i) => {
-      if (container.children[i] !== node) container.insertBefore(node, container.children[i] || null);
+      }
     });
+    while (track.children.length > Math.max(1, pages.length)) track.lastElementChild.remove();
+    pager.setCount(pages.length);
 
     if (!firstRender && !reducedMotion.matches) {
       added.forEach((node) =>
@@ -51,10 +83,10 @@ export function createWidgetHost({ container, apps, context }) {
 
   return {
     render,
+    nodeOf: (id) => mounted.get(id)?.node ?? null,
     destroy() {
       mounted.forEach((widget) => widget.destroy());
       mounted.clear();
-      container.replaceChildren();
     },
   };
 }

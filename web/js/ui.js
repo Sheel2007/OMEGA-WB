@@ -26,6 +26,16 @@ export const icons = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><path d="M17 13.5v7M13.5 17h7" stroke-linecap="round"/></svg>',
   exit:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg>',
+  sparkle:
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 3h2v4h-2zM11 17h2v4h-2zM3 11h4v2H3zM17 11h4v2h-4zM9 9h6v6H9z"/></svg>',
+  undo:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  minus:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>',
+  arrowUp:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  arrowDown:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
   chevronRight:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5.5l6.5 6.5-6.5 6.5"/></svg>',
   chevronLeft:
@@ -88,15 +98,16 @@ export function reconcile(parent, list, keyOf, create, update) {
 }
 
 // FLIP: measure keyed nodes, change the DOM, then animate each node from where it was.
-export function animateLayout(root, mutate) {
+// `selector` narrows which keyed nodes move (e.g. whole widgets, not the rows inside them).
+export function animateLayout(root, mutate, { selector = '[data-key]' } = {}) {
   if (reducedMotion.matches) {
     mutate();
     return;
   }
   const before = new Map();
-  root.querySelectorAll('[data-key]').forEach((node) => before.set(node.dataset.key, node.getBoundingClientRect()));
+  root.querySelectorAll(selector).forEach((node) => before.set(node.dataset.key, node.getBoundingClientRect()));
   mutate();
-  root.querySelectorAll('[data-key]').forEach((node) => {
+  root.querySelectorAll(selector).forEach((node) => {
     if (node.hidden || node.closest('[hidden]')) return;
     const was = before.get(node.dataset.key);
     if (!was) {

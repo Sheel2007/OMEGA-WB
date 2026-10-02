@@ -32,8 +32,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-[data-theme="retro"] .weather-widget__temp {
-  font-size: 3.2rem;
+[data-theme="blocks"] .weather-widget__temp {
   letter-spacing: 0;
 }
 

@@ -5,16 +5,20 @@ looks like an iPad home screen: a big clock, widgets, and a dock of apps. The
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has three widgets:
+It has four widgets:
 
 - **Shopping list.** Anyone can add to it on the board's touchscreen or from
   their phone (scan the QR code in the app). Changes show up everywhere instantly.
 - **Notes.** Sticky notes for everyone at home ("Rent is due Friday").
 - **Weather.** Today and the next four days, from [Open-Meteo](https://open-meteo.com) (free, no account).
+- **Games.** Four in a Row, Reversi, and Dots and Boxes, for two people taking
+  turns on the board, or one person against the board.
 
-The menu button in the top-right corner switches the theme (Auto, Light, Dark,
-or Retro, an 8-bit look), adds and removes widgets, and on the board itself
-exits full screen.
+The home screen has pages you swipe between, like an iPad, and you can arrange
+the widgets yourself. The menu button in the top-right corner switches the
+theme (Auto, Light, Dark, or **Blocks**, a blocky pixel world whose sky follows
+the real time of day, with a cat, fox, slime or robot wandering by depending on
+the hour), adds and removes widgets, and on the board itself exits full screen.
 
 Everything runs on what ships with Raspberry Pi OS: a small Python server
 (standard library only) and plain HTML/CSS/JS. There's nothing to install
@@ -57,9 +61,20 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   Removing or clearing items can be undone from the message that pops up.
 - **Notes:** tap + on the Notes widget to post one. Tap × on a note to take
   it down (you can undo that too).
-- **Menu (top right):** pick a theme, or tap **Add widget** to add or remove
-  widgets. These choices are saved separately on each screen, so your phone
-  can look different from the board.
+- **Pages:** swipe left and right (or tap the dots above the dock).
+- **Arranging widgets:** hold a widget for half a second (or pick **Edit home
+  screen** in the menu). Then drag widgets around; hold one against the left or
+  right edge to carry it to another page (or to a new page past the last one).
+  Tap − to remove a widget, **Add widget** to add one, and **Done** when you're
+  finished. On a phone, use the ↑ ↓ buttons instead of dragging.
+- **Games:** tap a game on the Games widget. Choose **2 players** to take turns
+  on the board or **vs Computer** to play the board. A game in progress is kept
+  (even through the nightly reload) until you start a new one.
+- **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
+  still picture, turn off **Moving scenery** in the menu.
+- **Menu (top right):** pick a theme, add or remove widgets, or edit the home
+  screen. These choices are saved separately on each screen, so your phone can
+  look different from the board.
 - In kiosk mode, the board goes back to the home screen after 90 seconds
   untouched, and it reloads itself once a night at 4am to stay fresh.
 
@@ -97,7 +112,9 @@ python3 run.py                 # http://localhost:8080 (add ?kiosk=1 for kiosk b
 npm test                       # Python + JS tests (no packages needed)
 ```
 
-Add `?at=19:30` to the URL to preview the board at another time of day.
+Add `?at=19:30` to the URL to preview the board at another time of day, and
+`?critter=now` (or `?critter=stay`) to bring a Blocks critter out straight away
+(or keep it on screen, for measuring).
 
 The rules for working on the board (Pi performance limits, the 1920×1080
 layout, text sizes, contrast, touch targets) are in [CLAUDE.md](CLAUDE.md).
@@ -110,10 +127,14 @@ run.py                  start the server
 board/                  server: JSON stores, HTTP API + live updates, weather, QR codes
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
-  css/tokens.css        colours, type sizes and the Light / Dark / Retro themes
+  css/tokens.css        colours, type sizes and the Light / Dark / Blocks themes
+  css/scene.css         the Blocks scenery (pixel art) and critters
   js/main.js            starts everything
   js/services/          the only code that talks to the server or localStorage
-  js/apps/<id>/         one folder per app: index.js, widget.js, app.js
+  js/apps/<id>/         one folder per app: meta.js, widget.js, app.js, index.js
+  js/widget-layout.js   where widgets go on each page (pure, tested)
+  js/pager.js           swiping between pages; home-editor.js: edit mode
+  js/scene/             Blocks critters (art, what they do, the low-rate ticker)
   js/menu.js            the top-right menu
   js/sky.js             sun position and the wallpaper colours
 pi/                     Raspberry Pi install script, kiosk launcher, service file
@@ -134,6 +155,22 @@ Make a folder `web/js/apps/<id>/` like `notes/`:
 
 Add its styles in `web/css/apps/<id>.css`, link that file in `index.html`, and
 list the app in `web/js/apps/index.js`. It then shows up in **Add widget**.
+
+### Checking the Blocks scenery on the Pi
+
+The moving scenery is built to cost almost nothing: it only moves things that
+are already drawn (no repainting), ticks once a second for the clouds and 8
+times a second while a critter is visiting, and stops completely while an app is
+open. On a laptop it uses about 0.2% of one core for clouds and under 1% during
+a visit. To check on the Pi itself:
+
+1. Leave the board on Blocks for an hour, then run `vcgencmd get_throttled`
+   (should print `throttled=0x0`) and `vcgencmd measure_temp`, and compare the
+   temperature with an hour on Light.
+2. Run `top` and watch the `chromium` processes for a few minutes on Blocks and
+   on Light. They should be within a few percent of each other.
+3. If either looks worse, turn off **Moving scenery** in the menu: Blocks then
+   costs the same as Light.
 
 ## Troubleshooting
 

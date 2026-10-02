@@ -10,25 +10,35 @@
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Fonts only download when a theme uses them (Press Start 2P and Pixelify Sans are Retro). -->
+    <!-- Fonts only download when a theme uses them (Pixelify Sans is the Blocks theme). -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Figtree:wght@400..800&family=Pixelify+Sans:wght@400..700&family=Press+Start+2P&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=Figtree:wght@400..800&family=Pixelify+Sans:wght@400..700&display=swap"
     />
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/scene.css" />
     <link rel="stylesheet" href="css/home.css" />
     <link rel="stylesheet" href="css/menu.css" />
     <link rel="stylesheet" href="css/keyboard.css" />
     <link rel="stylesheet" href="css/apps/shopping.css" />
     <link rel="stylesheet" href="css/apps/weather.css" />
     <link rel="stylesheet" href="css/apps/notes.css" />
+    <link rel="stylesheet" href="css/apps/games.css" />
     <script type="module" src="js/main.js"></script>
   </head>
   <body>
     <div class="sky" aria-hidden="true">
       <div class="sky__stars"></div>
       <div class="sky__glow"></div>
+      <!-- Blocks theme only (scene.css). -->
+      <div class="sky__sun"></div>
+      <div class="sky__moon"></div>
+      <div class="sky__clouds">
+        <span class="sky__cloud sky__cloud--1"></span>
+        <span class="sky__cloud sky__cloud--2"></span>
+        <span class="sky__cloud sky__cloud--3"></span>
+      </div>
       <div class="sky__scenery"></div>
     </div>
 
@@ -42,12 +52,21 @@
       </header>
 
       <main class="home" aria-label="Home screen">
-        <section class="clock" aria-label="Clock">
-          <p class="clock__date"></p>
-          <time class="clock__time"></time>
-        </section>
-        <div class="home__widgets"></div>
+        <!-- Pages slide sideways (pager.js); page 1 also holds the clock. -->
+        <div class="pager">
+          <div class="pager__track">
+            <section class="home-page" aria-label="Page 1">
+              <section class="clock" aria-label="Clock">
+                <p class="clock__date"></p>
+                <time class="clock__time"></time>
+              </section>
+            </section>
+          </div>
+        </div>
+        <div class="page-dots" role="group" aria-label="Pages" hidden></div>
         <nav class="dock" aria-label="Apps"></nav>
+        <!-- Blocks theme critters (scene/blocks-scene.js). -->
+        <div class="home__scene"></div>
       </main>
 
       <div class="app-shell" hidden></div>

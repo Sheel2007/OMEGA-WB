@@ -1,0 +1,589 @@
+/* Games: the picker (.games-app, .game-card), the game screen (.game-screen),
+   the three boards, and the home widget (.games-widget). Board colours are fixed
+   (not themed) and chosen for 3:1 contrast against their board. */
+
+.games-app {
+  height: 100%;
+}
+
+.games-app__picker {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0.9rem var(--gutter) 3rem;
+  scrollbar-width: none;
+}
+
+.games-app__title,
+.game-screen__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-weight: 700;
+  font-size: var(--fs-heading);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.games-app__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  min-height: 26rem;
+  padding: 1.4rem;
+  border-radius: var(--radius-card);
+  border: var(--card-border);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+}
+
+.game-card:active {
+  background: color-mix(in srgb, var(--card) 90%, var(--text));
+}
+
+.game-card__art,
+.games-widget__art {
+  border-radius: var(--radius-panel);
+}
+
+.game-card__art {
+  width: 100%;
+  height: 12rem;
+  margin-bottom: 0.4rem;
+}
+
+.game-card__name {
+  font-size: var(--fs-title);
+  font-weight: 800;
+}
+
+.game-card__blurb {
+  font-size: var(--fs-body);
+  color: var(--text-2);
+}
+
+.game-card__status {
+  margin-top: auto;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.game-card__status--playing {
+  color: var(--accent-text);
+}
+
+/* Little pictures of each game (card and widget). */
+.game-card--four-in-a-row .game-card__art {
+  background: radial-gradient(circle, #0b1638 0 38%, transparent 41%) 0 0 / 2.4rem 2.4rem #3d6ee0;
+}
+
+.game-card--reversi .game-card__art {
+  background:
+    radial-gradient(circle, #1d1d1d 0 36%, transparent 39%) 0 0 / 3rem 3rem,
+    radial-gradient(circle, #f4f4f4 0 36%, transparent 39%) 1.5rem 1.5rem / 3rem 3rem,
+    #2f7a3a;
+}
+
+.game-card--dots-and-boxes .game-card__art {
+  background:
+    linear-gradient(90deg, #e5483a 0 3rem, transparent 3rem) 1.5rem 1.4rem / 6rem 0.3rem no-repeat,
+    linear-gradient(#2f6ff0 0 3rem, transparent 3rem) 4.4rem 1.5rem / 0.3rem 6rem no-repeat,
+    radial-gradient(circle, var(--text) 0 0.25rem, transparent 0.3rem) 0 0 / 3rem 3rem var(--fill);
+}
+
+/* Game screen */
+
+.game-screen {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28rem;
+  gap: 3rem;
+  padding: 0 var(--gutter) 2.5rem;
+}
+
+.game-screen__board {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+
+.game-screen__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-top: 0.9rem;
+}
+
+.game-screen__back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: var(--hit);
+  padding: 0 1.2rem 0 0.8rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--fill);
+  font-size: var(--fs-body);
+  font-weight: 650;
+}
+
+.game-screen__back svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.game-screen__turn {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0.4rem 0 0;
+  font-size: var(--fs-title);
+  font-weight: 750;
+}
+
+.game-screen__note,
+.game-screen__scores {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.game-screen__modes {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding: 0.3rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--fill);
+}
+
+.game-screen__mode {
+  flex: 1;
+  min-height: var(--hit);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.game-screen__mode[aria-checked="true"] {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.game-screen__actions {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.game-screen__action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--hit);
+  border-radius: var(--radius-control);
+  border: var(--control-border);
+  background: var(--fill-strong);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.game-screen__action svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.game-screen__action--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.game-screen__action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Whose-turn chip, in the game's own player colours. */
+.game-chip {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 0.15rem solid var(--line);
+  background: var(--fill-strong);
+}
+
+.game-chip--four-in-a-row.game-chip--p1,
+.game-chip--dots-and-boxes.game-chip--p1 {
+  background: #e5483a;
+}
+
+.game-chip--four-in-a-row.game-chip--p2 {
+  background: #ffd23f;
+}
+
+.game-chip--reversi.game-chip--p1 {
+  background: #1d1d1d;
+}
+
+.game-chip--reversi.game-chip--p2 {
+  background: #f4f4f4;
+}
+
+.game-chip--dots-and-boxes.game-chip--p2 {
+  background: #2f6ff0;
+}
+
+/* Four in a Row */
+
+.four-board {
+  --cell: 5.4rem;
+  display: grid;
+  grid-template-columns: repeat(7, var(--cell));
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: var(--radius-card);
+  border: var(--card-border);
+  background: #3d6ee0;
+  box-shadow: var(--shadow);
+}
+
+.four-board__column {
+  display: grid;
+  grid-template-rows: repeat(6, var(--cell));
+  gap: 0.5rem;
+  border-radius: var(--radius-pill);
+}
+
+.four-board__column:not(:disabled):active {
+  background: rgb(255 255 255 / 0.15);
+}
+
+.four-board__column:disabled {
+  cursor: default;
+}
+
+.four-board__cell {
+  border-radius: 50%;
+  background: #0b1638;
+}
+
+.four-board__cell--p1 {
+  background: #ff5a4a;
+}
+
+.four-board__cell--p2 {
+  background: #ffd23f;
+}
+
+.four-board__cell--win {
+  outline: 0.3rem solid #ffffff;
+  outline-offset: -0.3rem;
+}
+
+/* Reversi */
+
+.reversi-board {
+  --cell: 5rem;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border-radius: var(--radius-panel);
+  border: var(--card-border);
+  background: #1f5a28;
+  box-shadow: var(--shadow);
+}
+
+.reversi-board__row {
+  display: grid;
+  grid-template-columns: repeat(8, var(--cell));
+  gap: 0.2rem;
+}
+
+.reversi-board__cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--cell);
+  height: var(--cell);
+  background: #2f7a3a;
+}
+
+.reversi-board__cell:disabled {
+  cursor: default;
+}
+
+.reversi-board__cell:not(:disabled):active {
+  background: #3b9147;
+}
+
+.reversi-board__disc {
+  width: 78%;
+  height: 78%;
+  border-radius: 50%;
+}
+
+/* Outlined both ways, so black reads on green and white reads too. */
+.reversi-board__cell--p1 .reversi-board__disc {
+  background: #1d1d1d;
+  box-shadow: 0 0 0 0.15rem rgb(255 255 255 / 0.75);
+}
+
+.reversi-board__cell--p2 .reversi-board__disc {
+  background: #f4f4f4;
+  box-shadow: 0 0 0 0.15rem #1d1d1d;
+}
+
+.reversi-board__cell--hint::after {
+  content: "";
+  position: absolute;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.6);
+}
+
+.reversi-board__cell--last .reversi-board__disc {
+  outline: 0.25rem solid #ffd23f;
+  outline-offset: 0.1rem;
+}
+
+/* Dots and Boxes */
+
+.dots-board {
+  position: relative;
+  width: 40rem;
+  aspect-ratio: 1;
+  border-radius: var(--radius-card);
+  border: var(--card-border);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.dots-board__drawing {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Matches the drawing's padding (15 of 430 units each side), so buttons sit on the lines. */
+.dots-board__area {
+  position: absolute;
+  inset: 3.49%;
+}
+
+.dots-board__hit {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  border-radius: var(--radius-pill);
+}
+
+.dots-board__hit--h {
+  width: 25%;
+  height: var(--hit);
+  transform: translateY(-50%);
+}
+
+.dots-board__hit--v {
+  width: var(--hit);
+  height: 25%;
+  transform: translateX(-50%);
+}
+
+.dots-board__hit:not(:disabled):active {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.dots-board__hit:disabled {
+  cursor: default;
+}
+
+.dots-board__line {
+  stroke: var(--line);
+  stroke-width: 3;
+  stroke-dasharray: 3 9;
+  stroke-linecap: round;
+}
+
+.dots-board__line--p1,
+.dots-board__line--p2 {
+  stroke-width: 12;
+  stroke-dasharray: none;
+}
+
+.dots-board__line--p1 {
+  stroke: #e5483a;
+}
+
+.dots-board__line--p2 {
+  stroke: #2f6ff0;
+}
+
+.dots-board__line--last {
+  stroke-width: 16;
+}
+
+.dots-board__dot {
+  fill: var(--text);
+}
+
+.dots-board__box {
+  fill: transparent;
+}
+
+.dots-board__box--p1 {
+  fill: rgb(229 72 58 / 0.25);
+}
+
+.dots-board__box--p2 {
+  fill: rgb(47 111 240 / 0.25);
+}
+
+.dots-board__initial {
+  fill: var(--text);
+  font: 700 40px var(--font-body);
+}
+
+/* Blocks: square discs and corners. */
+[data-theme="blocks"] .four-board__cell,
+[data-theme="blocks"] .reversi-board__disc,
+[data-theme="blocks"] .game-chip,
+[data-theme="blocks"] .four-board__column,
+[data-theme="blocks"] .dots-board__hit {
+  border-radius: 0;
+}
+
+/* Widget */
+
+.games-widget__list {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.games-widget__game {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 3.4rem;
+  padding: 0.3rem 0.9rem 0.3rem 0.3rem;
+  border-radius: var(--radius-control);
+  border: var(--control-border);
+  background: var(--fill);
+  text-align: left;
+}
+
+.games-widget__game:active {
+  background: var(--fill-strong);
+}
+
+.games-widget__art {
+  flex: none;
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: var(--radius-control);
+}
+
+/* Smaller versions of the card pictures. */
+.games-widget__game--four-in-a-row .games-widget__art {
+  background: radial-gradient(circle, #0b1638 0 34%, transparent 38%) 0 0 / 0.93rem 0.93rem #3d6ee0;
+}
+
+.games-widget__game--reversi .games-widget__art {
+  background:
+    radial-gradient(circle, #1d1d1d 0 34%, transparent 38%) 0 0 / 1.4rem 1.4rem,
+    radial-gradient(circle, #f4f4f4 0 34%, transparent 38%) 0.7rem 0.7rem / 1.4rem 1.4rem,
+    #2f7a3a;
+}
+
+.games-widget__game--dots-and-boxes .games-widget__art {
+  background: radial-gradient(circle, var(--text) 0 0.13rem, transparent 0.16rem) 0.23rem 0.23rem / 0.93rem 0.93rem var(--fill-strong);
+}
+
+.games-widget__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.games-widget__state {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.games-widget__game--playing .games-widget__state {
+  color: var(--accent-text);
+}
+
+/* Phones: one column; boards shrink to fit the width. */
+@media (max-width: 900px), (max-height: 560px) {
+  .games-app__cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .game-card {
+    min-height: 0;
+  }
+
+  .game-card__art {
+    height: 7rem;
+  }
+
+  .game-screen {
+    display: flex;
+    flex-direction: column-reverse;
+    justify-content: flex-end;
+    gap: 1.2rem;
+    overflow-y: auto;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  .four-board {
+    --cell: min(5.4rem, calc((100vw - 2 * var(--gutter) - 5rem) / 7));
+  }
+
+  /* 8 squares can't all reach 48px on a small phone; using the full width gets close. */
+  .reversi-board {
+    --cell: min(5rem, calc((100vw - 1.1rem) / 8));
+    gap: 0.1rem;
+    padding: 0.1rem;
+    margin-inline: calc(-1 * var(--gutter));
+  }
+
+  .reversi-board__row {
+    gap: 0.1rem;
+  }
+
+  .dots-board {
+    width: min(40rem, calc(100vw - 2 * var(--gutter)));
+  }
+}

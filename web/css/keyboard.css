@@ -27,10 +27,10 @@
   --key-shadow: 0 1px 0 rgb(0 0 0 / 0.45);
 }
 
-[data-theme="retro"] .keyboard {
+[data-theme="blocks"] .keyboard {
   --kb-bg: #3a3a3a;
-  --key: #fff6dc;
-  --key-alt: #c9b98f;
+  --key: #ece6d6;
+  --key-alt: #b9b2a0;
   --key-text: #1d1d1d;
   --key-shadow: 0.2rem 0.2rem 0 #1d1d1d;
   --key-border: 0.15rem solid #1d1d1d;
@@ -124,7 +124,7 @@
   touch-action: none;
 }
 
-[data-theme="retro"] .keyboard__key {
+[data-theme="blocks"] .keyboard__key {
   border-radius: 0;
 }
 

@@ -7,7 +7,8 @@ const CLOSE_MS = 380;
 const REDUCED_OPEN_MS = 150;
 const REDUCED_CLOSE_MS = 120;
 
-export function createAppHost({ layer, dock, apps, context }) {
+// onChange(appId | null) is called when an app opens or closes.
+export function createAppHost({ layer, dock, apps, context, onChange }) {
   const root = document.documentElement;
   let current = null;
   let pendingOrigin = null;
@@ -87,6 +88,7 @@ export function createAppHost({ layer, dock, apps, context }) {
 
     const instance = app.mount(body, context);
     current = { app, instance };
+    onChange?.(app.id);
     root.classList.add('is-app-open');
     layer.style.transformOrigin = '0 0';
     layer.animate(zoomFrames(pendingOrigin), {
@@ -100,6 +102,7 @@ export function createAppHost({ layer, dock, apps, context }) {
     if (!current) return;
     const { app, instance } = current;
     current = null;
+    onChange?.(null);
     root.classList.remove('is-app-open');
     instance.closeKeyboard?.();
     const finish = () => {

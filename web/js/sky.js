@@ -1,7 +1,9 @@
 // The wallpaper is the sky outside: colours follow the real sun, and the
-// widgets switch to their dark look once it sets. The Light, Dark and Retro
-// themes hold the sky still instead.
+// widgets switch to their dark look once it sets. Light and Dark hold the sky
+// still; Blocks follows the sun too, with its own flat, banded colours, a
+// square sun and moon, and a day/night card palette.
 import { mixHex } from './color.js';
+import { seededRandom } from './random.js';
 
 const RAD = Math.PI / 180;
 // Below this solar elevation (degrees) the board uses its dark theme. Chosen so
@@ -9,7 +11,7 @@ const RAD = Math.PI / 180;
 const DARK_BELOW = 2.75;
 const REPAINT_MS = 60 * 1000;
 
-export const THEME_MODES = ['auto', 'light', 'dark', 'retro'];
+export const THEME_MODES = ['auto', 'light', 'dark', 'blocks'];
 
 // Where the sun "sits" for the themes that don't follow the real one.
 const FIXED_SUN = {
@@ -17,15 +19,23 @@ const FIXED_SUN = {
   dark: { elevation: -18, hourAngle: 150, noonElevation: 60 },
 };
 
-const RETRO_SKY = {
-  top: '#5c7ef5',
-  mid: '#5c7ef5',
-  low: '#5c7ef5',
-  glow: '#ffffff',
-  glowAlpha: 0,
-  stars: 0,
-  theme: 'retro',
-};
+// Themes whose sky follows the real sun (and so repaints once a minute).
+const FOLLOWS_SUN = new Set(['auto', 'blocks']);
+
+// Blocks: the sky is five flat bands from `top` down to `low` (the horizon).
+const BLOCK_BANDS = 5;
+const BLOCKS_KEYFRAMES = [
+  { at: -18, top: '#0a0e2a', low: '#1f2557', stars: 1 },
+  { at: -9, top: '#141a4a', low: '#3b2f6b', stars: 0.8 },
+  { at: -4, top: '#26357f', low: '#b85a6e', stars: 0.25 },
+  { at: 0, top: '#3555b0', low: '#f0884f', stars: 0 },
+  { at: 5, top: '#3c63c4', low: '#f3b27a', stars: 0 },
+  { at: 12, top: '#3d6ad0', low: '#8fb7f5', stars: 0 },
+  { at: 90, top: '#3f70d8', low: '#9cc2f7', stars: 0 },
+];
+// Phases of the day for the Blocks scenery (which character visits).
+const NIGHT_BELOW = -6;
+const DAY_FROM = 8;
 // The sun glow fades out here and the night glow takes over.
 const NIGHT_GLOW_BELOW = -7;
 
@@ -63,13 +73,37 @@ export function solarPosition(date, latitude, longitude) {
   return { elevation, hourAngle, noonElevation };
 }
 
-export function skyAt(elevation) {
-  const e = clamp(elevation, KEYFRAMES[0].at, KEYFRAMES[KEYFRAMES.length - 1].at);
+function between(frames, elevation) {
+  const e = clamp(elevation, frames[0].at, frames[frames.length - 1].at);
   let i = 0;
-  while (i < KEYFRAMES.length - 2 && e > KEYFRAMES[i + 1].at) i++;
-  const a = KEYFRAMES[i];
-  const b = KEYFRAMES[i + 1];
-  const t = (e - a.at) / (b.at - a.at);
+  while (i < frames.length - 2 && e > frames[i + 1].at) i++;
+  const a = frames[i];
+  const b = frames[i + 1];
+  return { a, b, t: (e - a.at) / (b.at - a.at) };
+}
+
+function blocksSky(elevation) {
+  const { a, b, t } = between(BLOCKS_KEYFRAMES, elevation);
+  const top = mixHex(a.top, b.top, t);
+  const low = mixHex(a.low, b.low, t);
+  return {
+    top,
+    mid: mixHex(top, low, 0.5),
+    low,
+    glow: '#ffffff',
+    glowAlpha: 0,
+    stars: a.stars + (b.stars - a.stars) * t,
+    theme: 'blocks',
+    night: elevation < DARK_BELOW,
+  };
+}
+
+export function blocksBands(sky) {
+  return Array.from({ length: BLOCK_BANDS }, (_, i) => mixHex(sky.top, sky.low, i / (BLOCK_BANDS - 1)));
+}
+
+export function skyAt(elevation) {
+  const { a, b, t } = between(KEYFRAMES, elevation);
   return {
     top: mixHex(a.top, b.top, t),
     mid: mixHex(a.mid, b.mid, t),
@@ -82,7 +116,7 @@ export function skyAt(elevation) {
 }
 
 export function skyFor(mode, elevation) {
-  if (mode === 'retro') return { ...RETRO_SKY };
+  if (mode === 'blocks') return blocksSky(elevation);
   if (FIXED_SUN[mode]) return skyAt(FIXED_SUN[mode].elevation);
   return skyAt(elevation);
 }
@@ -120,13 +154,24 @@ function glowPosition({ elevation, hourAngle, noonElevation }) {
   };
 }
 
-function seededRandom(seed) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+// Where the square sun and moon sit, as fractions of the sky (0,0 is top-left).
+// Same arc as the glow; the moon is on the opposite side of the sky.
+export function celestial({ elevation, hourAngle, noonElevation = 60 }) {
+  const peak = Math.max(noonElevation, 12);
+  const place = (angle, height) => ({
+    x: 0.5 + clamp(angle / 110, -1, 1) * 0.42,
+    y: 0.9 - clamp(height / peak, -0.3, 1) * 0.72,
+  });
+  return {
+    sun: { ...place(hourAngle, elevation), visible: elevation > -3 },
+    moon: { ...place(norm180(hourAngle + 180), -elevation), visible: elevation < 4 },
   };
+}
+
+export function dayPhase({ elevation, hourAngle }) {
+  if (elevation < NIGHT_BELOW) return 'night';
+  if (elevation >= DAY_FROM) return 'day';
+  return hourAngle < 0 ? 'dawn' : 'dusk';
 }
 
 function starField(count = 120) {
@@ -142,7 +187,8 @@ function starField(count = 120) {
   return stars.join(',');
 }
 
-export function startSky({ root = document.documentElement, starsEl, getLocation, getTime = () => new Date(), mode = 'auto' }) {
+// onPaint(sun) is called after every repaint (the Blocks scenery uses it).
+export function startSky({ root = document.documentElement, starsEl, getLocation, getTime = () => new Date(), mode = 'auto', onPaint }) {
   if (starsEl) starsEl.style.boxShadow = starField();
   const lifetime = new AbortController();
   let timer = null;
@@ -161,16 +207,30 @@ export function startSky({ root = document.documentElement, starsEl, getLocation
     style.setProperty('--glow-x', `${glow.x.toFixed(1)}%`);
     style.setProperty('--glow-y', `${glow.y.toFixed(1)}%`);
     style.setProperty('--stars', sky.stars.toFixed(2));
+    if (sky.theme === 'blocks') {
+      blocksBands(sky).forEach((band, i) => style.setProperty(`--band-${i + 1}`, band));
+      const { sun: sunAt, moon } = celestial(sun);
+      style.setProperty('--sun-x', `${(sunAt.x * 100).toFixed(1)}%`);
+      style.setProperty('--sun-y', `${(sunAt.y * 100).toFixed(1)}%`);
+      style.setProperty('--sun-shown', sunAt.visible ? '1' : '0');
+      style.setProperty('--moon-x', `${(moon.x * 100).toFixed(1)}%`);
+      style.setProperty('--moon-y', `${(moon.y * 100).toFixed(1)}%`);
+      style.setProperty('--moon-shown', moon.visible ? '1' : '0');
+      root.dataset.night = String(sky.night);
+    } else {
+      delete root.dataset.night;
+    }
     if (root.dataset.theme !== sky.theme) {
       root.dataset.theme = sky.theme;
       document.querySelector('meta[name="theme-color"]')?.setAttribute('content', sky.top);
     }
+    onPaint?.(sun);
   }
 
-  // Only the real sky moves, so only Auto needs repainting.
+  // Only skies that follow the real sun need repainting.
   function schedule() {
     clearInterval(timer);
-    timer = mode === 'auto' ? setInterval(paint, REPAINT_MS) : null;
+    timer = FOLLOWS_SUN.has(mode) ? setInterval(paint, REPAINT_MS) : null;
   }
 
   paint();

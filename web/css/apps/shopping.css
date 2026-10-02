@@ -31,7 +31,7 @@
   letter-spacing: -0.025em;
 }
 
-[data-theme="retro"] .shopping-app__title {
+[data-theme="blocks"] .shopping-app__title {
   line-height: 1.3;
   letter-spacing: 0;
 }
@@ -168,7 +168,7 @@
   transition: background-color 0.25s, border-color 0.25s;
 }
 
-[data-theme="retro"] .check-list__check {
+[data-theme="blocks"] .check-list__check {
   border-radius: 0;
 }
 
@@ -343,7 +343,7 @@
   transition: background-color 0.25s, border-color 0.25s;
 }
 
-[data-theme="retro"] .shopping-widget__ring::before {
+[data-theme="blocks"] .shopping-widget__ring::before {
   border-radius: 0;
 }
 

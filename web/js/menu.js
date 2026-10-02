@@ -6,12 +6,12 @@ const THEMES = [
   { id: 'auto', label: 'Auto' },
   { id: 'light', label: 'Light' },
   { id: 'dark', label: 'Dark' },
-  { id: 'retro', label: 'Retro' },
+  { id: 'blocks', label: 'Blocks' },
 ];
 // How long "Tap again to exit" waits for the second tap.
 const EXIT_CONFIRM_MS = 4000;
 
-export function createBoardMenu({ settings, apps, kiosk, onExit }) {
+export function createBoardMenu({ settings, apps, kiosk, onExit, onAddWidget, onRemoveWidget, onEditHome }) {
   let open = false;
   let whileOpen = null;
   let confirmTimer = null;
@@ -45,6 +45,14 @@ export function createBoardMenu({ settings, apps, kiosk, onExit }) {
       el('span', { class: 'theme-picker__label', text: theme.label }),
     ),
   );
+  // Only for Blocks: lets each screen turn off the drifting clouds and visiting critters.
+  const sceneryButton = el(
+    'button',
+    { class: 'board-menu__item', type: 'button', role: 'switch', onclick: () => settings.setScenery(!settings.getScenery()) },
+    el('span', { class: 'board-menu__item-icon', html: icons.sparkle }),
+    el('span', { class: 'board-menu__item-label', text: 'Moving scenery' }),
+    el('span', { class: 'board-menu__switch', 'aria-hidden': 'true' }),
+  );
   const exitLabel = el('span', { class: 'board-menu__item-label', text: 'Exit to desktop' });
   const exitButton = kiosk
     ? el(
@@ -59,12 +67,26 @@ export function createBoardMenu({ settings, apps, kiosk, onExit }) {
     { class: 'board-menu__view' },
     el('h2', { class: 'board-menu__heading', id: 'board-menu-theme', text: 'Theme' }),
     el('div', { class: 'theme-picker', role: 'radiogroup', 'aria-labelledby': 'board-menu-theme' }, themeButtons),
+    sceneryButton,
     el(
       'button',
       { class: 'board-menu__item', type: 'button', onclick: () => showView('widgets') },
       el('span', { class: 'board-menu__item-icon', html: icons.widgets }),
       el('span', { class: 'board-menu__item-label', text: 'Add widget' }),
       el('span', { class: 'board-menu__item-chevron', html: icons.chevronRight }),
+    ),
+    el(
+      'button',
+      {
+        class: 'board-menu__item',
+        type: 'button',
+        onclick: () => {
+          close();
+          onEditHome();
+        },
+      },
+      el('span', { class: 'board-menu__item-icon', html: icons.home }),
+      el('span', { class: 'board-menu__item-label', text: 'Edit home screen' }),
     ),
     exitButton,
   );
@@ -75,7 +97,7 @@ export function createBoardMenu({ settings, apps, kiosk, onExit }) {
     const button = el('button', {
       class: 'widget-picker__button',
       type: 'button',
-      onclick: () => (settings.getWidgets().includes(app.id) ? settings.removeWidget(app.id) : settings.addWidget(app.id)),
+      onclick: () => (settings.getWidgets().includes(app.id) ? onRemoveWidget(app.id) : onAddWidget(app.id)),
     });
     const row = el(
       'li',
@@ -119,8 +141,10 @@ export function createBoardMenu({ settings, apps, kiosk, onExit }) {
 
   const node = el('div', { class: 'board-menu' }, scrim, toggle, panel);
 
-  function renderSettings({ theme, widgets }) {
+  function renderSettings({ theme, widgets, scenery }) {
     themeButtons.forEach((button) => button.setAttribute('aria-checked', String(button.dataset.mode === theme)));
+    sceneryButton.hidden = theme !== 'blocks';
+    sceneryButton.setAttribute('aria-checked', String(scenery));
     pickerRows.forEach(({ app, button }) => {
       const added = widgets.includes(app.id);
       button.textContent = added ? 'Remove' : 'Add';
@@ -186,6 +210,10 @@ export function createBoardMenu({ settings, apps, kiosk, onExit }) {
   return {
     node,
     close,
+    open(view = 'main') {
+      show();
+      showView(view);
+    },
     destroy() {
       close();
       unsubscribe();

@@ -13,49 +13,90 @@ function memoryStorage(initial = {}) {
 
 const options = (storage) => ({
   storage,
-  widgetIds: ['shopping', 'weather', 'notes'],
+  widgetSizes: { shopping: 'tall', weather: 'wide', notes: 'medium', games: 'medium' },
   defaultWidgets: ['shopping', 'weather'],
 });
+const saved = (value) => memoryStorage({ [STORAGE_KEY]: JSON.stringify(value) });
 
 test('starts from defaults when nothing is saved', () => {
   const settings = createSettingsService(options(memoryStorage()));
-  assert.equal(settings.getTheme(), 'auto');
-  assert.deepEqual(settings.getWidgets(), ['shopping', 'weather']);
+  assert.deepEqual(settings.get(), { theme: 'auto', pages: [['shopping', 'weather']], widgets: ['shopping', 'weather'], scenery: true });
 });
 
 test('saves changes and reads them back on the next load', () => {
   const storage = memoryStorage();
   const settings = createSettingsService(options(storage));
-  settings.setTheme('retro');
+  settings.setTheme('blocks');
+  settings.setScenery(false);
   settings.addWidget('notes');
   settings.removeWidget('shopping');
 
   const again = createSettingsService(options(storage));
-  assert.equal(again.getTheme(), 'retro');
-  assert.deepEqual(again.getWidgets(), ['weather', 'notes']);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 1);
+  assert.equal(again.getTheme(), 'blocks');
+  assert.equal(again.getScenery(), false);
+  assert.deepEqual(again.getPages(), [['weather', 'notes']]);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 2);
+});
+
+test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
+  const settings = createSettingsService(options(saved({ version: 1, theme: 'retro', widgets: ['notes', 'shopping', 'weather'] })));
+  assert.equal(settings.getTheme(), 'blocks');
+  // Keeps the saved order (Notes before Weather), all still beside the clock.
+  assert.deepEqual(settings.getPages(), [['shopping', 'notes', 'weather']]);
+  assert.equal(settings.getScenery(), true);
+});
+
+test('adding a widget that does not fit puts it on a new page, and says where', () => {
+  const settings = createSettingsService(options(saved({ version: 1, theme: 'auto', widgets: ['shopping', 'weather', 'notes'] })));
+  assert.equal(settings.addWidget('games'), 1);
+  assert.deepEqual(settings.getPages(), [['shopping', 'weather', 'notes'], ['games']]);
+  assert.equal(settings.addWidget('games'), null, 'already on the board');
+  assert.equal(settings.addWidget('calendar'), null, 'unknown widget');
+});
+
+test('adding a widget fills the first page with room for it', () => {
+  const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather'], ['games']], scenery: true })));
+  assert.equal(settings.addWidget('notes'), 0);
+  assert.deepEqual(settings.getPages(), [['shopping', 'weather', 'notes'], ['games']]);
+});
+
+test('adding to a chosen page puts it there (spilling over only if it must)', () => {
+  const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather'], ['games']], scenery: true })));
+  assert.equal(settings.addWidget('notes', { page: 1 }), 1);
+  assert.deepEqual(settings.getPages(), [['shopping', 'weather'], ['games', 'notes']]);
+});
+
+test('moving a widget to another page, and removing then restoring it', () => {
+  const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather', 'notes'], ['games']], scenery: true })));
+  settings.moveWidget('notes', { page: 1, index: 0 });
+  assert.deepEqual(settings.getPages(), [['shopping', 'weather'], ['notes', 'games']]);
+
+  const from = settings.removeWidget('weather');
+  assert.deepEqual(from, { page: 0, index: 1 });
+  assert.deepEqual(settings.getPages(), [['shopping'], ['notes', 'games']]);
+  settings.restoreWidget('weather', from);
+  assert.deepEqual(settings.getPages(), [['shopping', 'weather'], ['notes', 'games']]);
 });
 
 test('ignores unknown themes and widgets, and never adds a widget twice', () => {
   const settings = createSettingsService(options(memoryStorage()));
   settings.setTheme('neon');
-  settings.addWidget('calendar');
   settings.addWidget('weather');
   assert.equal(settings.getTheme(), 'auto');
   assert.deepEqual(settings.getWidgets(), ['shopping', 'weather']);
 });
 
-test('falls back to defaults for corrupt, outdated or tampered data', () => {
+test('falls back to safe values for corrupt, unknown or tampered data', () => {
   const corrupt = createSettingsService(options(memoryStorage({ [STORAGE_KEY]: '{nope' })));
-  assert.deepEqual(corrupt.get(), { theme: 'auto', widgets: ['shopping', 'weather'] });
+  assert.deepEqual(corrupt.getPages(), [['shopping', 'weather']]);
 
-  const outdated = createSettingsService(options(memoryStorage({ [STORAGE_KEY]: JSON.stringify({ version: 0, theme: 'dark' }) })));
-  assert.equal(outdated.getTheme(), 'auto');
+  const future = createSettingsService(options(saved({ version: 9, theme: 'dark' })));
+  assert.equal(future.getTheme(), 'auto');
 
   const tampered = createSettingsService(
-    options(memoryStorage({ [STORAGE_KEY]: JSON.stringify({ version: 1, theme: 'dark', widgets: ['notes', 'bogus', 'notes', 7] }) })),
+    options(saved({ version: 2, theme: 'dark', pages: [['notes', 'bogus', 'notes'], ['notes', 7, 'games'], 'x'], scenery: 'yes' })),
   );
-  assert.deepEqual(tampered.get(), { theme: 'dark', widgets: ['notes'] });
+  assert.deepEqual(tampered.get(), { theme: 'dark', pages: [['notes'], ['games']], widgets: ['notes', 'games'], scenery: true });
 });
 
 test('keeps working in memory when storage is unavailable', () => {
@@ -85,6 +126,8 @@ test('tells subscribers about changes until they unsubscribe', () => {
 
 test('get() hands out copies, so callers cannot change settings behind its back', () => {
   const settings = createSettingsService(options(memoryStorage()));
-  settings.get().widgets.push('notes');
-  assert.deepEqual(settings.getWidgets(), ['shopping', 'weather']);
+  const copy = settings.get();
+  copy.widgets.push('notes');
+  copy.pages[0].push('notes');
+  assert.deepEqual(settings.getPages(), [['shopping', 'weather']]);
 });

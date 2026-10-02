@@ -7,8 +7,11 @@ import * as notes from './notes/index.js';
 import * as shopping from './shopping/index.js';
 import * as weather from './weather/index.js';
 
-export const APPS = [shopping, weather, notes, calendar, games];
+export const APPS = [calendar, shopping, weather, notes, games];
 
-// New screens start with all of them. Page 1 fits the clock plus the shopping list,
-// the weather, the notes and the calendar; Games starts page 2.
-export const DEFAULT_WIDGETS = ['shopping', 'weather', 'notes', 'calendar', 'games'];
+// New screens start with all of them, and this order is what page 1 lays out as:
+// the clock top left, the Calendar beside it, the Shopping list down the right,
+// then Weather and Notes along the bottom. Games starts page 2.
+// Screens that saved a layout before a widget existed pick it up here too, at the
+// place this order puts it (see SCHEMA_VERSION 3 in services/settings.js).
+export const DEFAULT_WIDGETS = ['calendar', 'shopping', 'weather', 'notes', 'games'];

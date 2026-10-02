@@ -52,12 +52,18 @@ test('Shopping, Weather and Notes share the first page in any order (the old bug
 });
 
 test('the four widgets the board starts with share page 1 beside the clock', () => {
-  const pages = checkLayout([['shopping', 'weather', 'notes', 'calendar', 'games']]);
-  assert.deepEqual(pages, [['shopping', 'notes', 'weather', 'calendar'], ['games']]);
+  const { pages, placements } = paginate([['calendar', 'shopping', 'weather', 'notes', 'games']], spanOf);
+  checkLayout([['calendar', 'shopping', 'weather', 'notes', 'games']]);
+  assert.deepEqual(pages, [['calendar', 'shopping', 'weather', 'notes'], ['games']]);
+  // Clock top left, Calendar beside it, Shopping down the right, Weather and Notes along the bottom.
+  assert.deepEqual(placements.get('calendar'), { page: 0, col: 5, row: 1, w: 3, h: 2 });
+  assert.deepEqual(placements.get('shopping'), { page: 0, col: 8, row: 1, w: 5, h: 4 });
+  assert.deepEqual(placements.get('weather'), { page: 0, col: 1, row: 3, w: 4, h: 2 });
+  assert.deepEqual(placements.get('notes'), { page: 0, col: 5, row: 3, w: 3, h: 2 });
 });
 
 test('a fifth widget spills onto a second page', () => {
-  const pages = checkLayout([['shopping', 'weather', 'notes', 'calendar', 'games', 'medium-5']]);
+  const pages = checkLayout([['calendar', 'shopping', 'weather', 'notes', 'games', 'medium-5']]);
   assert.equal(pages.length, 2);
   assert.deepEqual(pages[1], ['games', 'medium-5']);
 });

@@ -35,7 +35,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(again.getPages(), [['notes', 'weather']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 2);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 3);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -62,6 +62,38 @@ test('adding a widget fills the first page with room for it', () => {
   assert.equal(settings.addWidget('notes'), 0);
   assert.deepEqual(settings.getPages()[0].sort(), ['notes', 'shopping', 'weather']);
   assert.deepEqual(settings.getPages()[1], ['games']);
+});
+
+test('a widget added to the board turns up on a screen that saved its pages earlier', () => {
+  // The screen last saved before Calendar existed; version 3 slots it in where the
+  // board's own order puts it, without disturbing what the user arranged.
+  const withCalendar = {
+    storage: saved({ version: 2, theme: 'dark', pages: [['shopping', 'weather', 'notes'], ['games']], scenery: false }),
+    widgetSizes: { shopping: 'tall', weather: 'wide', notes: 'medium', calendar: 'medium', games: 'medium' },
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games'],
+  };
+  const settings = createSettingsService(withCalendar);
+  assert.deepEqual(settings.getPages(), [['calendar', 'shopping', 'weather', 'notes'], ['games']]);
+  assert.equal(settings.getTheme(), 'dark', 'the screen keeps its theme');
+  assert.equal(settings.getScenery(), false, 'and its other choices');
+});
+
+test('upgrading keeps a layout the user arranged, and only adds what is missing', () => {
+  const settings = createSettingsService({
+    storage: saved({ version: 2, theme: 'auto', pages: [['shopping'], ['notes', 'weather', 'games']], scenery: true }),
+    widgetSizes: { shopping: 'tall', weather: 'wide', notes: 'medium', calendar: 'medium', games: 'medium' },
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games'],
+  });
+  assert.deepEqual(settings.getPages(), [['calendar', 'shopping'], ['notes', 'weather', 'games']]);
+});
+
+test('a screen already on the current version is left exactly as it was', () => {
+  const settings = createSettingsService({
+    storage: saved({ version: 3, theme: 'auto', pages: [['shopping']], scenery: true }),
+    widgetSizes: { shopping: 'tall', weather: 'wide', notes: 'medium', calendar: 'medium', games: 'medium' },
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games'],
+  });
+  assert.deepEqual(settings.getPages(), [['shopping']], 'a widget taken off stays off');
 });
 
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {
@@ -98,7 +130,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   assert.equal(future.getTheme(), 'auto');
 
   const tampered = createSettingsService(
-    options(saved({ version: 2, theme: 'dark', pages: [['notes', 'bogus', 'notes'], ['notes', 7, 'games'], 'x'], scenery: 'yes' })),
+    options(saved({ version: 3, theme: 'dark', pages: [['notes', 'bogus', 'notes'], ['notes', 7, 'games'], 'x'], scenery: 'yes' })),
   );
   assert.deepEqual(tampered.get(), { theme: 'dark', pages: [['notes'], ['games']], widgets: ['notes', 'games'], scenery: true });
 });

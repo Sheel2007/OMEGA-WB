@@ -5,8 +5,10 @@ import { THEME_MODES } from '../sky.js';
 import { insertWidget, moveWidget, paginate, removeWidget, SPANS } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 2;
-// Version 1 called the Blocks theme "retro".
+const SCHEMA_VERSION = 3;
+// Version 1 kept one flat list of widgets and called the Blocks theme "retro";
+// version 2 added pages; version 3 picks up widgets the board has gained since.
+const UPGRADABLE = [1, 2];
 const RENAMED_THEMES = { retro: 'blocks' };
 
 function browserStorage() {
@@ -25,14 +27,20 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
 
   const defaults = () => ({ theme: 'auto', pages: layout([defaultWidgets.filter(known)]), scenery: true });
 
-  // Drops anything unknown, malformed or repeated (across all pages), then lays it out.
-  function validPages(raw) {
+  // Drops anything unknown, malformed or repeated (across all pages), keeping the
+  // order it was saved in. Laying it out comes after, so an upgrade can slot a new
+  // widget in first rather than packing twice and shuffling the old ones.
+  function cleanPages(raw) {
     if (!Array.isArray(raw)) return null;
     const seen = new Set();
-    const pages = raw
+    return raw
       .filter(Array.isArray)
       .map((ids) => ids.filter((id) => typeof id === 'string' && known(id) && !seen.has(id) && seen.add(id)));
-    return layout(pages);
+  }
+
+  function validPages(raw) {
+    const pages = cleanPages(raw);
+    return pages && layout(pages);
   }
 
   function validTheme(theme) {
@@ -40,16 +48,33 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
     return THEME_MODES.includes(name) ? name : 'auto';
   }
 
+  // Widgets the board has gained since this screen last saved its pages. Each goes
+  // in where `defaultWidgets` puts it — after the last widget that comes before it
+  // and is already on the board — so an existing board picks up a new widget
+  // instead of quietly never showing it.
+  function withNewWidgets(pages) {
+    const next = pages.map((ids) => [...ids]);
+    const present = new Set(next.flat());
+    for (const [index, id] of defaultWidgets.entries()) {
+      if (!known(id) || present.has(id)) continue;
+      const after = defaultWidgets.slice(0, index).reverse().find((other) => present.has(other));
+      const page = after ? next.findIndex((ids) => ids.includes(after)) : 0;
+      next[page].splice(after ? next[page].indexOf(after) + 1 : 0, 0, id);
+      present.add(id);
+    }
+    return next;
+  }
+
   function load() {
     try {
       const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? 'null');
-      if (saved?.version === 1) {
-        return { theme: validTheme(saved.theme), pages: validPages([saved.widgets]) ?? defaults().pages, scenery: true };
-      }
-      if (saved?.version !== SCHEMA_VERSION) return defaults();
+      const version = saved?.version;
+      if (version !== SCHEMA_VERSION && !UPGRADABLE.includes(version)) return defaults();
+      const raw = version === 1 ? [saved.widgets] : saved.pages;
+      const pages = (version === SCHEMA_VERSION ? validPages(raw) : cleanPages(raw)) ?? defaults().pages;
       return {
         theme: validTheme(saved.theme),
-        pages: validPages(saved.pages) ?? defaults().pages,
+        pages: version === SCHEMA_VERSION ? pages : layout(withNewWidgets(pages)),
         scenery: typeof saved.scenery === 'boolean' ? saved.scenery : true,
       };
     } catch {

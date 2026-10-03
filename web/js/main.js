@@ -71,26 +71,38 @@ services.settings.subscribe(({ theme }) => sky.setMode(theme));
 
 // Clock and status bar
 
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+// A 12-hour clock whatever the browser's locale would do on its own.
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
 const dateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 const clockTime = document.querySelector('.clock__time');
+const clockHM = clockTime.querySelector('.clock__hm');
+const clockPeriod = clockTime.querySelector('.clock__period');
 const clockDate = document.querySelector('.clock__date');
 const statusTime = document.querySelector('.statusbar__time');
 
-// Lock-screen style: just the hour and minutes, no AM/PM.
-function shortTime(date) {
+// The hour and minutes, and AM or PM to go beside them. Taking the parts rather
+// than the whole string keeps whatever separator the locale uses between them, and
+// lets the board draw the AM/PM smaller than the time itself.
+function clockParts(date) {
   const parts = timeFormat.formatToParts(date);
   const from = parts.findIndex((p) => p.type === 'hour');
   const to = parts.findIndex((p) => p.type === 'minute');
-  return parts.slice(from, to + 1).map((p) => p.value).join('');
+  const period = parts.find((p) => p.type === 'dayPeriod')?.value ?? '';
+  return {
+    time: parts.slice(from, to + 1).map((p) => p.value).join(''),
+    // Some locales write it "a.m."; the board says AM.
+    period: period.replace(/\./g, '').toUpperCase(),
+  };
 }
 
 function tick() {
   const date = now();
-  const time = shortTime(date);
-  if (clockTime.textContent !== time) {
-    clockTime.textContent = time;
-    statusTime.textContent = time;
+  const { time, period } = clockParts(date);
+  const label = period ? `${time} ${period}` : time;
+  if (statusTime.textContent !== label) {
+    clockHM.textContent = time;
+    clockPeriod.textContent = period;
+    statusTime.textContent = label;
     clockTime.setAttribute('datetime', date.toISOString());
     clockDate.textContent = dateFormat.format(date);
   }

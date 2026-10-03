@@ -101,7 +101,8 @@
 /* Clock */
 
 .clock {
-  grid-column: 1 / span 7;
+  /* Matches CLOCK_AREA in widget-layout.js, which is what the widgets pack around. */
+  grid-column: 1 / span 4;
   grid-row: 1 / span 2;
   align-self: start;
   padding-top: 1.4rem;
@@ -123,19 +124,42 @@
   font-family: var(--font-display);
   font-weight: 430;
   font-stretch: 75%;
-  font-size: 18rem;
+  /* Sized so the widest time, "12:45 PM", clears the widget in the next column. */
+  font-size: 16rem;
   line-height: 0.8;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+/* AM or PM, set small enough that even "12:45 PM" clears the widget beside it
+   (some locales write a longer day period, so there's room to spare). */
+.clock__period {
+  margin-left: 0.06em;
+  font-size: 0.22em;
+  font-weight: 620;
+  font-stretch: 100%;
+  letter-spacing: 0.01em;
+  vertical-align: 0.12em;
+}
+
+.clock__period:empty {
+  display: none;
+}
+
+/* The pixel font has no narrow cut and every glyph is the same width, so the
+   Blocks clock has to be a good deal smaller to fit its four columns. */
 [data-theme="blocks"] .clock__time {
   margin: 0.8rem 0 0;
   font-weight: 700;
-  font-size: 15rem;
+  font-size: 9rem;
   line-height: 0.85;
   letter-spacing: 0;
+}
+
+[data-theme="blocks"] .clock__period {
+  font-size: 0.3em;
+  vertical-align: 0.1em;
 }
 
 /* Widget card. Each widget adds its own block class; the host adds .widget--<size>

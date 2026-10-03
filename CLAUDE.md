@@ -10,7 +10,7 @@ You MUST strictly adhere to the following architectural, performance, and scope 
 - **Primary Languages:** Vanilla HTML5, modern CSS3, and standard modern ES6+ JavaScript ONLY for the board UI. The server is Python 3 standard library only (`board/`), with no pip packages.
 - **FORBIDDEN:** Do NOT use C++, Qt, Electron, Tauri, Python GUI libraries (Tkinter/PyQt), React Native, or heavy full-stack frameworks (Next.js/Nuxt) unless explicitly commanded.
 - **FORBIDDEN DEPENDENCIES:** Do NOT introduce build-tool requirements (Webpack, Vite, Babel) or heavy npm dependency graphs for simple UI tasks. All scripts should run natively in standard Chromium without a bundling step.
-- **Widget Scope:** The board has five widgets: **Shopping list**, **Weather**, **Notes**, **Calendar**, and **Games** (Four in a Row, Reversi, Dots and Boxes). Do not invent new widgets or games unless the user asks for one.
+- **Widget Scope:** The board has five widgets: **Shopping list**, **Weather**, **Notes**, **Calendar**, and **Games** (Four in a Row, Reversi, Dots and Boxes, Blackjack). Do not invent new widgets or games unless the user asks for one.
 
 ---
 
@@ -64,5 +64,6 @@ npm test            # Python unittest + node --test, no packages needed
 - A widget is `createWidget(context) → { node, destroy }`. `destroy()` must remove every subscription, timer, and observer it created, because widgets are added, removed and moved between pages at runtime.
 - The home screen is swipeable pages of a 12 × 4 grid (page 1 also holds the clock). Where widgets go is decided by the pure functions in `web/js/widget-layout.js` (order-preserving packing, tested exhaustively) and stored per screen as `pages` in `SettingsService`. Never rely on CSS auto-placement for widget positions. Edit mode has no jiggle animation.
 - Pure logic lives in node-testable modules (layout, swipe maths, sky, critter director, game rules); DOM modules can't be imported in node because `ui.js` touches `matchMedia`.
+- A game's state is only `{ kind, vsComputer, moves }` and everything else is replayed from it, which is how a saved game is checked. Blackjack deals cards, so it also carries a `seed` its decks are shuffled from — never store the dealt cards. A rules module can opt out of the shared frame with `MODES: false` (no sides to pick) and `UNDO: false`, and reword the panel with `headline()`, `scoreText()` and `summaryText()`.
 - Themes are `data-theme="light|dark|blocks"` on `<html>` (Blocks also sets `data-night`). Colors come from tokens in `web/css/tokens.css`; never hard-code a color in a component that should change with the theme. Game boards use their own fixed colors, checked for 3:1 contrast.
 - **Copyright:** the Blocks theme is an original blocky world. Its critters (cat, fox, slime blob, robot) are our own pixel art. Don't copy Mojang/Minecraft (or Nintendo) characters, mobs, textures, fonts or names, and don't use trademarked game names in the UI ("Four in a Row", not the brand name).

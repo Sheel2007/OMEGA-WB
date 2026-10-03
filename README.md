@@ -15,7 +15,8 @@ It has five widgets:
 - **Notes.** Sticky notes for everyone at home ("Rent is due Friday").
 - **Weather.** Today and the next four days, from [Open-Meteo](https://open-meteo.com) (free, no account).
 - **Games.** Four in a Row, Reversi, and Dots and Boxes, for two people taking
-  turns on the board, or one person against the board.
+  turns on the board or one person against the board, plus Blackjack against
+  the dealer.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
@@ -85,6 +86,10 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 - **Games:** tap a game on the Games widget. Choose **2 players** to take turns
   on the board or **vs Computer** to play the board. A game in progress is kept
   (even through the nightly reload) until you start a new one.
+- **Blackjack** is you against the dealer, so it has no sides to choose and no
+  undo. **Hit** takes a card, **Stand** hands over to the dealer, who draws to 16
+  and stands on all 17s. A blackjack is 21 on the first two cards. A session runs
+  for twenty hands and keeps the score; **New game** starts a fresh one.
 - **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
   still picture, turn off **Moving scenery** in the menu.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home

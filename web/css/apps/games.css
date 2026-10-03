@@ -1,5 +1,5 @@
 /* Games: the picker (.games-app, .game-card), the game screen (.game-screen),
-   the three boards, and the home widget (.games-widget). Board colours are fixed
+   the four boards, and the home widget (.games-widget). Board colours are fixed
    (not themed) and chosen for 3:1 contrast against their board. */
 
 .games-app {
@@ -26,8 +26,9 @@
 
 .games-app__cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2rem;
+  /* Four games, four across: no card left stranded on a row of its own. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.6rem;
   margin-top: 2rem;
 }
 
@@ -91,6 +92,42 @@
     radial-gradient(circle, #1d1d1d 0 36%, transparent 39%) 0 0 / 3rem 3rem,
     radial-gradient(circle, #f4f4f4 0 36%, transparent 39%) 1.5rem 1.5rem / 3rem 3rem,
     #2f7a3a;
+}
+
+.game-card--blackjack .game-card__art {
+  display: grid;
+  grid-auto-flow: column;
+  place-content: center;
+  gap: 0.6rem;
+  background: #1f6b3f;
+}
+
+/* Two cards face up, in the colours the table deals them. */
+.game-card--blackjack .game-card__art::before,
+.game-card--blackjack .game-card__art::after {
+  display: block;
+  padding: 1rem 0.9rem;
+  border-radius: 0.6rem;
+  background: #fdfdfb;
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.game-card--blackjack .game-card__art::before {
+  content: "A♠";
+  color: #16181d;
+}
+
+.game-card--blackjack .game-card__art::after {
+  content: "K♥";
+  color: #c01f2f;
+}
+
+[data-theme="blocks"] .game-card--blackjack .game-card__art::before,
+[data-theme="blocks"] .game-card--blackjack .game-card__art::after {
+  border-radius: 0;
+  border: 0.2rem solid #1d1d1d;
 }
 
 .game-card--dots-and-boxes .game-card__art {
@@ -227,6 +264,12 @@
   border-radius: 50%;
   border: 0.15rem solid var(--line);
   background: var(--fill-strong);
+}
+
+/* Blackjack has no side to be: the chip is the table, not a player. */
+.game-chip--blackjack {
+  background: #1f6b3f;
+  border-color: #12482a;
 }
 
 .game-chip--four-in-a-row.game-chip--p1,
@@ -480,15 +523,15 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 .games-widget__game {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  min-height: 3.4rem;
-  padding: 0.3rem 0.9rem 0.3rem 0.3rem;
+  gap: 0.7rem;
+  min-height: 2.7rem;
+  padding: 0.2rem 0.8rem 0.2rem 0.25rem;
   border-radius: var(--radius-control);
   border: var(--control-border);
   background: var(--fill);
@@ -501,8 +544,8 @@
 
 .games-widget__art {
   flex: none;
-  width: 2.8rem;
-  height: 2.8rem;
+  width: 2.3rem;
+  height: 2.3rem;
   border-radius: var(--radius-control);
 }
 
@@ -516,6 +559,13 @@
     radial-gradient(circle, #1d1d1d 0 34%, transparent 38%) 0 0 / 1.4rem 1.4rem,
     radial-gradient(circle, #f4f4f4 0 34%, transparent 38%) 0.7rem 0.7rem / 1.4rem 1.4rem,
     #2f7a3a;
+}
+
+.games-widget__game--blackjack .games-widget__art {
+  background:
+    linear-gradient(#fdfdfb 0 0) 0.35rem 0.3rem / 0.95rem 1.5rem no-repeat,
+    linear-gradient(#fdfdfb 0 0) 1.5rem 0.65rem / 0.95rem 1.5rem no-repeat,
+    #1f6b3f;
 }
 
 .games-widget__game--dots-and-boxes .games-widget__art {
@@ -585,5 +635,189 @@
 
   .dots-board {
     width: min(40rem, calc(100vw - 2 * var(--gutter)));
+  }
+}
+
+
+/* Blackjack: a felt table with the dealer above and you below. Card faces are the
+   usual white with red or black pips, both well past 3:1 on the card. */
+
+.bj-table {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  width: min(52rem, 100%);
+  padding: 1.6rem 1.8rem 1.8rem;
+  border-radius: var(--radius-card);
+  border: var(--card-border);
+  background: #1f6b3f;
+  box-shadow: var(--shadow);
+}
+
+.bj-hand__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.bj-hand__who {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.bj-hand__total {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  color: #ffe9a8;
+  font-variant-numeric: tabular-nums;
+}
+
+.bj-hand__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  min-height: 9.4rem;
+}
+
+.bj-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 6.6rem;
+  height: 9.4rem;
+  border-radius: 0.8rem;
+  background: #fdfdfb;
+  box-shadow: 0 0.2rem 0.6rem rgb(0 0 0 / 0.35);
+  font-weight: 750;
+  line-height: 1;
+}
+
+[data-theme="blocks"] .bj-card {
+  border-radius: 0;
+  border: 0.2rem solid #1d1d1d;
+}
+
+.bj-card--red {
+  color: #c01f2f;
+}
+
+.bj-card--black {
+  color: #16181d;
+}
+
+.bj-card__rank {
+  font-size: 2.4rem;
+}
+
+.bj-card__pip {
+  font-size: 2rem;
+}
+
+/* The dealer's hole card: a flat woven back, no gradients to repaint. */
+.bj-card--back {
+  background:
+    repeating-linear-gradient(45deg, #2f4ea8 0 0.5rem, #27418d 0.5rem 1rem);
+  box-shadow: inset 0 0 0 0.35rem #fdfdfb, 0 0.2rem 0.6rem rgb(0 0 0 / 0.35);
+}
+
+.bj-table__outcome {
+  margin: 0;
+  padding: 0.5rem 1.1rem;
+  align-self: flex-start;
+  border-radius: var(--radius-pill);
+  background: #12482a;
+  color: #ffffff;
+  font-size: var(--fs-item);
+  font-weight: 700;
+}
+
+[data-theme="blocks"] .bj-table__outcome {
+  border-radius: 0;
+}
+
+.bj-table__outcome[data-result="you"] {
+  background: #d9f2e2;
+  color: #0d4425;
+}
+
+.bj-table__outcome[data-result="dealer"] {
+  background: #ffdcd8;
+  color: #7a1b12;
+}
+
+.bj-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.3rem;
+}
+
+.bj-action {
+  flex: 1;
+  min-width: 11rem;
+  min-height: var(--hit);
+  padding: 0.7rem 1.4rem;
+  border-radius: var(--radius-pill);
+  border: 0.2rem solid #ffffff;
+  background: transparent;
+  color: #ffffff;
+  font-size: var(--fs-item);
+  font-weight: 750;
+}
+
+[data-theme="blocks"] .bj-action {
+  border-radius: 0;
+}
+
+.bj-action:active:not(:disabled) {
+  background: rgb(255 255 255 / 0.22);
+}
+
+.bj-action--primary {
+  background: #ffffff;
+  color: #14512e;
+}
+
+.bj-action--primary:active:not(:disabled) {
+  background: #e4e9e5;
+}
+
+.bj-action:disabled {
+  opacity: 0.5;
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+  .bj-table {
+    width: 100%;
+    gap: 0.9rem;
+    padding: 1.1rem 1.1rem 1.3rem;
+  }
+
+  .bj-hand__cards {
+    min-height: 7.2rem;
+    gap: 0.5rem;
+  }
+
+  .bj-card {
+    width: 5rem;
+    height: 7.2rem;
+  }
+
+  .bj-card__rank {
+    font-size: 1.9rem;
+  }
+
+  .bj-card__pip {
+    font-size: 1.6rem;
+  }
+
+  .bj-action {
+    min-width: 8rem;
   }
 }

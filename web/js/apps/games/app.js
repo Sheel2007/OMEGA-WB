@@ -8,6 +8,7 @@ const BLURBS = {
   'four-in-a-row': 'Drop discs in turn. Four in a line wins.',
   reversi: 'Trap the other colour to flip it. Most discs wins.',
   'dots-and-boxes': 'Draw lines in turn. Close a box to keep it.',
+  blackjack: 'Beat the dealer to 21 without going over.',
 };
 
 export function mount(root, { services }) {

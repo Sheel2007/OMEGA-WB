@@ -1,6 +1,6 @@
 export const id = 'games';
 export const name = 'Games';
-export const description = 'Four in a Row, Reversi, Dots and Boxes';
+export const description = 'Four in a Row, Reversi, Dots and Boxes, Blackjack';
 export const widgetSize = 'medium';
 export const iconBackground = 'var(--icon-games)';
 export const iconGlyph = `<svg viewBox="0 0 64 64" aria-hidden="true">

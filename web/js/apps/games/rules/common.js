@@ -18,9 +18,11 @@ export function undoMove(rules, state) {
   return { ...state, moves };
 }
 
-export function restoreState(rules, kind, raw, isMove) {
+// `start` builds the state the moves are replayed onto, for a game that keeps
+// something besides its moves (Blackjack keeps the seed its decks are shuffled from).
+export function restoreState(rules, kind, raw, isMove, start = (saved) => newState(kind, { vsComputer: saved.vsComputer })) {
   if (!raw || typeof raw !== 'object' || raw.kind !== kind || !Array.isArray(raw.moves) || !raw.moves.every(isMove)) return null;
-  let state = newState(kind, { vsComputer: raw.vsComputer });
+  let state = start(raw);
   for (const move of raw.moves) {
     state = rules.play(state, move);
     if (!state) return null;

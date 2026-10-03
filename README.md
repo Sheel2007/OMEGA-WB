@@ -111,6 +111,40 @@ Restart after changing settings: `sudo systemctl restart widget-board`.
 The shopping list, notes and any calendar events kept on the board itself are
 saved on the Pi in `data/shopping.json`, `data/notes.json` and `data/calendar.json`.
 
+### Reaching the board when you're out
+
+By default the board hands phones its address on the home Wi-Fi, so the QR code and
+the link under **On your phone** only work at home. To use it from anywhere, put the
+Pi and your phones on a [Tailscale](https://tailscale.com) network — it's free for
+personal use, opens nothing on your router, and nothing is exposed to the internet:
+
+1. On the Pi: `curl -fsSL https://tailscale.com/install.sh | sh` then `sudo tailscale up`.
+2. Install Tailscale on each phone and sign in with the same account.
+3. Note the name Tailscale gives the Pi (`tailscale status` shows it, something like
+   `widget-board.tailnet-name.ts.net`) and put it in `config.json`:
+
+   ```json
+   { "hostname": "widget-board.tailnet-name.ts.net" }
+   ```
+
+4. Restart the server. The QR code and the address under **On your phone** now use
+   that name, which works at home and on mobile data alike.
+
+`hostname` takes a plain name, a `name:port`, or a full `http://`/`https://` address
+(useful if something else is terminating TLS in front of the board). Anything it
+can't read is ignored, and the board falls back to its Wi-Fi address.
+
+**Don't put the board on a public address without putting a password in front of
+it.** There are no accounts: anyone who can reach it can read and change the
+shopping list and notes, and — if you've connected Google Calendar — read your
+calendars and create or delete events. Tailscale avoids that because only your own
+devices can reach the Pi at all. A public tunnel or a forwarded router port does
+not, and needs authentication adding first.
+
+Whatever you choose, give the Pi a fixed address on your router (a DHCP
+reservation). Otherwise its Wi-Fi address can change and links saved on phones stop
+working even at home.
+
 ### Google Calendar
 
 The board can read *and* write your Google calendars. Connecting an account is a
@@ -263,7 +297,11 @@ a visit. To check on the Pi itself:
 - **Emoji show as boxes.** Run `sudo apt install fonts-noto-color-emoji`.
 - **Phones can't connect.** They must be on the same Wi-Fi, and some guest
   networks block devices from seeing each other. Try the IP address the
-  board shows under "On your phone".
+  board shows under "On your phone". To use the board away from home, see
+  "Reaching the board when you're out".
+- **A phone that was away shows "Offline".** It reconnects by itself when the
+  screen comes back on or the Wi-Fi returns — give it a second. If it doesn't,
+  the board's address has probably changed; see the DHCP reservation note above.
 - **The screen still goes to sleep.** Turn off Screen Blanking in
   Raspberry Pi Configuration → Display.
 - **The Weather widget says to add your location.** Put `latitude` and

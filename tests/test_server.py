@@ -10,7 +10,7 @@ import urllib.request
 from board.calendar import CalendarSources, CalendarStore
 from board.google import GoogleAccount
 from board.notes import NotesBoard
-from board.server import BoardServer
+from board.server import BoardServer, phone_address
 from board.shopping import ShoppingList
 from board.store import ChangeFeed
 from board.weather import WeatherUnavailable
@@ -149,6 +149,18 @@ class ServerTest(unittest.TestCase):
     def test_unknown_api_route_is_404(self):
         status, _, _ = self.request("/api/nope")
         self.assertEqual(status, 404)
+
+    def test_a_hostname_in_the_config_is_what_phones_are_told_to_use(self):
+        self.assertEqual(phone_address("widget-board.tailnet.ts.net", 8080),
+                         "http://widget-board.tailnet.ts.net:8080/")
+        self.assertEqual(phone_address("pi.local:9000", 8080), "http://pi.local:9000/")
+        self.assertEqual(phone_address("http://pi.local:8080/", 8080), "http://pi.local:8080/")
+        # Something in front is doing TLS on 443, so no port is spelled out.
+        self.assertEqual(phone_address("https://board.example.com", 8080), "https://board.example.com/")
+
+    def test_a_hostname_the_board_can_t_use_falls_back_to_the_wi_fi_address(self):
+        for bad in [None, "", "   ", 5, "not a host!", "javascript:alert(1)", "ftp://pi.local", "a" * 300]:
+            self.assertIsNone(phone_address(bad, 8080))
 
     def test_info_reports_phone_url_and_location(self):
         status, _, raw = self.request("/api/info")

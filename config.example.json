@@ -5,6 +5,9 @@
   "units": "fahrenheit",
   "timezone": "America/New_York",
 
+  "_hostname": "The address to put on the QR code and under 'On your phone'. Leave it out and the board uses its Wi-Fi address, which only works at home. Set it to the name a VPN such as Tailscale gives the Pi and the link keeps working anywhere.",
+  "hostname": "widget-board.your-tailnet.ts.net",
+
   "_google": "Two-way sync. Make a Google Cloud project, turn on the Calendar API, and create an OAuth client of type 'Desktop app'. Then connect the account from the board's own screen: Calendar app → Connect Google Calendar.",
   "google": {
     "client_id": "000000000000-yourclient.apps.googleusercontent.com",

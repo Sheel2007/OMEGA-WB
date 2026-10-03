@@ -15,7 +15,7 @@ from board.calendar import CalendarSources, CalendarStore, local_zone, sources_f
 from board.google import GoogleAccount
 from board.kiosk import Kiosk
 from board.notes import NotesBoard
-from board.server import ROOT, BoardServer, lan_address
+from board.server import ROOT, BoardServer, lan_address, phone_address
 from board.shopping import ShoppingList
 from board.store import ChangeFeed
 from board.weather import WeatherService
@@ -88,6 +88,7 @@ def main():
         weather=weather_from(config, location),
         kiosk=Kiosk(),
         location=location,
+        public_url=phone_address(config.get("hostname"), port),
     )
     sources.start()
 
@@ -95,7 +96,9 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     print("Widget Board is running")
     print("  On this machine:  http://localhost:%d/?kiosk=1" % port)
-    print("  On your phone:    http://%s:%d" % (lan_address(), port))
+    print("  On your phone:    %s" % server.phone_url())
+    if server.public_url:
+        print("  On the home Wi-Fi: http://%s:%d" % (lan_address(), port))
     try:
         server.serve_forever()
     except (KeyboardInterrupt, SystemExit):

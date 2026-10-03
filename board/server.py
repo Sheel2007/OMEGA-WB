@@ -46,6 +46,33 @@ class RequestError(Exception):
         self.status = status
 
 
+# A hostname, optionally with a port: "widget-board.tailnet.ts.net", or with the
+# scheme and port spelled out. Anything else is ignored, so a typo in config.json
+# can't send every phone in the house somewhere unexpected.
+PUBLIC_ADDRESS = re.compile(r"^(?:(?P<scheme>https?)://)?(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.\-]{0,251}[A-Za-z0-9])?)"
+                            r"(?::(?P<port>\d{1,5}))?/?$")
+
+
+def phone_address(value, port):
+    """The base URL to hand phones, from the `hostname` setting. None if it's unusable.
+
+    This is how the board is reached from outside the house: point it at the name a
+    VPN such as Tailscale gives the Pi, and the QR code and "On your phone" address
+    use that instead of the Wi-Fi address, which only works at home.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    match = PUBLIC_ADDRESS.match(value.strip())
+    if not match:
+        log.warning("Ignoring 'hostname' in config.json: %r isn't a hostname the board can hand out.", value)
+        return None
+    scheme = match.group("scheme") or "http"
+    found = match.group("port")
+    # https is served on 443 by whatever is in front; otherwise the board's own port.
+    shown = found or ("" if scheme == "https" else str(port))
+    return "%s://%s%s/" % (scheme, match.group("host"), ":" + shown if shown else "")
+
+
 def lan_address():
     """The address phones on the same Wi-Fi can reach this machine at."""
     probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -65,7 +92,7 @@ class BoardServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, *, shopping, notes, calendar, calendar_sources, google, feed, weather, kiosk,
-                 web_dir=WEB_DIR, location=None):
+                 web_dir=WEB_DIR, location=None, public_url=None):
         self.shopping = shopping
         self.notes = notes
         self.calendar = calendar
@@ -77,6 +104,8 @@ class BoardServer(ThreadingHTTPServer):
         self.kiosk_close_delay = KIOSK_CLOSE_DELAY_SECONDS
         self.web_dir = web_dir
         self.location = location
+        # Set when the board is reachable by a name that works away from home too.
+        self.public_url = public_url
         self.boot_id = uuid.uuid4().hex[:8]
         self.stopping = threading.Event()
         self._qr_cache = {}
@@ -93,8 +122,12 @@ class BoardServer(ThreadingHTTPServer):
         self.server_name, self.server_port = self.server_address[:2]
 
     def phone_url(self, app=None):
-        """The board's address on the home Wi-Fi, opening straight into `app` if given."""
-        base = "http://%s:%d/" % (lan_address(), self.server_address[1])
+        """The address to give a phone, opening straight into `app` if given.
+
+        The name from config.json when there is one, so the link keeps working off the
+        home Wi-Fi; otherwise this machine's address on the Wi-Fi.
+        """
+        base = self.public_url or "http://%s:%d/" % (lan_address(), self.server_address[1])
         return base + ("#/app/%s" % app if app else "")
 
     def qr_svg(self, url=None, *, app=None):
@@ -103,8 +136,18 @@ class BoardServer(ThreadingHTTPServer):
         if url not in self._qr_cache:
             if len(self._qr_cache) >= MAX_QR_CACHE:
                 self._qr_cache.clear()
-            self._qr_cache[url] = qr.to_svg(url)
+            self._qr_cache[url] = self._draw_qr(url, app)
         return self._qr_cache[url]
+
+    def _draw_qr(self, url, app):
+        """A long hostname can outgrow a small QR code; the address alone still fits."""
+        try:
+            return qr.to_svg(url)
+        except ValueError:
+            if app is None:
+                raise
+            log.info("The link to %s is too long for a QR code; using the board's address instead.", app)
+            return qr.to_svg(self.phone_url())
 
     def wake_streams(self):
         self.stopping.set()

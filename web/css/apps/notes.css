@@ -190,7 +190,4 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .notes-widget {
-    height: 18rem;
-  }
 }

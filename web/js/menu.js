@@ -11,7 +11,7 @@ const THEMES = [
 // How long "Tap again to exit" waits for the second tap.
 const EXIT_CONFIRM_MS = 4000;
 
-export function createBoardMenu({ settings, apps, kiosk, onExit, onAddWidget, onRemoveWidget, onEditHome }) {
+export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true, onExit, onAddWidget, onRemoveWidget, onEditHome }) {
   let open = false;
   let whileOpen = null;
   let confirmTimer = null;
@@ -68,26 +68,30 @@ export function createBoardMenu({ settings, apps, kiosk, onExit, onAddWidget, on
     el('h2', { class: 'board-menu__heading', id: 'board-menu-theme', text: 'Theme' }),
     el('div', { class: 'theme-picker', role: 'radiogroup', 'aria-labelledby': 'board-menu-theme' }, themeButtons),
     sceneryButton,
-    el(
-      'button',
-      { class: 'board-menu__item', type: 'button', onclick: () => showView('widgets') },
-      el('span', { class: 'board-menu__item-icon', html: icons.widgets }),
-      el('span', { class: 'board-menu__item-label', text: 'Add widget' }),
-      el('span', { class: 'board-menu__item-chevron', html: icons.chevronRight }),
-    ),
-    el(
-      'button',
-      {
-        class: 'board-menu__item',
-        type: 'button',
-        onclick: () => {
-          close();
-          onEditHome();
-        },
-      },
-      el('span', { class: 'board-menu__item-icon', html: icons.home }),
-      el('span', { class: 'board-menu__item-label', text: 'Edit home screen' }),
-    ),
+    widgetsEditable
+      ? el(
+          'button',
+          { class: 'board-menu__item', type: 'button', onclick: () => showView('widgets') },
+          el('span', { class: 'board-menu__item-icon', html: icons.widgets }),
+          el('span', { class: 'board-menu__item-label', text: 'Add widget' }),
+          el('span', { class: 'board-menu__item-chevron', html: icons.chevronRight }),
+        )
+      : null,
+    widgetsEditable
+      ? el(
+          'button',
+          {
+            class: 'board-menu__item',
+            type: 'button',
+            onclick: () => {
+              close();
+              onEditHome();
+            },
+          },
+          el('span', { class: 'board-menu__item-icon', html: icons.home }),
+          el('span', { class: 'board-menu__item-label', text: 'Edit home screen' }),
+        )
+      : null,
     exitButton,
   );
 

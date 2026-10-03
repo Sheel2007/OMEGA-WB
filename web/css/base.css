@@ -581,4 +581,10 @@ input {
   .is-app-open .statusbar__end {
     display: none;
   }
+
+  /* The board's iPad-style swipe-home bar. A phone has its own gesture there and
+     the app already has a Home button, so it only takes up room. */
+  .app-shell__indicator {
+    display: none;
+  }
 }

@@ -437,32 +437,115 @@
   }
 
   .clock__time {
-    font-size: min(27vw, 9rem);
+    font-size: min(21vw, 7rem);
   }
 
   [data-theme="blocks"] .clock__time {
-    font-size: min(24vw, 8rem);
+    font-size: min(18vw, 6rem);
   }
 
+  /* On a phone a widget is a preview you tap, so it's as tall as whatever it holds
+     rather than the height its slot on the board would give it. The cap stops one
+     long list from filling the screen; fitRows() then counts off what it hides. */
   .widget {
     flex: none;
+    height: auto;
+    max-height: 60vh;
     padding: 1.1rem 1.1rem 1rem 1.2rem;
   }
 
-  .widget--tall {
-    height: 26rem;
-  }
-
+  /* The icons are the home screen on a phone, so the page dots and the dock that
+     stands in for them on the board both have nothing left to do. The pager itself
+     still lays out as contents, above: it's what holds the clock. */
+  .page-dots,
   .dock {
-    position: sticky;
-    bottom: 0;
-    margin-top: auto;
-    background: var(--card);
-    box-shadow: var(--shadow);
+    display: none;
   }
 
-  .dock__app {
-    width: 3.75rem;
-    height: 3.75rem;
+  .phone-home {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+  }
+
+  .phone-weather {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: -0.4rem;
+    color: var(--sky-text);
+    text-shadow: var(--sky-text-shadow-sm);
+  }
+
+  .phone-weather__icon {
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+
+  .phone-weather__icon svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .phone-weather__text {
+    margin: 0;
+    font-size: var(--fs-body);
+    font-weight: 650;
+  }
+
+  .app-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .app-grid__app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 9rem;
+    padding: 1.2rem 0.8rem 1.1rem;
+    border-radius: var(--radius-card);
+    border: var(--card-border);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+  }
+
+  .app-grid__app:active {
+    transform: scale(0.97);
+  }
+
+  .app-grid__icon {
+    width: 3.6rem;
+    height: 3.6rem;
+  }
+
+  .app-grid__name {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: var(--fs-body);
+    font-weight: 700;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-grid__meta {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text-2);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

@@ -4,6 +4,7 @@ import { APPS, DEFAULT_WIDGETS } from './apps/index.js';
 import { createHomeEditor } from './home-editor.js';
 import { createWidgetHost } from './home.js';
 import { createPager } from './pager.js';
+import { createPhoneHome } from './phone-home.js';
 import { initKiosk } from './kiosk.js';
 import { createBoardMenu } from './menu.js';
 import { exitKiosk, fetchInfo } from './services/board.js';
@@ -21,6 +22,11 @@ import { appIcon, el, icons, reducedMotion, toast } from './ui.js';
 // In kiosk mode, an app left open goes back to the home screen after this long.
 const IDLE_RETURN_MS = 90 * 1000;
 const CLOCK_TICK_MS = 1000;
+
+// A phone (or any screen too small for the 12 x 4 grid) gets the compact layout.
+// Turning a phone sideways only swaps which side is the short one, so this never
+// changes after startup and the home screen can be chosen once.
+const compact = matchMedia('(max-width: 900px), (max-height: 560px)');
 
 const params = new URLSearchParams(location.search);
 const kiosk = params.has('kiosk') && params.get('kiosk') !== '0';
@@ -170,7 +176,13 @@ const pager = createPager({
   ignore: (event) => Boolean(event.target.closest('.widget__edit')),
 });
 const widgets = createWidgetHost({ track, apps: APPS, context, pager });
-widgets.render(services.settings.getPages());
+// On a phone the widgets are never built: the app icons take their place, so there
+// are no cards to get in the way of a scroll and nothing to arrange.
+const phoneHome = compact.matches
+  ? createPhoneHome({ apps: APPS, openApp: (id, options) => appHost.openApp(id, options), services })
+  : null;
+if (phoneHome) home.insertBefore(phoneHome.node, home.querySelector('.page-dots'));
+else widgets.render(services.settings.getPages());
 
 function addWidget(id) {
   const app = APPS.find((a) => a.id === id);
@@ -213,6 +225,7 @@ const editor = createHomeEditor({
   },
 });
 services.settings.subscribe((settings) => {
+  if (phoneHome) return;
   widgets.render(settings.pages);
   editor.refresh();
 });
@@ -221,6 +234,8 @@ const menu = createBoardMenu({
   settings: services.settings,
   apps: APPS.filter((app) => app.createWidget),
   kiosk,
+  // Arranging widgets is a board job; a phone shows the apps as icons.
+  widgetsEditable: !phoneHome,
   onExit: exitToDesktop,
   onAddWidget: addWidget,
   onRemoveWidget: removeWidget,
@@ -230,7 +245,6 @@ document.querySelector('.statusbar__end').append(menu.node);
 
 // Scenery
 
-const compact = matchMedia('(max-width: 900px), (max-height: 560px)');
 const sceneEl = home.querySelector('.home__scene');
 
 function syncScene({ theme, scenery }) {

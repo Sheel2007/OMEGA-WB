@@ -1,0 +1,108 @@
+/* Plain, readable pages for the three URLs Google asks for when publishing the
+   OAuth app. Nothing here is loaded by the board itself. */
+
+:root {
+  color-scheme: light dark;
+  --text: #16203a;
+  --muted: #5b6580;
+  --bg: #f6f8fc;
+  --card: #ffffff;
+  --line: #dfe4ee;
+  --link: #1b5fc0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e9ecf6;
+    --muted: #a7afc6;
+    --bg: #11162a;
+    --card: #181e35;
+    --line: #2b3353;
+    --link: #8fb8ff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2.5rem 1.25rem 5rem;
+  background: var(--bg);
+  color: var(--text);
+  font: 17px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 2rem 2.25rem 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  margin: 2rem 0 0.6rem;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+p,
+ul {
+  margin: 0.85rem 0;
+}
+
+ul {
+  padding-left: 1.3rem;
+}
+
+li {
+  margin: 0.45rem 0;
+}
+
+a {
+  color: var(--link);
+}
+
+code {
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.lead {
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.updated,
+.back {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.back {
+  margin: 0 0 1.25rem;
+}
+
+.button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 8px;
+  background: var(--link);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}

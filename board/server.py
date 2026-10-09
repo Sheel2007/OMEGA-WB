@@ -200,6 +200,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/calendar/remove": "calendar_remove",
         "/api/calendar/restore": "calendar_restore",
         "/api/calendar/refresh": "calendar_refresh",
+        "/api/calendar/show": "calendar_show",
         "/api/calendar/google/link": "google_link",
         "/api/calendar/google/unlink": "google_unlink",
         "/api/calendar/google/target": "google_target",
@@ -385,6 +386,11 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def calendar_refresh(self, body):
         return {"state": self.server.calendar_sources.refresh()}
+
+    def calendar_show(self, body):
+        """Shows or hides one connected calendar on this board."""
+        self.server.calendar_sources.show(body.get("id"), body.get("shown", True))
+        return {"state": self.server.calendar_sources.snapshot()}
 
     def google_link(self, body):
         """Starts the Google sign-in. Only from the board itself: the redirect comes back to it."""

@@ -50,7 +50,9 @@ export function createCalendarService({ live }) {
   own.subscribe(emit);
   sources.subscribe(emit);
 
-  const writable = () => sources.state.calendars.filter((calendar) => calendar.writable);
+  // Somewhere a new event can go: writable, and not hidden from this board.
+  const writable = () =>
+    sources.state.calendars.filter((calendar) => calendar.writable && calendar.shown !== false);
   const onGoogle = (id) => typeof id === 'string' && id.startsWith('g:');
 
   return {
@@ -111,6 +113,7 @@ export function createCalendarService({ live }) {
 
     // Google
     syncNow: () => sources.mutate('refresh', {}),
+    showCalendar: (id, shown) => sources.mutate('show', { id, shown }),
     setTarget: (id) => sources.mutate('google/target', { id }),
     unlinkGoogle: () => postJson('/api/calendar/google/unlink', {}),
     linkGoogle: () => postJson('/api/calendar/google/link', {}),

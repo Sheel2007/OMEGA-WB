@@ -58,6 +58,7 @@ RETRY_SECONDS = 2 * 60
 MAX_TRASH = 50
 
 __all__ = [
+    "CalendarChoices",
     "CalendarSources",
     "CalendarStore",
     "COLORS",
@@ -244,6 +245,52 @@ def _valid_event(raw):
     }
 
 
+class CalendarChoices(JsonStore):
+    """Which of the connected calendars the board shows, kept on the Pi.
+
+    One choice for the whole household, not per screen: hiding a calendar is a
+    statement about the board, and the server stops reading it at all. Anything not
+    named here is shown, so a calendar added to the account later turns up on its
+    own rather than silently going missing.
+    """
+
+    label = "calendar choices"
+
+    def shows(self, calendar_id):
+        with self._changed:
+            return calendar_id not in self._hidden
+
+    def hidden(self):
+        with self._changed:
+            return set(self._hidden)
+
+    def show(self, calendar_id, shown):
+        if not isinstance(calendar_id, str) or not calendar_id.strip():
+            raise ValidationError("Say which calendar to show or hide.")
+        if not isinstance(shown, bool):
+            raise ValidationError("'shown' must be true or false.")
+        with self._changed:
+            was = calendar_id in self._hidden
+            self._hidden.discard(calendar_id) if shown else self._hidden.add(calendar_id)
+            if was == shown:
+                self._commit()
+            return {"state": self._state()}
+
+    # JsonStore hooks
+
+    def _reset(self):
+        self._hidden = set()
+
+    def _state(self):
+        return {"version": self._version, "hidden": sorted(self._hidden)}
+
+    def _to_disk(self):
+        return {"hidden": sorted(self._hidden)}
+
+    def _from_disk(self, data):
+        self._hidden = {c for c in data.get("hidden", []) if isinstance(c, str)}
+
+
 # The time zone the board is in
 
 
@@ -327,10 +374,11 @@ class CalendarSources:
 
     label = "calendars"
 
-    def __init__(self, ical_sources=(), *, account=None, zone=None, feed=None,
+    def __init__(self, ical_sources=(), *, account=None, choices=None, zone=None, feed=None,
                  fetch=fetch_text, now=time.monotonic, today=date.today):
         self._ical = list(ical_sources or [])
         self._account = account
+        self._choices = choices
         self._zone = zone or local_zone()
         self._feed = feed
         self._fetch = fetch
@@ -365,8 +413,17 @@ class CalendarSources:
             }
 
     def writable(self):
+        """Calendars a new event can go on: writable, and not hidden from the board."""
         with self._lock:
-            return [dict(c) for c in self._calendars if c.get("writable")]
+            return [dict(c) for c in self._calendars if c.get("writable") and c.get("shown", True)]
+
+    def show(self, calendar_id, shown):
+        """Shows or hides one calendar, then reads the calendars again."""
+        if self._choices is None:
+            raise ValidationError("This board can't choose which calendars to show.")
+        result = self._choices.show(calendar_id, shown)
+        self.refresh_soon()
+        return result
 
     # The refresher
 
@@ -427,10 +484,15 @@ class CalendarSources:
             found = self._account.calendars()
         except google.GoogleError as err:
             calendars.append({"id": None, "name": "Google Calendar", "color": COLORS[0], "kind": "google",
-                              "writable": False, "ok": False, "error": str(err)})
+                              "writable": False, "ok": False, "error": str(err), "shown": True})
             return
         for calendar in found:
-            entry = {**calendar, "kind": "google", "ok": False, "error": None}
+            entry = {**calendar, "kind": "google", "ok": False, "error": None, "shown": self._shows(calendar["id"])}
+            if not entry["shown"]:
+                # Listed so it can be switched back on, but not read at all.
+                entry["ok"] = True
+                calendars.append(entry)
+                continue
             try:
                 raw_events = self._account.events(calendar["id"], today, window_end)
             except google.GoogleError as err:
@@ -446,7 +508,12 @@ class CalendarSources:
     def _read_ical(self, today, window_end, calendars, events):
         for index, source in enumerate(self._ical):
             entry = {"id": "ical%d" % index, "name": source["name"] or "Calendar %d" % (index + 1),
-                     "color": source["color"], "kind": "ical", "writable": False, "ok": False, "error": None}
+                     "color": source["color"], "kind": "ical", "writable": False, "ok": False, "error": None,
+                     "shown": self._shows("ical%d" % index)}
+            if not entry["shown"]:
+                entry["ok"] = True
+                calendars.append(entry)
+                continue
             try:
                 feed = ical.read_calendar(self._fetch(source["url"]))
                 found = ical.occurrences(feed, window_start=today, window_end=window_end, local=self._zone)
@@ -459,6 +526,9 @@ class CalendarSources:
                     events.append(self._as_event(occurrence, "%s:%s@%s" % (entry["id"], occurrence["uid"][:48],
                                                                            occurrence["date"]), entry))
             calendars.append(entry)
+
+    def _shows(self, calendar_id):
+        return self._choices is None or self._choices.shows(calendar_id)
 
     @staticmethod
     def _as_event(occurrence, event_id, entry):

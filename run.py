@@ -11,7 +11,7 @@ import os
 import signal
 import sys
 
-from board.calendar import CalendarSources, CalendarStore, local_zone, sources_from
+from board.calendar import CalendarChoices, CalendarSources, CalendarStore, local_zone, sources_from
 from board.google import GoogleAccount
 from board.kiosk import Kiosk
 from board.notes import NotesBoard
@@ -74,6 +74,7 @@ def main():
     sources = CalendarSources(
         sources_from(config.get("calendars")),
         account=account,
+        choices=CalendarChoices(os.path.join(args.data, "calendar-choices.json"), feed=feed),
         zone=local_zone(config.get("timezone")),
         feed=feed,
     )

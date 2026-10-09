@@ -382,11 +382,39 @@
 }
 
 .source-list__item {
+  min-width: 0;
+}
+
+/* The whole row is the switch for showing that calendar on the board. */
+.source-list__toggle {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 0.8rem;
-  min-height: 2.8rem;
+  width: 100%;
+  min-height: var(--hit);
+  padding: 0 0.5rem;
+  margin: 0 -0.5rem;
+  border-radius: var(--radius-control);
+  text-align: left;
+}
+
+.source-list__toggle:active {
+  background: var(--fill);
+}
+
+/* A hidden calendar stays on the list, greyed, so it can be switched back on. */
+.source-list__toggle[aria-pressed="false"] .source-list__dot {
+  background: transparent;
+  border: 0.2rem solid var(--line);
+}
+
+.source-list__toggle[aria-pressed="false"] .source-list__name {
+  color: var(--text-3);
+}
+
+.source-list__toggle:disabled {
+  opacity: 0.6;
 }
 
 .source-list__dot {
@@ -409,6 +437,11 @@
   font-size: var(--fs-caption);
   font-weight: 650;
   color: var(--accent-text);
+  white-space: nowrap;
+}
+
+.source-list__toggle[aria-pressed="false"] .source-list__status {
+  color: var(--text-3);
 }
 
 .source-list__status--bad {

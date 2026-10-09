@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from board import google
 from board.calendar import (
     COLORS,
+    CalendarChoices,
     MAX_EVENTS,
     CalendarSources,
     CalendarStore,
@@ -235,8 +236,10 @@ class CalendarSourcesTest(unittest.TestCase):
         self.pages = {}
         self.fetched = []
         self.feed = ChangeFeed()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
 
-    def build(self, urls=(), account=None):
+    def build(self, urls=(), account=None, choices=None):
         def fetch(url):
             self.fetched.append(url)
             page = self.pages[url]
@@ -247,6 +250,7 @@ class CalendarSourcesTest(unittest.TestCase):
         return CalendarSources(
             sources_from(list(urls)),
             account=account,
+            choices=choices,
             zone=NEW_YORK,
             feed=self.feed,
             fetch=fetch,
@@ -392,6 +396,74 @@ class CalendarSourcesTest(unittest.TestCase):
         back = sources.restore(["g:me@example.com:e1"])
         self.assertEqual([e["title"] for e in back], ["Dentist"])
         self.assertEqual(account.inserted[0][1]["summary"], "Dentist")
+
+    # Choosing which calendars the board shows
+
+    def choices(self):
+        return CalendarChoices(os.path.join(self.tmp.name, "choices.json"))
+
+    def test_a_hidden_calendar_is_still_listed_but_never_read(self):
+        account = FakeAccount(events={
+            "me@example.com": [all_day("e1", "Dentist", "2026-10-20")],
+            "holidays@group.v": [all_day("h1", "Columbus Day", "2026-10-12")],
+        })
+        sources = self.build(account=account, choices=self.choices())
+        sources.show("holidays@group.v", False)
+        snapshot = sources.refresh()
+
+        self.assertEqual([e["title"] for e in snapshot["events"]], ["Dentist"])
+        # Still on the list, so it can be switched back on.
+        self.assertEqual([(c["name"], c["shown"]) for c in snapshot["calendars"]],
+                         [("Sheel", True), ("Holidays", False)])
+        # And a hidden calendar isn't an error, it's a choice.
+        self.assertTrue(all(c["ok"] for c in snapshot["calendars"]))
+        self.assertFalse(snapshot["stale"])
+
+    def test_showing_it_again_brings_its_events_back(self):
+        account = FakeAccount(events={"holidays@group.v": [all_day("h1", "Columbus Day", "2026-10-12")]})
+        sources = self.build(account=account, choices=self.choices())
+        sources.show("holidays@group.v", False)
+        self.assertEqual(sources.refresh()["events"], [])
+        sources.show("holidays@group.v", True)
+        self.assertEqual([e["title"] for e in sources.refresh()["events"]], ["Columbus Day"])
+
+    def test_an_ical_subscription_can_be_hidden_too(self):
+        self.pages["https://e.com/b.ics"] = ics("UID:1\nSUMMARY:Bank holiday\nDTSTART;VALUE=DATE:20261020")
+        sources = self.build(["https://e.com/b.ics"], choices=self.choices())
+        self.assertEqual(len(sources.refresh()["events"]), 1)
+        sources.show("ical0", False)
+        self.assertEqual(sources.refresh()["events"], [])
+
+    def test_a_hidden_calendar_is_not_offered_for_new_events(self):
+        account = FakeAccount()
+        sources = self.build(account=account, choices=self.choices())
+        sources.refresh()
+        self.assertIn("Sheel", [c["name"] for c in sources.writable()])
+        sources.show("me@example.com", False)
+        sources.refresh()
+        self.assertNotIn("Sheel", [c["name"] for c in sources.writable()])
+
+    def test_the_choice_survives_a_restart(self):
+        path = os.path.join(self.tmp.name, "choices.json")
+        CalendarChoices(path).show("me@example.com", False)
+        self.assertEqual(CalendarChoices(path).hidden(), {"me@example.com"})
+
+    def test_a_calendar_nobody_has_touched_shows_by_default(self):
+        account = FakeAccount()
+        snapshot = self.build(account=account, choices=self.choices()).refresh()
+        self.assertTrue(all(c["shown"] for c in snapshot["calendars"]))
+
+    def test_show_refuses_nonsense(self):
+        sources = self.build(account=FakeAccount(), choices=self.choices())
+        for bad in [None, "", 5]:
+            with self.assertRaises(ValidationError):
+                sources.show(bad, False)
+        with self.assertRaises(ValidationError):
+            sources.show("me@example.com", "nope")
+
+    def test_a_board_with_no_choices_store_says_so(self):
+        with self.assertRaises(ValidationError):
+            self.build(account=FakeAccount()).show("me@example.com", False)
 
     def test_removing_something_that_isn_t_a_google_event_is_not_found(self):
         with self.assertRaises(NotFound):

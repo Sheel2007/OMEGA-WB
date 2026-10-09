@@ -336,21 +336,41 @@ export function mount(root, { services, kiosk }) {
       sourceList,
       entries,
       (entry) => `${entry.kind}:${entry.id ?? entry.name}`,
-      () =>
-        el(
-          'li',
-          { class: 'source-list__item' },
-          el('span', { class: 'source-list__dot' }),
-          el('span', { class: 'source-list__name' }),
-          el('span', { class: 'source-list__status' }),
-        ),
+      () => {
+        const row = el('li', { class: 'source-list__item' });
+        // The whole row is the switch: tapping it shows or hides that calendar here.
+        row.append(
+          el(
+            'button',
+            {
+              class: 'source-list__toggle',
+              type: 'button',
+              onclick: () => {
+                const wanted = row.dataset.shown !== 'true';
+                calendar.showCalendar(row.dataset.calendarId, wanted).catch((err) => toast(err.message));
+              },
+            },
+            el('span', { class: 'source-list__dot' }),
+            el('span', { class: 'source-list__name' }),
+            el('span', { class: 'source-list__status' }),
+          ),
+        );
+        return row;
+      },
       (node, entry) => {
-        const [dot, label, status] = node.children;
+        const button = node.firstChild;
+        const [dot, label, status] = button.children;
+        node.dataset.calendarId = entry.id ?? '';
+        node.dataset.shown = String(entry.shown !== false);
         dot.dataset.color = entry.color;
         label.textContent = entry.name;
         const target = entry.kind === 'google' && entry.id === account.target;
-        status.textContent = entry.ok ? (target ? 'New events here' : 'Synced') : entry.error || 'Not syncing';
-        status.classList.toggle('source-list__status--bad', !entry.ok);
+        if (entry.shown === false) status.textContent = 'Hidden';
+        else status.textContent = entry.ok ? (target ? 'New events here' : 'Synced') : entry.error || 'Not syncing';
+        status.classList.toggle('source-list__status--bad', entry.shown !== false && !entry.ok);
+        button.setAttribute('aria-pressed', String(entry.shown !== false));
+        button.setAttribute('aria-label', `${entry.shown === false ? 'Show' : 'Hide'} ${entry.name} on this board`);
+        button.disabled = !entry.id;
       },
     );
 

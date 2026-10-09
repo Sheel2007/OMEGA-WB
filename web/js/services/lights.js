@@ -5,7 +5,17 @@ import { getJson, newId, postJson } from './http.js';
 import { createSyncedState } from './synced-state.js';
 
 // `configured: null` until the board has answered, so nothing says "not set up" too early.
-const EMPTY = { version: -1, configured: null, connected: false, hub: null, lights: [], schedules: [] };
+const EMPTY = {
+  version: -1,
+  configured: null,
+  connected: false,
+  hub: null,
+  lights: [],
+  schedules: [],
+  pairing: { open: false, until: null, found: null, error: null },
+};
+// Matches PAIR_SECONDS in board/lights.py.
+const PAIR_MS = 254 * 1000;
 
 const byTime = (a, b) => a.time.localeCompare(b.time) || a.id.localeCompare(b.id);
 
@@ -51,6 +61,14 @@ export function createLightsService({ live }) {
           light.swapped = swapped;
           if (light.on !== null) light.on = !light.on;
         }
+        return state;
+      });
+    },
+
+    // Lets a new switch join through Zigbee2MQTT for a few minutes, or stops that early.
+    pair(open) {
+      return synced.mutate('pair', { open }, (state) => {
+        state.pairing = { open, until: open ? Date.now() + PAIR_MS : null, found: open ? null : state.pairing.found, error: null };
         return state;
       });
     },

@@ -345,6 +345,15 @@ class ServerTest(unittest.TestCase):
         self.assertFalse(next(light for light in body["state"]["lights"] if light["id"] == BEDROOM)["on"])
         self.post("/api/lights/swap", {"id": BEDROOM, "swapped": False})
 
+    def test_lights_pairing(self):
+        status, body = self.post("/api/lights/pair", {"open": True})
+        self.assertEqual(status, 200)
+        self.assertTrue(body["state"]["pairing"]["open"])
+        self.assertEqual(self.lights._client.published[-1], ("zigbee2mqtt/bridge/request/permit_join", {"time": 254}))
+        status, body = self.post("/api/lights/pair", {"open": False})
+        self.assertFalse(body["state"]["pairing"]["open"])
+        self.assertEqual(self.post("/api/lights/pair", {"open": "please"})[0], 400)
+
     def test_lights_problems_have_a_message(self):
         status, body = self.post("/api/lights/set", {"id": BEDROOM, "on": "please"})
         self.assertEqual(status, 400)

@@ -18,6 +18,7 @@ import json
 import logging
 import re
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -32,6 +33,8 @@ MAX_SCHEDULES = 40
 MAX_LIGHTS = 64
 # A schedule missed by more than this (the Pi's clock jumped, say) isn't caught up on.
 MAX_CATCH_UP_MINUTES = 5
+# How long pairing stays open: Zigbee2MQTT's longest, a little over four minutes.
+PAIR_SECONDS = 254
 # Lands each check just after the minute turns over.
 TICK_MARGIN_SECONDS = 0.2
 
@@ -118,6 +121,26 @@ def lights_in(device_list):
     return found
 
 
+def _pairing_event(event):
+    """What a bridge/event says about a switch that's joining: (found or None, pairing done)."""
+    data = event.get("data") if isinstance(event.get("data"), dict) else {}
+    light_id = str(data.get("ieee_address", "")).lower()
+    if not LIGHT_ID.match(light_id):
+        return None, False
+    name = display_name(data.get("friendly_name"), light_id)
+    kind, status = event.get("type"), data.get("status")
+    if kind == "device_joined" or (kind == "device_interview" and status == "started"):
+        return {"state": "joining", "name": name}, False
+    if kind == "device_interview" and status == "failed":
+        return {"state": "failed", "name": name}, False
+    if kind == "device_interview" and status == "successful":
+        device = {**data, "type": "Router", "interview_completed": True}
+        if lights_in([device]):
+            return {"state": "ready", "name": name}, True
+        return {"state": "other", "name": name}, False
+    return None, False
+
+
 def _payload_state(payload):
     """'online'/'ON'-style word from a payload that's either JSON {"state": ...} or plain text."""
     text = payload.decode("utf-8", "replace").strip() if isinstance(payload, bytes) else str(payload)
@@ -198,10 +221,14 @@ def _order(schedule):
 class Lights(JsonStore):
     label = "lights"
 
-    def __init__(self, path=None, *, mqtt=None, zone=None, feed=None, clock=None, client_factory=MqttClient):
+    def __init__(self, path=None, *, mqtt=None, zone=None, feed=None, clock=None, epoch_ms=None,
+                 client_factory=MqttClient):
         self._mqtt = mqtt
         self._zone = zone
         self._wall_clock = clock or self._local_now
+        self._epoch_ms = epoch_ms or (lambda: int(time.time() * 1000))
+        # Whether new switches may join, until when (epoch ms), and how the newest one is getting on.
+        self._pairing = {"open": False, "until": None, "found": None, "error": None}
         self._raw = {}         # id -> "ON"/"OFF" as the switch last reported it
         self._online = {}      # id -> bool, when Zigbee2MQTT reports availability
         self._hub = None       # Zigbee2MQTT itself: True/False, None until it says
@@ -289,13 +316,17 @@ class Lights(JsonStore):
             self._connected = True
             self._subscribed = set()
             self._announce()
-        self._client.subscribe(["%s/bridge/devices" % base, "%s/bridge/state" % base])
+        self._client.subscribe(["%s/bridge/%s" % (base, name) for name in
+                                ("devices", "state", "info", "event", "response/permit_join")])
         self._follow()
 
     def handle_disconnect(self):
         with self._changed:
             self._connected = False
             self._subscribed = set()
+            # Zigbee2MQTT closes pairing on its own timer; without the broker we can't tell.
+            self._pairing["open"] = False
+            self._pairing["until"] = None
             self._announce()
 
     def handle_message(self, topic, payload):
@@ -303,6 +334,14 @@ class Lights(JsonStore):
         if not topic.startswith(base):
             return
         rest = topic[len(base):]
+        if rest in ("bridge/info", "bridge/event", "bridge/response/permit_join"):
+            try:
+                data = json.loads(payload)
+            except ValueError:
+                return
+            if isinstance(data, dict):
+                self._read_pairing(rest, data)
+            return
         if rest == "bridge/devices":
             try:
                 found = lights_in(json.loads(payload))
@@ -368,6 +407,58 @@ class Lights(JsonStore):
             if wanted[topic] is not None:
                 self._client.publish("%s/%s/get" % (base, wanted[topic]), json.dumps({"state": ""}))
 
+    # Pairing
+
+    def pair(self, open_):
+        """Lets new switches join for a few minutes (or stops that early)."""
+        if not isinstance(open_, bool):
+            raise ValidationError("'open' must be true or false.")
+        with self._changed:
+            self._require_hub()
+        if not self._send_permit_join(PAIR_SECONDS if open_ else 0):
+            raise LightsUnavailable("Can't reach the lights right now. Try again in a moment.")
+        with self._changed:
+            # Shown straight away; Zigbee2MQTT's bridge/info confirms it.
+            self._pairing = {
+                "open": open_,
+                "until": self._epoch_ms() + PAIR_SECONDS * 1000 if open_ else None,
+                "found": None if open_ else self._pairing["found"],
+                "error": None,
+            }
+            self._announce()
+            return {"state": self._state()}
+
+    def _send_permit_join(self, seconds):
+        topic = "%s/bridge/request/permit_join" % self._mqtt["base_topic"]
+        return self._client.publish(topic, json.dumps({"time": seconds}))
+
+    def _read_pairing(self, topic, data):
+        close = False
+        with self._changed:
+            pairing = dict(self._pairing)
+            if topic == "bridge/info":
+                pairing["open"] = bool(data.get("permit_join"))
+                end, timeout = data.get("permit_join_end"), data.get("permit_join_timeout")
+                if not pairing["open"]:
+                    pairing["until"] = None
+                elif isinstance(end, int):
+                    pairing["until"] = end
+                elif isinstance(timeout, int):
+                    pairing["until"] = self._epoch_ms() + timeout * 1000
+            elif topic == "bridge/response/permit_join":
+                if data.get("status") == "error":
+                    pairing.update(open=False, until=None, error=str(data.get("error") or "Zigbee2MQTT couldn't start pairing."))
+            elif pairing["open"]:
+                found, close = _pairing_event(data)
+                if found is not None:
+                    pairing["found"] = found
+            if pairing != self._pairing:
+                self._pairing = pairing
+                self._announce()
+        if close:
+            # One switch at a time, as Zigbee2MQTT recommends: it's in, so stop listening.
+            self._send_permit_join(0)
+
     # Switching
 
     def set(self, light_id, on):
@@ -377,12 +468,7 @@ class Lights(JsonStore):
             device = self._devices.get(light_id)
             if device is None:
                 raise NotFound("That light isn't paired with the board any more.")
-            if self._client is None:
-                raise LightsUnavailable("The lights aren't set up on this board yet.")
-            if not self._connected:
-                raise LightsUnavailable("Can't reach the lights right now. Check that Mosquitto is running on the Pi.")
-            if self._hub is False:
-                raise LightsUnavailable("Zigbee2MQTT isn't running, so the lights can't be switched.")
+            self._require_hub()
             command = "ON" if on != (light_id in self._swapped) else "OFF"
             topic = "%s/%s/set" % (self._mqtt["base_topic"], device["topic"])
         if not self._client.publish(topic, json.dumps({"state": command})):
@@ -476,6 +562,15 @@ class Lights(JsonStore):
         if self._feed is not None:
             self._feed.notify()
 
+    def _require_hub(self):
+        """Call with self._changed held."""
+        if self._client is None:
+            raise LightsUnavailable("The lights aren't set up on this board yet.")
+        if not self._connected:
+            raise LightsUnavailable("Can't reach the lights right now. Check that Mosquitto is running on the Pi.")
+        if self._hub is False:
+            raise LightsUnavailable("Zigbee2MQTT isn't running, so the lights can't be switched.")
+
     def _reachable(self, light_id):
         return self._connected and self._hub is not False and self._online.get(light_id, True)
 
@@ -506,6 +601,7 @@ class Lights(JsonStore):
             "hub": self._hub,
             "lights": lights,
             "schedules": copy.deepcopy(self._schedules),
+            "pairing": copy.deepcopy(self._pairing),
         }
 
     def _to_disk(self):

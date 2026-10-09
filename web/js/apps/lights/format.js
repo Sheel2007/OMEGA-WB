@@ -125,6 +125,29 @@ export function statusLabel(state) {
   return countLabel(state.lights);
 }
 
+// "3:42": how long pairing stays open, counted down from `until` (epoch ms).
+export function pairingCountdown(until, now = Date.now()) {
+  if (!until) return '';
+  const left = Math.max(0, Math.round((until - now) / 1000));
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}
+
+// What to do while pairing is open, or how the switch that's joining is getting on.
+export function pairingMessage(found) {
+  switch (found?.state) {
+    case 'joining':
+      return 'Found a switch. Setting it up…';
+    case 'failed':
+      return `${found.name} didn’t finish setting up. Hold its button again.`;
+    case 'other':
+      return `${found.name} joined, but it isn’t an on/off switch.`;
+    case 'ready':
+      return `${found.name} is ready.`;
+    default:
+      return 'Hold the new switch’s button for about 30 seconds, until its light blinks fast. Then let go.';
+  }
+}
+
 // What a light's tile says under its name.
 export function lightStateLabel(light) {
   if (!light.reachable) return 'No response';

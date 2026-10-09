@@ -187,6 +187,23 @@
   color: var(--text-2);
 }
 
+/* Pairing: the + in the header becomes × while new switches may join. */
+
+.lights-widget__stop {
+  background: var(--fill-strong);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.lights-widget__stop:active {
+  background: var(--fill);
+}
+
+.lights-widget__pairing-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+}
+
 /* App layout: the lights on the left, schedules on the right. */
 
 .lights-app {

@@ -210,6 +210,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/calendar/google/target": "google_target",
         "/api/lights/set": "lights_set",
         "/api/lights/swap": "lights_swap",
+        "/api/lights/pair": "lights_pair",
         "/api/lights/schedules/add": "lights_schedule_add",
         "/api/lights/schedules/update": "lights_schedule_update",
         "/api/lights/schedules/remove": "lights_schedule_remove",
@@ -428,6 +429,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def lights_swap(self, body):
         return self.server.lights.swap(body.get("id"), body.get("swapped"))
+
+    def lights_pair(self, body):
+        return self.server.lights.pair(body.get("open"))
 
     def lights_schedule_add(self, body):
         return self.server.lights.add_schedule(body, schedule_id=body.get("id"))

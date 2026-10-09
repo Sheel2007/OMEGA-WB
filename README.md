@@ -103,9 +103,15 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     board says Off (a switch paired or wired the other way round). Schedules
     follow the swap too.
 
+  - **Pairing a new switch** — tap + on the Lights widget, then hold the switch's
+    button for about 30 seconds until its light blinks fast, and let go. The
+    widget counts down the four minutes pairing stays open and shows how the
+    switch is getting on; once it's ready, pairing stops and the light appears.
+    Tap × to stop early. Pair one switch at a time.
+
   Lights are named after their Zigbee2MQTT names, so `bedroom_light` shows as
-  **Bedroom**. Pair and rename switches in Zigbee2MQTT; the board picks the
-  changes up by itself.
+  **Bedroom**, and a new switch is "Light" plus the end of its address until
+  you rename it in Zigbee2MQTT. The board picks renames up by itself.
 - **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
   still picture, turn off **Moving scenery** in the menu.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home

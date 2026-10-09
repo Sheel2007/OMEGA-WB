@@ -7,6 +7,8 @@ import {
   lightsLabel,
   lightStateLabel,
   nextLabel,
+  pairingCountdown,
+  pairingMessage,
   nextRun,
   nextSchedule,
   repeatLabel,
@@ -96,4 +98,17 @@ test('counts and status say what matters at a glance', () => {
   assert.equal(lightStateLabel(LIGHTS[0]), 'On');
   assert.equal(lightStateLabel(LIGHTS[2]), 'Checking…');
   assert.equal(lightStateLabel({ ...LIGHTS[0], reachable: false }), 'No response');
+});
+
+test('pairing counts down in minutes and seconds, and says how the new switch is doing', () => {
+  assert.equal(pairingCountdown(1_000_000 + 222_400, 1_000_000), '3:42');
+  assert.equal(pairingCountdown(1_000_000 + 9_000, 1_000_000), '0:09');
+  assert.equal(pairingCountdown(1_000_000 - 5_000, 1_000_000), '0:00', 'never negative');
+  assert.equal(pairingCountdown(null), '');
+
+  assert.match(pairingMessage(null), /Hold the new switch’s button/);
+  assert.equal(pairingMessage({ state: 'joining', name: 'Light 0009' }), 'Found a switch. Setting it up…');
+  assert.equal(pairingMessage({ state: 'ready', name: 'Light 0009' }), 'Light 0009 is ready.');
+  assert.match(pairingMessage({ state: 'failed', name: 'Light 0009' }), /didn’t finish setting up/);
+  assert.match(pairingMessage({ state: 'other', name: 'Hall sensor' }), /isn’t an on\/off switch/);
 });

@@ -77,7 +77,8 @@ class FakeClient:
 
 
 def connected_lights(path=None, feed=None, clock=None):
-    lights = Lights(path, mqtt=settings_from(True), feed=feed, clock=clock, client_factory=FakeClient)
+    lights = Lights(path, mqtt=settings_from(True), feed=feed, clock=clock, epoch_ms=lambda: 1_000_000,
+                    client_factory=FakeClient)
     lights.handle_connect()
     lights.handle_message("zigbee2mqtt/bridge/state", b'{"state":"online"}')
     lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
@@ -217,6 +218,81 @@ class SwitchingTest(unittest.TestCase):
         lights._client.up = False
         with self.assertRaises(LightsUnavailable):
             lights.set(BEDROOM, True)
+
+
+class PairingTest(unittest.TestCase):
+    NEW = "0x00124b00aaaa0009"
+
+    def event(self, lights, kind, **data):
+        payload = {"type": kind, "data": {"ieee_address": self.NEW, "friendly_name": self.NEW, **data}}
+        lights.handle_message("zigbee2mqtt/bridge/event", json.dumps(payload).encode())
+
+    def test_pairing_asks_zigbee2mqtt_and_shows_the_countdown_straight_away(self):
+        lights = connected_lights()
+        self.assertIn("zigbee2mqtt/bridge/event", lights._client.subscribed)
+        self.assertFalse(lights.snapshot()["pairing"]["open"])
+        state = lights.pair(True)["state"]
+        self.assertEqual(lights._client.published[-1], ("zigbee2mqtt/bridge/request/permit_join", {"time": 254}))
+        self.assertEqual(state["pairing"], {"open": True, "until": 1_000_000 + 254_000, "found": None, "error": None})
+
+        lights.handle_message("zigbee2mqtt/bridge/info", b'{"permit_join": true, "permit_join_end": 1200000, "config": {}}')
+        self.assertEqual(lights.snapshot()["pairing"]["until"], 1_200_000, "Zigbee2MQTT's own end time wins")
+
+        lights.pair(False)
+        self.assertEqual(lights._client.published[-1][1], {"time": 0})
+        self.assertFalse(lights.snapshot()["pairing"]["open"])
+        lights.handle_message("zigbee2mqtt/bridge/info", b'{"permit_join": false}')
+        self.assertIsNone(lights.snapshot()["pairing"]["until"])
+
+    def test_a_new_switch_is_followed_until_it_is_ready_then_pairing_stops(self):
+        lights = connected_lights()
+        lights.pair(True)
+        self.event(lights, "device_joined")
+        self.assertEqual(lights.snapshot()["pairing"]["found"], {"state": "joining", "name": "Light 0009"})
+        self.event(lights, "device_interview", status="failed")
+        self.assertEqual(lights.snapshot()["pairing"]["found"]["state"], "failed")
+        self.event(lights, "device_interview", status="successful",
+                   definition={"exposes": [{"type": "switch", "features": [{"property": "state"}]}]})
+        self.assertEqual(lights.snapshot()["pairing"]["found"]["state"], "ready")
+        self.assertEqual(lights._client.published[-1], ("zigbee2mqtt/bridge/request/permit_join", {"time": 0}),
+                         "one switch at a time")
+
+    def test_a_device_that_is_not_a_switch_is_reported_and_pairing_stays_open(self):
+        lights = connected_lights()
+        lights.pair(True)
+        sent = len(lights._client.published)
+        self.event(lights, "device_interview", status="successful", definition={"exposes": [{"type": "binary"}]})
+        self.assertEqual(lights.snapshot()["pairing"]["found"]["state"], "other")
+        self.assertEqual(len(lights._client.published), sent)
+
+    def test_events_while_pairing_is_closed_are_ignored(self):
+        lights = connected_lights()
+        self.event(lights, "device_joined")
+        self.assertIsNone(lights.snapshot()["pairing"]["found"])
+
+    def test_a_refusal_from_zigbee2mqtt_closes_pairing_with_its_reason(self):
+        lights = connected_lights()
+        lights.pair(True)
+        lights.handle_message("zigbee2mqtt/bridge/response/permit_join", b'{"status": "error", "error": "Adapter busy"}')
+        pairing = lights.snapshot()["pairing"]
+        self.assertFalse(pairing["open"])
+        self.assertEqual(pairing["error"], "Adapter busy")
+
+    def test_pairing_needs_the_broker_and_zigbee2mqtt(self):
+        lights = connected_lights()
+        with self.assertRaises(ValidationError):
+            lights.pair("yes")
+        lights.pair(True)
+        lights.handle_disconnect()
+        self.assertFalse(lights.snapshot()["pairing"]["open"])
+        with self.assertRaises(LightsUnavailable):
+            lights.pair(True)
+        lights.handle_connect()
+        lights.handle_message("zigbee2mqtt/bridge/state", b'{"state":"offline"}')
+        with self.assertRaises(LightsUnavailable):
+            lights.pair(True)
+        with self.assertRaises(LightsUnavailable):
+            Lights().pair(True)
 
 
 class ScheduleTest(unittest.TestCase):

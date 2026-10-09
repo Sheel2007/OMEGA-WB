@@ -111,9 +111,14 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     switch is getting on; once it's ready, pairing stops and the light appears.
     Tap × to stop early. Pair one switch at a time.
 
-  Lights are named after their Zigbee2MQTT names, so `bedroom_light` shows as
-  **Bedroom**, and a new switch is "Light" plus the end of its address until
-  you rename it in Zigbee2MQTT. The board picks renames up by itself.
+  - **Naming a light** — tap ⋯ on it, tap its name, type, and tap **Done**
+    (tapping outside the card keeps the old name). Right after pairing, the
+    "added" message has a **Name it** button that does the same. Every screen
+    shows the new name, and Zigbee2MQTT is renamed to match (`Kitchen Island`
+    becomes `kitchen_island`).
+
+  Until it's named, a light goes by its Zigbee2MQTT name (`bedroom_light` shows
+  as **Bedroom**), and a new switch is "Light" plus the end of its address.
 - **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
   still picture, turn off **Moving scenery** in the menu.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
@@ -257,8 +262,8 @@ copy `configuration.yaml`, `database.db` and `coordinator_backup.json` from the
 Mac's `~/zigbee2mqtt/data/` into `/opt/zigbee2mqtt/data/` on the Pi first, and the
 script points them at the Pi's dongle without touching the network key.
 
-Zigbee2MQTT's own page is at `http://<pi-address>:8099` (8080 is the board), for
-renaming switches. Schedules run on the Pi in its own time zone (`timezone`
+Zigbee2MQTT's own page is at `http://<pi-address>:8099` (8080 is the board), if
+you ever need its advanced settings. Schedules run on the Pi in its own time zone (`timezone`
 above), so they work with every screen off.
 
 Only if your broker is somewhere else, tell the board in `config.json`

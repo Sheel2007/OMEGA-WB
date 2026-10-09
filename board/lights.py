@@ -23,13 +23,14 @@ import uuid
 from datetime import datetime, timedelta
 
 from .mqtt import MqttClient
-from .store import JsonStore, NotFound, ValidationError
+from .store import JsonStore, NotFound, ValidationError, tidy_text
 
 log = logging.getLogger(__name__)
 
 DEFAULT_PORT = 1883
 DEFAULT_BASE_TOPIC = "zigbee2mqtt"
 MAX_SCHEDULES = 40
+MAX_NAME_LENGTH = 40
 MAX_LIGHTS = 64
 # A schedule missed by more than this (the Pi's clock jumped, say) isn't caught up on.
 MAX_CATCH_UP_MINUTES = 5
@@ -99,6 +100,22 @@ def display_name(friendly_name, light_id):
     return (text[:1].upper() + text[1:]) or friendly_name
 
 
+def clean_name(raw):
+    if not isinstance(raw, str):
+        raise ValidationError("A light's name must be text.")
+    return tidy_text(
+        raw,
+        max_length=MAX_NAME_LENGTH,
+        empty_message="Give the light a name.",
+        too_long_message="Keep light names under %d characters." % MAX_NAME_LENGTH,
+    )
+
+
+def topic_name(name):
+    """'Bedroom Lamp' → 'bedroom_lamp': the name Zigbee2MQTT is asked to use, a safe MQTT topic."""
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
 def lights_in(device_list):
     """The on/off switches in Zigbee2MQTT's bridge/devices list, as {id: {"topic", "name"}}."""
     found = {}
@@ -134,14 +151,14 @@ def _pairing_event(event):
     name = display_name(data.get("friendly_name"), light_id)
     kind, status = event.get("type"), data.get("status")
     if kind == "device_joined" or (kind == "device_interview" and status == "started"):
-        return {"state": "joining", "name": name}, False
+        return {"state": "joining", "name": name, "id": light_id}, False
     if kind == "device_interview" and status == "failed":
-        return {"state": "failed", "name": name}, False
+        return {"state": "failed", "name": name, "id": light_id}, False
     if kind == "device_interview" and status == "successful":
         device = {**data, "type": "Router", "interview_completed": True}
         if lights_in([device]):
-            return {"state": "ready", "name": name}, True
-        return {"state": "other", "name": name}, False
+            return {"state": "ready", "name": name, "id": light_id}, True
+        return {"state": "other", "name": name, "id": light_id}, False
     return None, False
 
 
@@ -487,6 +504,31 @@ class Lights(JsonStore):
                 self._announce()
             return {"state": self._state()}
 
+    def rename(self, light_id, raw_name):
+        """Names a light on the board, and asks Zigbee2MQTT to call it the same.
+
+        The board's name is what every screen shows, kept by address so it survives
+        anything Zigbee2MQTT does. Zigbee2MQTT's own name (its page, its MQTT topic) is
+        a tidy version of it, if that's free; if Zigbee2MQTT says no, nothing shows it.
+        """
+        name = clean_name(raw_name)
+        with self._changed:
+            device = self._devices.get(light_id)
+            if device is None:
+                raise NotFound("That light isn't paired with the board any more.")
+            if self._names.get(light_id) != name:
+                self._names[light_id] = name
+                self._commit()
+            wanted = topic_name(name)
+            taken = {d["topic"] for i, d in self._devices.items() if i != light_id}
+            ask = self._connected and wanted and wanted != device["topic"] and wanted not in taken
+            old = device["topic"]
+            state = self._state()
+        if ask:
+            self._client.publish("%s/bridge/request/device/rename" % self._mqtt["base_topic"],
+                                 json.dumps({"from": old, "to": wanted, "homeassistant_rename": False}))
+        return {"state": state}
+
     def swap(self, light_id, swapped):
         """Treats this switch's On as Off and its Off as On, here and in every schedule."""
         if not isinstance(swapped, bool):
@@ -585,6 +627,7 @@ class Lights(JsonStore):
 
     def _reset(self):
         self._devices = {}
+        self._names = {}       # id -> the name people gave it on the board
         self._swapped = set()
         self._schedules = []
 
@@ -595,7 +638,7 @@ class Lights(JsonStore):
             swapped = light_id in self._swapped
             lights.append({
                 "id": light_id,
-                "name": device["name"],
+                "name": self._names.get(light_id) or device["name"],
                 "on": None if raw is None else (raw == "ON") != swapped,
                 "reachable": self._reachable(light_id),
                 "swapped": swapped,
@@ -614,6 +657,7 @@ class Lights(JsonStore):
     def _to_disk(self):
         return {
             "lights": {light_id: dict(device) for light_id, device in self._devices.items()},
+            "names": dict(self._names),
             "swapped": sorted(self._swapped),
             "schedules": self._schedules,
         }
@@ -624,6 +668,8 @@ class Lights(JsonStore):
             if LIGHT_ID.match(light_id) and isinstance(device.get("topic"), str) and isinstance(device.get("name"), str):
                 devices[light_id] = {"topic": device["topic"], "name": device["name"]}
         self._devices = devices
+        self._names = {i: n for i, n in (data.get("names") or {}).items()
+                       if LIGHT_ID.match(i) and isinstance(n, str) and n.strip()}
         self._swapped = {i for i in data.get("swapped", []) if isinstance(i, str) and LIGHT_ID.match(i)}
         schedules = []
         for raw in data.get("schedules", []):

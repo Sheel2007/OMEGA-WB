@@ -89,7 +89,7 @@ export function createWidget({ services, openApp }) {
       countdown = null;
     }
 
-    announcePairing(state.pairing);
+    announcePairing(state.pairing, (id) => openApp(meta.id, { origin: node, intent: `name-${id}` }));
     return open;
   }
 

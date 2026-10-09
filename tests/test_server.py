@@ -346,6 +346,14 @@ class ServerTest(unittest.TestCase):
         self.assertFalse(next(light for light in body["state"]["lights"] if light["id"] == BEDROOM)["on"])
         self.post("/api/lights/swap", {"id": BEDROOM, "swapped": False})
 
+    def test_renaming_a_light(self):
+        status, body = self.post("/api/lights/rename", {"id": BEDROOM, "name": "Reading Lamp"})
+        self.assertEqual(status, 200)
+        self.assertEqual(next(light for light in body["state"]["lights"] if light["id"] == BEDROOM)["name"], "Reading Lamp")
+        status, body = self.post("/api/lights/rename", {"id": BEDROOM, "name": ""})
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"]["message"], "Give the light a name.")
+
     def test_lights_pairing(self):
         status, body = self.post("/api/lights/pair", {"open": True})
         self.assertEqual(status, 200)

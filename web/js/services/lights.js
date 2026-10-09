@@ -65,6 +65,16 @@ export function createLightsService({ live }) {
       });
     },
 
+    // What every screen calls this light. Zigbee2MQTT is asked to use a tidy version of it too.
+    renameLight(id, name) {
+      const tidy = name.trim().replace(/\s+/g, ' ');
+      return synced.mutate('rename', { id, name: tidy }, (state) => {
+        const light = state.lights.find((l) => l.id === id);
+        if (light) light.name = tidy;
+        return state;
+      });
+    },
+
     // Lets a new switch join through Zigbee2MQTT for a few minutes, or stops that early.
     pair(open) {
       return synced.mutate('pair', { open }, (state) => {

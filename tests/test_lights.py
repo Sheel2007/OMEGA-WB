@@ -176,6 +176,49 @@ class DevicesTest(unittest.TestCase):
         self.assertTrue(light(lights, KITCHEN)["swapped"])
 
 
+class RenameTest(unittest.TestCase):
+    def test_a_light_keeps_the_name_it_is_given_and_zigbee2mqtt_is_asked_to_match(self):
+        lights = connected_lights()
+        state = lights.rename(KITCHEN, "  Kitchen   Island Light ")["state"]
+        self.assertEqual(next(i for i in state["lights"] if i["id"] == KITCHEN)["name"], "Kitchen Island Light",
+                         "exactly as typed (tidied), not shortened like Zigbee2MQTT names")
+        self.assertEqual(lights._client.published[-1], ("zigbee2mqtt/bridge/request/device/rename",
+                         {"from": "kitchen_light", "to": "kitchen_island_light", "homeassistant_rename": False}))
+
+        renamed = [d if d.get("ieee_address") != KITCHEN else switch(KITCHEN, "kitchen_island_light") for d in DEVICES]
+        lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(renamed).encode())
+        self.assertEqual(light(lights, KITCHEN)["name"], "Kitchen Island Light")
+        lights.set(KITCHEN, True)
+        self.assertEqual(lights._client.published[-1][0], "zigbee2mqtt/kitchen_island_light/set", "follows the new topic")
+
+    def test_zigbee2mqtt_is_not_asked_for_a_name_another_switch_has(self):
+        lights = connected_lights()
+        sent = len(lights._client.published)
+        lights.rename(KITCHEN, "Bedroom Light")
+        self.assertEqual(len(lights._client.published), sent, "bedroom_light is taken")
+        self.assertEqual(light(lights, KITCHEN)["name"], "Bedroom Light", "the board's name still changes")
+
+    def test_names_are_checked(self):
+        lights = connected_lights()
+        with self.assertRaises(ValidationError):
+            lights.rename(KITCHEN, "   ")
+        with self.assertRaises(ValidationError):
+            lights.rename(KITCHEN, "x" * 41)
+        with self.assertRaises(ValidationError):
+            lights.rename(KITCHEN, 7)
+        with self.assertRaises(NotFound):
+            lights.rename("0x0000000000000009", "Garage")
+
+    def test_a_name_works_without_the_broker_and_survives_a_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "lights.json")
+            lights = connected_lights(path)
+            lights.handle_disconnect()
+            lights.rename(BEDROOM, "Reading Lamp")
+            again = Lights(path)
+            self.assertEqual(next(i for i in again.snapshot()["lights"] if i["id"] == BEDROOM)["name"], "Reading Lamp")
+
+
 class SwitchingTest(unittest.TestCase):
     def test_set_sends_the_state_and_shows_it_straight_away(self):
         lights = connected_lights()
@@ -249,7 +292,7 @@ class PairingTest(unittest.TestCase):
         lights = connected_lights()
         lights.pair(True)
         self.event(lights, "device_joined")
-        self.assertEqual(lights.snapshot()["pairing"]["found"], {"state": "joining", "name": "Light 0009"})
+        self.assertEqual(lights.snapshot()["pairing"]["found"], {"state": "joining", "name": "Light 0009", "id": self.NEW})
         self.event(lights, "device_interview", status="failed")
         self.assertEqual(lights.snapshot()["pairing"]["found"]["state"], "failed")
         self.event(lights, "device_interview", status="successful",

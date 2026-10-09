@@ -42,12 +42,14 @@ export function togglePairing(lights) {
 
 // Says once (on whichever screen part notices first) that a light was added or
 // pairing was refused. The first call only takes note of how things already are.
+// onName(id) opens the new light's name, from the message's "Name it" button.
 let announced = null;
 
-export function announcePairing({ found, error }) {
-  const news = error ? `error:${error}` : found?.state === 'ready' ? `ready:${found.name}` : '';
+export function announcePairing({ found, error }, onName) {
+  const news = error ? `error:${error}` : found?.state === 'ready' ? `ready:${found.id ?? found.name}` : '';
   if (announced !== null && news && news !== announced) {
-    toast(error || `${found.name} added. Rename it in Zigbee2MQTT if you like.`);
+    if (error) toast(error);
+    else toast(`${found.name} added.`, found.id ? { action: 'Name it', onAction: () => onName(found.id) } : {});
   }
   announced = news;
 }

@@ -1,6 +1,7 @@
 // Lights: the full-screen app. The lights as big buttons on the left, the schedules
 // that switch them on the right, and a sheet for adding or changing a schedule or for
 // a light's own settings (swapping On and Off).
+import { createKeyboard } from '../../keyboard.js';
 import { animateLayout, el, icons, reconcile, toast } from '../../ui.js';
 import {
   clockLabel,
@@ -43,7 +44,7 @@ const chevronUp =
 const chevronDown =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 9l6.5 6.5L18.5 9"/></svg>';
 
-export function mount(root, { services }) {
+export function mount(root, { services, kiosk }) {
   const { lights } = services;
   let firstRender = true;
   let sheet = null;
@@ -200,7 +201,7 @@ export function mount(root, { services }) {
       clearInterval(countdown);
       countdown = null;
     }
-    announcePairing(state.pairing);
+    announcePairing(state.pairing, (id) => openLight(id, { rename: true }));
   }
 
   function render(state) {
@@ -234,7 +235,7 @@ export function mount(root, { services }) {
 
   // Sheets: one at a time, over the app, closed by Cancel, Done, Escape or a tap outside.
 
-  function openSheet({ title, content, primary, cancel, refresh }) {
+  function openSheet({ title, content, primary, cancel, refresh, onClose }) {
     closeSheet();
     const keys = new AbortController();
     const primaryButton = el('button', { class: 'lights-sheet__primary', type: 'button', text: primary.label, onclick: primary.onClick });
@@ -261,15 +262,17 @@ export function mount(root, { services }) {
     root.append(node);
     addEventListener('keydown', (event) => event.key === 'Escape' && closeSheet(), { signal: keys.signal });
     card.focus({ preventScroll: true });
-    sheet = { node, keys, primaryButton, refresh };
+    sheet = { node, keys, primaryButton, refresh, onClose };
     return sheet;
   }
 
   function closeSheet() {
     if (!sheet) return;
-    sheet.keys.abort();
-    sheet.node.remove();
+    const { keys, node, onClose } = sheet;
     sheet = null;
+    keys.abort();
+    node.remove();
+    onClose?.();
   }
 
   // Adding or changing a schedule: a time like an alarm clock, on or off, which lights, which days.
@@ -389,11 +392,41 @@ export function mount(root, { services }) {
     paint();
   }
 
-  // A light's own settings: switch it, or swap On and Off for a switch paired the other way round.
+  // A light's own settings: its name, switching it, and swapping On and Off for a
+  // switch paired the other way round. `rename` opens it ready to type a name.
 
-  function openLight(lightId) {
+  function openLight(lightId, { rename = false } = {}) {
     const light = lights.getLights().find((l) => l.id === lightId);
     if (!light) return;
+    const nameInput = el('input', {
+      class: 'light-sheet__name-input',
+      type: 'text',
+      name: 'light-name',
+      value: light.name,
+      maxlength: '40',
+      autocomplete: 'off',
+      autocapitalize: 'words',
+      enterkeyhint: 'done',
+      'aria-label': 'Name',
+      // The board brings its own keyboard; the system one would cover half the screen.
+      inputmode: kiosk ? 'none' : null,
+      onkeydown: (event) => event.key === 'Enter' && (event.preventDefault(), done()),
+    });
+    const nameField = el(
+      'label',
+      { class: 'light-sheet__name' },
+      el('span', { class: 'light-sheet__name-label', text: 'Name' }),
+      nameInput,
+    );
+    const keyboard = kiosk
+      ? createKeyboard({
+          input: nameInput,
+          enterLabel: 'Done',
+          onEnter: done,
+          onToggle: (open) => document.documentElement.classList.toggle('is-typing', open),
+        })
+      : null;
+    if (keyboard) root.append(keyboard.node);
     const stateText = el('span', { class: 'light-sheet__state' });
     const power = el(
       'button',
@@ -429,6 +462,15 @@ export function mount(root, { services }) {
       swap.setAttribute('aria-checked', String(now.swapped));
     }
 
+    // Done keeps a new name; tapping outside the sheet leaves the old one.
+    function done() {
+      const now = lights.getLights().find((l) => l.id === lightId);
+      const name = nameInput.value.trim().replace(/\s+/g, ' ');
+      closeSheet();
+      if (!now || !name || name === now.name) return;
+      lights.renameLight(lightId, name).catch((err) => toast(err.message));
+    }
+
     function swapOnOff() {
       const now = lights.getLights().find((l) => l.id === lightId);
       if (!now) return;
@@ -441,12 +483,21 @@ export function mount(root, { services }) {
 
     openSheet({
       title: light.name,
-      content: el('div', { class: 'light-sheet' }, power, swap),
-      primary: { label: 'Done', onClick: closeSheet },
+      content: el('div', { class: 'light-sheet' }, nameField, power, swap),
+      primary: { label: 'Done', onClick: done },
       cancel: false,
       refresh: paint,
+      onClose: () => {
+        keyboard?.destroy();
+        document.documentElement.classList.remove('is-typing');
+      },
     });
     paint();
+    if (rename) {
+      nameInput.select();
+      if (keyboard) keyboard.show();
+      else nameInput.focus();
+    }
   }
 
   const unsubscribe = lights.subscribe(render);
@@ -456,6 +507,8 @@ export function mount(root, { services }) {
   return {
     intent(action) {
       if (action === 'add') openSchedule();
+      // From "Name it" on the message that says a new light was added.
+      else if (action?.startsWith('name-')) openLight(action.slice('name-'.length), { rename: true });
     },
     unmount() {
       unsubscribe();

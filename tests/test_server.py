@@ -9,11 +9,13 @@ import urllib.request
 
 from board.calendar import CalendarSources, CalendarStore
 from board.google import GoogleAccount
+from board.lights import Lights, settings_from
 from board.notes import NotesBoard
 from board.server import BoardServer, phone_address
 from board.shopping import ShoppingList
 from board.store import ChangeFeed
 from board.weather import WeatherUnavailable
+from tests.test_lights import BEDROOM, DEVICES, FakeClient
 
 
 class FakeWeather:
@@ -55,6 +57,10 @@ class ServerTest(unittest.TestCase):
         cls.sources = CalendarSources(account=cls.google, feed=feed)
         cls.weather = FakeWeather()
         cls.kiosk = FakeKiosk()
+        cls.lights = Lights(os.path.join(cls.tmp.name, "data", "lights.json"), mqtt=settings_from(True), feed=feed,
+                            client_factory=FakeClient)
+        cls.lights.handle_connect()
+        cls.lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
         cls.server = BoardServer(
             ("127.0.0.1", 0),
             shopping=ShoppingList(os.path.join(cls.tmp.name, "data", "shopping.json"), feed=feed),
@@ -65,6 +71,7 @@ class ServerTest(unittest.TestCase):
             feed=feed,
             weather=cls.weather,
             kiosk=cls.kiosk,
+            lights=cls.lights,
             web_dir=web,
             location={"latitude": 1.5, "longitude": 2},
         )
@@ -210,10 +217,10 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 5)
+            events = self._read_events(stream, 6)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
-            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes", "calendar", "calendar-sources"})
+            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes", "calendar", "calendar-sources", "lights"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/shopping/add", {"name": "live update"})
@@ -321,6 +328,50 @@ class ServerTest(unittest.TestCase):
             self.weather.error = None
         self.assertEqual(status, 503)
         self.assertIn("config.json", json.loads(raw)["error"]["message"])
+
+    def test_lights_state_and_switching(self):
+        status, _, raw = self.request("/api/lights")
+        self.assertEqual(status, 200)
+        state = json.loads(raw)
+        self.assertTrue(state["configured"])
+        self.assertIn(BEDROOM, [light["id"] for light in state["lights"]])
+
+        status, body = self.post("/api/lights/set", {"id": BEDROOM, "on": True})
+        self.assertEqual(status, 200)
+        self.assertTrue(next(light for light in body["state"]["lights"] if light["id"] == BEDROOM)["on"])
+        self.assertEqual(self.lights._client.published[-1], ("zigbee2mqtt/bedroom_light/set", {"state": "ON"}))
+
+        status, body = self.post("/api/lights/swap", {"id": BEDROOM, "swapped": True})
+        self.assertFalse(next(light for light in body["state"]["lights"] if light["id"] == BEDROOM)["on"])
+        self.post("/api/lights/swap", {"id": BEDROOM, "swapped": False})
+
+    def test_lights_problems_have_a_message(self):
+        status, body = self.post("/api/lights/set", {"id": BEDROOM, "on": "please"})
+        self.assertEqual(status, 400)
+        status, body = self.post("/api/lights/set", {"id": "0x0000000000000009", "on": True})
+        self.assertEqual(status, 404)
+        self.lights.handle_disconnect()
+        try:
+            status, body = self.post("/api/lights/set", {"id": BEDROOM, "on": True})
+            self.assertEqual(status, 503)
+            self.assertIn("Mosquitto", body["error"]["message"])
+        finally:
+            self.lights.handle_connect()
+
+    def test_light_schedules_add_update_remove_and_restore(self):
+        status, body = self.post("/api/lights/schedules/add", {"time": "22:30", "on": False, "days": [0, 6], "id": "5c4ed01e"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["schedule"]["id"], "5c4ed01e")
+        status, body = self.post("/api/lights/schedules/update", {"id": "5c4ed01e", "enabled": False})
+        self.assertFalse(body["schedule"]["enabled"])
+        status, body = self.post("/api/lights/schedules/remove", {"id": "5c4ed01e"})
+        self.assertNotIn("5c4ed01e", [s["id"] for s in body["state"]["schedules"]])
+        status, body = self.post("/api/lights/schedules/restore", {"ids": ["5c4ed01e"]})
+        self.assertEqual(body["restored"], ["5c4ed01e"])
+        status, body = self.post("/api/lights/schedules/add", {"time": "25:00", "on": True})
+        self.assertEqual(status, 400)
+        self.assertEqual(body["error"]["message"], "Pick a time for the schedule.")
+        self.post("/api/lights/schedules/remove", {"id": "5c4ed01e"})
 
     def test_kiosk_exit_from_the_pi_closes_the_browser(self):
         self.kiosk.closed.clear()

@@ -35,7 +35,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(again.getPages(), [['notes', 'weather']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 3);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 4);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -94,6 +94,27 @@ test('a screen already on the current version is left exactly as it was', () => 
     defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games'],
   });
   assert.deepEqual(settings.getPages(), [['shopping']], 'a widget taken off stays off');
+});
+
+test('a version 3 screen picks up only the widgets added since, beside where the board puts them', () => {
+  // Lights came in version 4. This screen took Notes off; it gets Lights, not Notes back.
+  const settings = createSettingsService({
+    storage: saved({ version: 3, theme: 'auto', pages: [['calendar', 'shopping', 'weather'], ['games']], scenery: true }),
+    widgetSizes: { shopping: 'tall', weather: 'wide', notes: 'medium', calendar: 'medium', games: 'medium', lights: 'wide' },
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games', 'lights'],
+    widgetsSince: { lights: 4 },
+  });
+  assert.deepEqual(settings.getPages(), [['calendar', 'shopping', 'weather'], ['games', 'lights']]);
+});
+
+test('a version 4 screen that took Lights off keeps it off', () => {
+  const settings = createSettingsService({
+    storage: saved({ version: 4, theme: 'auto', pages: [['shopping']], scenery: true }),
+    widgetSizes: { shopping: 'tall', lights: 'wide' },
+    defaultWidgets: ['shopping', 'lights'],
+    widgetsSince: { lights: 4 },
+  });
+  assert.deepEqual(settings.getPages(), [['shopping']]);
 });
 
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {

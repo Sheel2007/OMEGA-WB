@@ -5,7 +5,7 @@ looks like an iPad home screen: a big clock, widgets, and a dock of apps. The
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has five widgets:
+It has six widgets:
 
 - **Shopping list.** Anyone can add to it on the board's touchscreen or from
   their phone (scan the QR code in the app). Changes show up everywhere instantly.
@@ -17,6 +17,9 @@ It has five widgets:
 - **Games.** Four in a Row, Reversi, and Dots and Boxes, for two people taking
   turns on the board or one person against the board, plus Blackjack against
   the dealer.
+- **Lights.** The ceiling lights, through [Zigbee2MQTT](https://www.zigbee2mqtt.io)
+  (set up as in [zigbee_ceiling](https://github.com/NLBoa/zigbee_ceiling)): tap a
+  light to switch it, and set times for lights to go on and off by themselves.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
@@ -90,6 +93,19 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   undo. **Hit** takes a card, **Stand** hands over to the dealer, who draws to 16
   and stands on all 17s. A blackjack is 21 on the first two cards. A session runs
   for twenty hands and keeps the score; **New game** starts a fresh one.
+- **Lights:** tap a light on the widget to switch it on or off. Open the app for
+  the rest:
+  - **Schedules** — tap + and set a time, **Turn on** or **Turn off**, which
+    lights (or **All lights**, which includes ones paired later), and the days it
+    repeats. Pick no days and it runs once, then switches itself off. The switch
+    on each schedule pauses it; tap a schedule to change or delete it.
+  - **Swap On and Off** — tap ⋯ on a light. Use it if a light comes on when the
+    board says Off (a switch paired or wired the other way round). Schedules
+    follow the swap too.
+
+  Lights are named after their Zigbee2MQTT names, so `bedroom_light` shows as
+  **Bedroom**. Pair and rename switches in Zigbee2MQTT; the board picks the
+  changes up by itself.
 - **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
   still picture, turn off **Moving scenery** in the menu.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
@@ -115,6 +131,7 @@ Restart after changing settings: `sudo systemctl restart widget-board`.
 
 The shopping list, notes and any calendar events kept on the board itself are
 saved on the Pi in `data/shopping.json`, `data/notes.json` and `data/calendar.json`.
+Light schedules and swapped switches are in `data/lights.json`.
 
 ### Reaching the board when you're out
 
@@ -215,6 +232,24 @@ Pi's own time zone, which is usually right. Calendars are read at most every 15
 minutes, shared by every screen, and the next four months of birthdays, holidays
 and repeating events are worked out on the Pi.
 
+### Lights (Zigbee)
+
+The board talks to the switches the same way the
+[zigbee_ceiling](https://github.com/NLBoa/zigbee_ceiling) dashboard does: through
+the Mosquitto broker that Zigbee2MQTT publishes to. Set that up first (pair and
+name the switches there), then point the board at the broker:
+
+```json
+{ "lights": { "mqtt_host": "localhost", "mqtt_port": 1883, "base_topic": "zigbee2mqtt" } }
+```
+
+Those are the defaults, so `"lights": {}` is enough when Mosquitto runs on the
+same Pi. Add `"username"` and `"password"` if Mosquitto asks for them. If
+Mosquitto runs in Docker, give it `listener 1883` and publish that port to the Pi
+(`-p 1883:1883`) so the board can reach it. The board's MQTT
+client is built in, so there's nothing to install. Schedules run on the Pi in
+its own time zone (`timezone` above), so they work with every screen off.
+
 ## Updating
 
 ```bash
@@ -244,7 +279,8 @@ Project layout:
 ```
 run.py                  start the server
 board/                  server: JSON stores, HTTP API + live updates, weather,
-                        Google Calendar (OAuth + API), iCalendar parsing, QR codes
+                        Google Calendar (OAuth + API), iCalendar parsing, QR codes,
+                        lights (Zigbee2MQTT over a built-in MQTT client) and their schedules
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks themes
@@ -323,8 +359,15 @@ a visit. To check on the Pi itself:
   a week — publish the consent screen to stop that.
 - **Connect Google Calendar says it must be done on the board.** The sign-in has
   to start from the Pi's own screen; a phone can't complete Google's redirect.
+- **The Lights widget says "Can't reach the lights".** Mosquitto isn't running,
+  or `lights` in `config.json` points somewhere else. Check with
+  `systemctl status mosquitto` (or `docker ps`). The board keeps retrying.
+- **A light says "No response", or lights don't switch.** Zigbee2MQTT is stopped
+  or the switch has no power. The Zigbee2MQTT web page shows which.
+- **A light shows On when it's off.** Tap ⋯ on it in the Lights app and turn on
+  **Swap On and Off**.
 - **Calendar events are an hour out.** Set `timezone` in `config.json` to your
   IANA time zone, or fix the Pi's with `sudo raspi-config`.
 
-Anyone on your Wi-Fi can open and edit the list and notes. There are no
-accounts. Only the board's own screen can use Exit to desktop.
+Anyone on your Wi-Fi can open and edit the list and notes, and switch the
+lights. There are no accounts. Only the board's own screen can use Exit to desktop.

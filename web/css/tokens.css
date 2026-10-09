@@ -61,6 +61,7 @@ html {
   --icon-weather: linear-gradient(160deg, #74bcff 0%, #2f7de1 100%);
   --icon-games: linear-gradient(155deg, #ff8a6b 0%, #e5483a 100%);
   --icon-calendar: linear-gradient(155deg, #a99bff 0%, #6d4df6 52%, #5132d4 100%);
+  --icon-lights: linear-gradient(160deg, #4b5cb8 0%, #26306e 100%);
 }
 
 /* Light (also the default) */
@@ -116,6 +117,15 @@ html {
   --wx-rain: #2f7de1;
   --wx-snow: #4c95e0;
   --wx-bolt: #f5b301;
+
+  /* Light tiles: warm when on, a quiet fill when off. */
+  --lamp-on: #ffd65c;
+  --lamp-on-text: #2a2412;
+  --lamp-on-glyph: #b86e00;
+  --lamp-on-dot: #fff4cc;
+  --lamp-off: var(--fill-strong);
+  --lamp-off-glyph: #5b6580;
+  --lamp-off-dot: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -160,6 +170,14 @@ html {
   --wx-cloud-edge: #b3bbd6;
   --wx-rain: #7ab6ff;
   --wx-snow: #d4e6ff;
+
+  --lamp-on: #ffd65c;
+  --lamp-on-text: #2a2412;
+  --lamp-on-glyph: #b86e00;
+  --lamp-on-dot: #fff4cc;
+  --lamp-off: rgb(255 255 255 / 0.1);
+  --lamp-off-glyph: #c4c9dd;
+  --lamp-off-dot: #232a52;
 }
 
 /* Blocks: an original blocky world (no game's real art or names). Flat colours,
@@ -213,6 +231,7 @@ html {
   --icon-weather: #3d6cf0;
   --icon-games: #c8392b;
   --icon-calendar: #6d4df6;
+  --icon-lights: #3a4590;
 
   --event-blue: #2f5fd6;
   --event-purple: #6a33c8;
@@ -234,6 +253,14 @@ html {
   --wx-rain: #2f6ff0;
   --wx-snow: #2f6ff0;
   --wx-bolt: #ffd23f;
+
+  --lamp-on: #f6d55c;
+  --lamp-on-text: #1d1d1d;
+  --lamp-on-glyph: #8a5200;
+  --lamp-on-dot: #fff1b0;
+  --lamp-off: rgb(29 29 29 / 0.12);
+  --lamp-off-glyph: #3a3a3a;
+  --lamp-off-dot: #ece6d6;
 }
 
 :root[data-theme="blocks"][data-night="true"] {
@@ -278,6 +305,14 @@ html {
   --wx-cloud-edge: #cfd1d8;
   --wx-rain: #7ab6ff;
   --wx-snow: #d4e6ff;
+
+  --lamp-on: #e3c24a;
+  --lamp-on-text: #15130a;
+  --lamp-on-glyph: #6e4200;
+  --lamp-on-dot: #f3dc85;
+  --lamp-off: rgb(255 255 255 / 0.1);
+  --lamp-off-glyph: #cfd1d8;
+  --lamp-off-dot: #3a3e4a;
 }
 
 @media (max-width: 900px), (max-height: 560px) {

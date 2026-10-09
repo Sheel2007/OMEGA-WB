@@ -10,7 +10,7 @@ You MUST strictly adhere to the following architectural, performance, and scope 
 - **Primary Languages:** Vanilla HTML5, modern CSS3, and standard modern ES6+ JavaScript ONLY for the board UI. The server is Python 3 standard library only (`board/`), with no pip packages.
 - **FORBIDDEN:** Do NOT use C++, Qt, Electron, Tauri, Python GUI libraries (Tkinter/PyQt), React Native, or heavy full-stack frameworks (Next.js/Nuxt) unless explicitly commanded.
 - **FORBIDDEN DEPENDENCIES:** Do NOT introduce build-tool requirements (Webpack, Vite, Babel) or heavy npm dependency graphs for simple UI tasks. All scripts should run natively in standard Chromium without a bundling step.
-- **Widget Scope:** The board has five widgets: **Shopping list**, **Weather**, **Notes**, **Calendar**, and **Games** (Four in a Row, Reversi, Dots and Boxes, Blackjack). Do not invent new widgets or games unless the user asks for one.
+- **Widget Scope:** The board has six widgets: **Shopping list**, **Weather**, **Notes**, **Calendar**, **Games** (Four in a Row, Reversi, Dots and Boxes, Blackjack), and **Lights**. Do not invent new widgets or games unless the user asks for one.
 
 ---
 
@@ -42,6 +42,7 @@ The screen is a fixed wall/counter monitor viewed from 3 to 10 feet away.
 - **Shared data** (shopping list, notes, the calendar's own events) is stored in local JSON files on the Pi (`data/*.json`), written atomically by the Python server, and pushed to every screen over one event stream (`/api/events`). UI components only talk to the services in `web/js/services/`.
 - **Outside data** (weather, connected calendars) is fetched and cached by the server and shared by every screen. The calendars are read on one background thread (`CalendarSources`) and pushed over the same event stream as the stores, so no screen polls for them.
 - **Google Calendar is two-way**, over the REST API with the installed-app (loopback) OAuth flow in `board/google.py` — stdlib `urllib` only, no client library. Google's device flow can't be used: it doesn't allow Calendar scopes. Signing in is restricted to the board's own screen (`is_local_address`), the refresh token lives in `data/google.json` at mode 600, and it is never sent to a screen. `board/ical.py` stays for read-only subscriptions that need no account.
+- **Lights** are Zigbee switches reached through Zigbee2MQTT on the Mosquitto broker, using the small MQTT 3.1.1 client in `board/mqtt.py` (no paho). `board/lights.py` keeps the schedules, swapped switches and last light list in `data/lights.json`, keeps what each light is doing in memory only (state reports aren't written to the SD card), runs the schedules on its own thread, and pushes everything over the event stream. Lights are keyed by IEEE address, which survives renaming in Zigbee2MQTT.
 - **Per-device settings** (theme, which widgets are shown) live in browser `localStorage` behind `SettingsService`, with a versioned schema and safe defaults when the stored value is missing or corrupt.
 
 ---

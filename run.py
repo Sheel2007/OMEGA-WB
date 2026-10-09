@@ -14,6 +14,7 @@ import sys
 from board.calendar import CalendarChoices, CalendarSources, CalendarStore, local_zone, sources_from
 from board.google import GoogleAccount
 from board.kiosk import Kiosk
+from board.lights import Lights, settings_from as lights_settings_from
 from board.notes import NotesBoard
 from board.server import ROOT, BoardServer, lan_address, phone_address
 from board.shopping import ShoppingList
@@ -69,13 +70,20 @@ def main():
     port = args.port or config.get("port") or DEFAULT_PORT
 
     location = location_from(config)
+    zone = local_zone(config.get("timezone"))
     feed = ChangeFeed()
     account = google_from(config, args.data)
     sources = CalendarSources(
         sources_from(config.get("calendars")),
         account=account,
         choices=CalendarChoices(os.path.join(args.data, "calendar-choices.json"), feed=feed),
-        zone=local_zone(config.get("timezone")),
+        zone=zone,
+        feed=feed,
+    )
+    lights = Lights(
+        os.path.join(args.data, "lights.json"),
+        mqtt=lights_settings_from(config.get("lights")),
+        zone=zone,
         feed=feed,
     )
     server = BoardServer(
@@ -88,10 +96,12 @@ def main():
         feed=feed,
         weather=weather_from(config, location),
         kiosk=Kiosk(),
+        lights=lights,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
     )
     sources.start()
+    lights.start()
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -106,6 +116,7 @@ def main():
         pass
     finally:
         server.wake_streams()
+        lights.stop()
         server.server_close()
 
 

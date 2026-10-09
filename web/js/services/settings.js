@@ -5,10 +5,11 @@ import { THEME_MODES } from '../sky.js';
 import { insertWidget, moveWidget, paginate, removeWidget, SPANS } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
-// version 2 added pages; version 3 picks up widgets the board has gained since.
-const UPGRADABLE = [1, 2];
+// version 2 added pages; version 3 picks up widgets the board has gained since;
+// version 4 picks up the ones named in `widgetsSince` (Lights) and nothing else.
+const UPGRADABLE = [1, 2, 3];
 const RENAMED_THEMES = { retro: 'blocks' };
 
 function browserStorage() {
@@ -19,7 +20,7 @@ function browserStorage() {
   }
 }
 
-export function createSettingsService({ storage = browserStorage(), widgetSizes, defaultWidgets }) {
+export function createSettingsService({ storage = browserStorage(), widgetSizes, defaultWidgets, widgetsSince = {} }) {
   const known = (id) => Object.hasOwn(widgetSizes, id);
   const spanOf = (id) => SPANS[widgetSizes[id]];
   const layout = (pages) => paginate(pages, spanOf).pages;
@@ -48,15 +49,18 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
     return THEME_MODES.includes(name) ? name : 'auto';
   }
 
-  // Widgets the board has gained since this screen last saved its pages. Each goes
-  // in where `defaultWidgets` puts it — after the last widget that comes before it
-  // and is already on the board — so an existing board picks up a new widget
+  // Widgets the board has gained since this screen last saved its pages at `version`.
+  // Before version 3 that's any default widget it lacks; from then on only those that
+  // arrived later (`widgetsSince`), so one taken off the board isn't put back. Each
+  // goes in where `defaultWidgets` puts it — after the last widget that comes before
+  // it and is already on the board — so an existing board picks up a new widget
   // instead of quietly never showing it.
-  function withNewWidgets(pages) {
+  function withNewWidgets(pages, version) {
     const next = pages.map((ids) => [...ids]);
     const present = new Set(next.flat());
+    const isNew = (id) => version < 3 || (widgetsSince[id] ?? 0) > version;
     for (const [index, id] of defaultWidgets.entries()) {
-      if (!known(id) || present.has(id)) continue;
+      if (!known(id) || present.has(id) || !isNew(id)) continue;
       const after = defaultWidgets.slice(0, index).reverse().find((other) => present.has(other));
       const page = after ? next.findIndex((ids) => ids.includes(after)) : 0;
       next[page].splice(after ? next[page].indexOf(after) + 1 : 0, 0, id);
@@ -74,7 +78,7 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
       const pages = (version === SCHEMA_VERSION ? validPages(raw) : cleanPages(raw)) ?? defaults().pages;
       return {
         theme: validTheme(saved.theme),
-        pages: version === SCHEMA_VERSION ? pages : layout(withNewWidgets(pages)),
+        pages: version === SCHEMA_VERSION ? pages : layout(withNewWidgets(pages, version)),
         scenery: typeof saved.scenery === 'boolean' ? saved.scenery : true,
       };
     } catch {

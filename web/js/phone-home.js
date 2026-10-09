@@ -4,6 +4,7 @@
 // and nothing here runs on the Pi. A phone can't leave the compact layout (turning
 // it sideways only swaps which of width and height is the short one), so the choice
 // is made once, when the board starts.
+import { statusLabel as lightsStatus } from './apps/lights/format.js';
 import { countLabel as notesCount } from './apps/notes/format.js';
 import { countLabel as shoppingCount, toBuyOf } from './apps/shopping/settle.js';
 import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
@@ -23,6 +24,11 @@ const SUBTITLES = {
     calendar.subscribe(({ events, sources }) =>
       set(nextLabel(mergeEvents({ events, feed: sources.events }), dayKey(new Date()))),
     ),
+
+  lights: ({ lights }) => (set) => {
+    set(lightsStatus(lights.getState()));
+    return lights.subscribe((state) => set(lightsStatus(state)));
+  },
 
   games: () => (set) => {
     set('Pick a game');

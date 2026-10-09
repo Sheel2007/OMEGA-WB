@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import qr
 from .google import GoogleError
 from .kiosk import is_local_address
+from .lights import LightsUnavailable
 from .store import NotFound, ValidationError
 from .weather import WeatherUnavailable
 
@@ -92,8 +93,9 @@ class BoardServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, *, shopping, notes, calendar, calendar_sources, google, feed, weather, kiosk,
-                 web_dir=WEB_DIR, location=None, public_url=None):
+                 lights, web_dir=WEB_DIR, location=None, public_url=None):
         self.shopping = shopping
+        self.lights = lights
         self.notes = notes
         self.calendar = calendar
         self.calendar_sources = calendar_sources
@@ -114,7 +116,7 @@ class BoardServer(ThreadingHTTPServer):
     def live_stores(self):
         """Stores whose state is pushed over /api/events, by event name."""
         return {"shopping": self.shopping, "notes": self.notes, "calendar": self.calendar,
-                "calendar-sources": self.calendar_sources}
+                "calendar-sources": self.calendar_sources, "lights": self.lights}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -156,6 +158,7 @@ class BoardServer(ThreadingHTTPServer):
     def shutdown(self):
         self.wake_streams()
         self.calendar_sources.stop()
+        self.lights.stop()
         super().shutdown()
 
 
@@ -186,6 +189,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         # Where Google sends people back to after they sign in.
         "/api/calendar/google/done": "google_done",
         "/api/weather": "weather_forecast",
+        "/api/lights": "lights_state",
     }
     POST_ROUTES = {
         "/api/shopping/add": "shopping_add",
@@ -204,6 +208,12 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/calendar/google/link": "google_link",
         "/api/calendar/google/unlink": "google_unlink",
         "/api/calendar/google/target": "google_target",
+        "/api/lights/set": "lights_set",
+        "/api/lights/swap": "lights_swap",
+        "/api/lights/schedules/add": "lights_schedule_add",
+        "/api/lights/schedules/update": "lights_schedule_update",
+        "/api/lights/schedules/remove": "lights_schedule_remove",
+        "/api/lights/schedules/restore": "lights_schedule_restore",
         "/api/kiosk/exit": "kiosk_exit",
     }
 
@@ -238,6 +248,8 @@ class BoardHandler(SimpleHTTPRequestHandler):
             return self._send_error(HTTPStatus.NOT_FOUND, str(err))
         except GoogleError as err:
             return self._send_error(HTTPStatus.BAD_GATEWAY, str(err))
+        except LightsUnavailable as err:
+            return self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, str(err))
         self._send_json(HTTPStatus.OK, result)
 
     # Read endpoints
@@ -300,6 +312,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         except WeatherUnavailable as err:
             return self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, str(err))
         self._send_json(HTTPStatus.OK, forecast)
+
+    def lights_state(self):
+        self._send_json(HTTPStatus.OK, self.server.lights.snapshot())
 
     def events(self):
         """One stream for every screen: the state of each store now, then again whenever it changes."""
@@ -407,6 +422,24 @@ class BoardHandler(SimpleHTTPRequestHandler):
     def google_target(self, body):
         self.server.google.set_target(body.get("id"))
         return {"state": self.server.calendar_sources.snapshot()}
+
+    def lights_set(self, body):
+        return self.server.lights.set(body.get("id"), body.get("on"))
+
+    def lights_swap(self, body):
+        return self.server.lights.swap(body.get("id"), body.get("swapped"))
+
+    def lights_schedule_add(self, body):
+        return self.server.lights.add_schedule(body, schedule_id=body.get("id"))
+
+    def lights_schedule_update(self, body):
+        return self.server.lights.update_schedule(body.get("id"), body)
+
+    def lights_schedule_remove(self, body):
+        return self.server.lights.remove_schedule(body.get("id"))
+
+    def lights_schedule_restore(self, body):
+        return self.server.lights.restore_schedules(body.get("ids"))
 
     def kiosk_exit(self, body):
         self._board_only("Only the board's own screen can exit kiosk mode.")

@@ -1,6 +1,6 @@
 // Starts the board: services, wallpaper, clock, widgets, apps and the menu.
 import { createAppHost } from './app-host.js';
-import { APPS, DEFAULT_WIDGETS } from './apps/index.js';
+import { APPS, DEFAULT_WIDGETS, WIDGETS_SINCE } from './apps/index.js';
 import { createHomeEditor } from './home-editor.js';
 import { createWidgetHost } from './home.js';
 import { createPager } from './pager.js';
@@ -10,6 +10,7 @@ import { createBoardMenu } from './menu.js';
 import { exitKiosk, fetchInfo } from './services/board.js';
 import { createCalendarService } from './services/calendar.js';
 import { createGamesStore } from './services/games.js';
+import { createLightsService } from './services/lights.js';
 import { createLiveConnection } from './services/live.js';
 import { createNotesService } from './services/notes.js';
 import { createSettingsService } from './services/settings.js';
@@ -36,16 +37,18 @@ const now = () => fixedTime ?? new Date();
 
 // Services: the only code that talks to the server or to storage.
 
-const live = createLiveConnection({ streams: ['shopping', 'notes', 'calendar', 'calendar-sources'], onServerRestart: () => location.reload() });
+const live = createLiveConnection({ streams: ['shopping', 'notes', 'calendar', 'calendar-sources', 'lights'], onServerRestart: () => location.reload() });
 const services = {
   shopping: createShoppingService({ live }),
   notes: createNotesService({ live }),
   calendar: createCalendarService({ live }),
+  lights: createLightsService({ live }),
   weather: createWeatherService(),
   games: createGamesStore(),
   settings: createSettingsService({
     widgetSizes: Object.fromEntries(APPS.filter((app) => app.createWidget).map((app) => [app.id, app.widgetSize])),
     defaultWidgets: DEFAULT_WIDGETS,
+    widgetsSince: WIDGETS_SINCE,
   }),
 };
 const info = fetchInfo();
@@ -282,6 +285,7 @@ live.start();
 services.shopping.refresh();
 services.notes.refresh();
 services.calendar.refresh();
+services.lights.refresh();
 
 if (kiosk) {
   initKiosk({

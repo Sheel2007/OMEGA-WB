@@ -14,7 +14,7 @@
     "client_secret": "GOCSPX-yoursecret"
   },
 
-  "_lights": "The Lights widget. Points the board at the MQTT broker (Mosquitto) that Zigbee2MQTT uses; pair and name the switches in Zigbee2MQTT. Leave this out and the Lights widget says it isn't set up. username and password are only needed if Mosquitto asks for them.",
+  "_lights": "Optional. The Lights widget talks to Zigbee2MQTT through Mosquitto, which pi/install.sh sets up on the Pi; these are the defaults, so leave this out unless yours is elsewhere. username and password are only needed if Mosquitto asks for them. \"lights\": false turns the Lights widget off.",
   "lights": {
     "mqtt_host": "localhost",
     "mqtt_port": 1883,

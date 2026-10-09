@@ -50,10 +50,14 @@ class LightsUnavailable(Exception):
 
 
 def settings_from(raw):
-    """Reads the `lights` setting: where the MQTT broker is. None leaves the lights off."""
-    if raw is None or raw is False:
+    """Reads the `lights` setting: where the MQTT broker is.
+
+    Left out, the board looks for Mosquitto on the Pi itself, where pi/install.sh
+    puts it, so the lights work without touching config.json. `false` turns them off.
+    """
+    if raw is False:
         return None
-    if raw is True:
+    if raw is None or raw is True:
         raw = {}
     if not isinstance(raw, dict):
         log.warning("Ignoring 'lights' in config.json: it should be an object like {\"mqtt_host\": \"localhost\"}.")
@@ -415,6 +419,9 @@ class Lights(JsonStore):
             raise ValidationError("'open' must be true or false.")
         with self._changed:
             self._require_hub()
+            if self._hub is not True:
+                # Zigbee2MQTT says so on bridge/state as soon as it runs; until then nothing would listen.
+                raise LightsUnavailable("Zigbee2MQTT isn't running on the Pi yet, so pairing can't start.")
         if not self._send_permit_join(PAIR_SECONDS if open_ else 0):
             raise LightsUnavailable("Can't reach the lights right now. Try again in a moment.")
         with self._changed:

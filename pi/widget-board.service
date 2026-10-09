@@ -1,7 +1,7 @@
 # Template: pi/install.sh fills in __USER__ and __DIR__.
 [Unit]
 Description=Widget Board server
-After=network-online.target
+After=network-online.target mosquitto.service
 Wants=network-online.target
 
 [Service]

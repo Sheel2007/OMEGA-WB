@@ -1,0 +1,17 @@
+# Template: pi/zigbee.sh fills in __USER__ and __DIR__.
+[Unit]
+Description=Zigbee2MQTT (the Lights widget's Zigbee dongle)
+After=network.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

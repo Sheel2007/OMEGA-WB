@@ -1,9 +1,9 @@
 // Lights: the home-screen widget. Tap a light to switch it; tap anywhere else to open
 // the app for schedules and settings. The button in the corner pairs a new switch.
-import { appIcon, el, fitRows, icons, reconcile, toast } from '../../ui.js';
+import { appIcon, el, fitRows, icons, reconcile } from '../../ui.js';
 import { nextLabel, nextSchedule, pairingCountdown, pairingMessage, statusLabel } from './format.js';
 import * as meta from './meta.js';
-import { createTile, toggleLight, updateTile } from './tile.js';
+import { announcePairing, canPair, createTile, toggleLight, togglePairing, updateTile } from './tile.js';
 
 // "Off at 11:00 PM" moves on to the next schedule as the minutes pass.
 const STATUS_REFRESH_MS = 60 * 1000;
@@ -13,7 +13,7 @@ const COUNTDOWN_MS = 1000;
 export function createWidget({ services, openApp }) {
   const { lights } = services;
   const status = el('p', { class: 'widget-head__meta' });
-  const pairButton = el('button', { class: 'widget-head__action', type: 'button', onclick: togglePairing });
+  const pairButton = el('button', { class: 'widget-head__action', type: 'button', onclick: () => togglePairing(lights) });
   const grid = el('ul', { class: 'light-grid light-grid--widget', 'aria-label': 'Lights' });
   const more = el('p', { class: 'lights-widget__more' });
   const messageTitle = el('p', { class: 'lights-widget__message-title' });
@@ -53,14 +53,7 @@ export function createWidget({ services, openApp }) {
 
   let total = 0;
   let countdown = null;
-  // So each new light or failure is announced once, not on every update.
-  let announced = null;
   const fit = () => fitRows(grid, more, total, (hidden) => `${hidden} more in Lights`);
-
-  function togglePairing() {
-    const open = !lights.getState().pairing.open;
-    lights.pair(open).catch((err) => toast(err.message));
-  }
 
   function showStatus(state) {
     const next = nextLabel(nextSchedule(state.schedules, new Date()), new Date());
@@ -70,8 +63,8 @@ export function createWidget({ services, openApp }) {
 
   function emptyMessage(state) {
     if (state.configured === null) return ['Connecting…', ''];
-    if (!state.configured) return ['Not set up', 'Add the lights to config.json on the Pi.'];
-    if (!state.connected) return ['Can’t reach the lights', 'Check that Mosquitto is running on the Pi.'];
+    if (!state.configured) return ['Turned off', 'Take "lights": false out of config.json.'];
+    if (!state.connected) return ['Can’t reach the lights', 'Plug in the Zigbee dongle and run sudo ./pi/install.sh.'];
     return ['No lights yet', 'Tap + to pair a switch.'];
   }
 
@@ -81,11 +74,11 @@ export function createWidget({ services, openApp }) {
   }
 
   function renderPairing(state) {
-    const canPair = Boolean(state.configured && state.connected && state.hub !== false);
-    const open = canPair && state.pairing.open;
-    pairButton.hidden = !canPair;
+    const ready = canPair(state);
+    const open = ready && state.pairing.open;
     pairButton.innerHTML = open ? icons.close : icons.plus;
-    pairButton.classList.toggle('lights-widget__stop', open);
+    // Still shown when pairing can't start, so a tap can say what's missing.
+    pairButton.classList.toggle('lights-widget__stop', open || !ready);
     pairButton.setAttribute('aria-label', open ? 'Stop pairing' : 'Pair a new light');
     pairing.hidden = !open;
     pairingText.textContent = pairingMessage(state.pairing.found);
@@ -96,13 +89,7 @@ export function createWidget({ services, openApp }) {
       countdown = null;
     }
 
-    const { found, error } = state.pairing;
-    const news = error ? `error:${error}` : found && ['ready', 'other'].includes(found.state) ? `${found.state}:${found.name}` : null;
-    if (news && announced !== null && news !== announced) {
-      if (error) toast(error);
-      else if (found.state === 'ready') toast(`${found.name} added. Rename it in Zigbee2MQTT if you like.`);
-    }
-    announced = news ?? '';
+    announcePairing(state.pairing);
     return open;
   }
 

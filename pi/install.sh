@@ -3,6 +3,7 @@
 #   - starts the board server on boot
 #   - opens it full screen when the desktop logs in
 #   - keeps the screen from going to sleep
+#   - sets up Zigbee for the Lights widget, if a Zigbee USB dongle is plugged in
 # Safe to run again after pulling updates.
 #
 #   sudo ./pi/install.sh
@@ -24,6 +25,10 @@ apt-get install -y -qq fonts-noto-color-emoji curl
 if ! command -v chromium >/dev/null && ! command -v chromium-browser >/dev/null; then
   apt-get install -y -qq chromium || apt-get install -y -qq chromium-browser
 fi
+
+echo "→ Setting up Zigbee for the Lights widget"
+chmod +x "${APP_DIR}/pi/zigbee.sh"
+"${APP_DIR}/pi/zigbee.sh" || echo "  (Zigbee setup didn't finish; the rest of the board works. Try again with: sudo ./pi/zigbee.sh)"
 
 echo "→ Starting the board server on boot"
 sed -e "s#__USER__#${RUN_USER}#g" -e "s#__DIR__#${APP_DIR}#g" \

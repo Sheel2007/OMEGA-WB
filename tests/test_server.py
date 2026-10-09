@@ -60,6 +60,7 @@ class ServerTest(unittest.TestCase):
         cls.lights = Lights(os.path.join(cls.tmp.name, "data", "lights.json"), mqtt=settings_from(True), feed=feed,
                             client_factory=FakeClient)
         cls.lights.handle_connect()
+        cls.lights.handle_message("zigbee2mqtt/bridge/state", b'{"state":"online"}')
         cls.lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
         cls.server = BoardServer(
             ("127.0.0.1", 0),

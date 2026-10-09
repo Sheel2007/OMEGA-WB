@@ -119,7 +119,7 @@ export function countLabel(lights) {
 // The line under the widget's title: what's wrong, if anything, else how many are on.
 export function statusLabel(state) {
   if (state.configured === null) return 'Connecting…';
-  if (!state.configured) return 'Not set up';
+  if (!state.configured) return 'Turned off';
   if (!state.connected) return 'Can’t reach the lights';
   if (state.hub === false) return 'Zigbee2MQTT is off';
   return countLabel(state.lights);

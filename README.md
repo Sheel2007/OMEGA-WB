@@ -49,6 +49,7 @@ After the reboot, the board opens full screen by itself. The install script:
 - opens Chromium in kiosk mode (no tabs or address bar) when the desktop starts
 - installs the color emoji font used for item icons
 - turns off screen blanking so the board stays on
+- sets up Zigbee for the Lights widget, if a Zigbee USB dongle is plugged in (see "Lights" below)
 
 - adds **Widget Board** to the Pi's app menu, for reopening the board after you exit it
 
@@ -103,7 +104,8 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     board says Off (a switch paired or wired the other way round). Schedules
     follow the swap too.
 
-  - **Pairing a new switch** — tap + on the Lights widget, then hold the switch's
+  - **Pairing a new switch** — tap + on the Lights widget (or **Pair a Light** in
+    the app), then hold the switch's
     button for about 30 seconds until its light blinks fast, and let go. The
     widget counts down the four minutes pairing stays open and shows how the
     switch is getting on; once it's ready, pairing stops and the light appears.
@@ -240,21 +242,31 @@ and repeating events are worked out on the Pi.
 
 ### Lights (Zigbee)
 
-The board talks to the switches the same way the
-[zigbee_ceiling](https://github.com/NLBoa/zigbee_ceiling) dashboard does: through
-the Mosquitto broker that Zigbee2MQTT publishes to. Set that up first (pair and
-name the switches there), then point the board at the broker:
+Nothing to configure. Plug the Zigbee USB dongle (e.g. a Sonoff ZBDongle-P) into
+the Pi **before** running `sudo ./pi/install.sh`, and it also sets up everything
+the lights need: Mosquitto (the message broker), Node.js, and
+[Zigbee2MQTT](https://www.zigbee2mqtt.io) (which drives the dongle), all started
+on boot. Plugged it in later? Run `sudo ./pi/zigbee.sh`. Then tap **+** on the
+Lights widget (or **Pair a Light** in the app) and hold the switch's button.
+
+Running the script again never replaces the Zigbee network, so paired switches
+stay paired. It lives in `/opt/zigbee2mqtt/data` (keep a backup: it holds the
+network key). **Switches already paired on a Mac** (the
+[zigbee_ceiling](https://github.com/NLBoa/zigbee_ceiling) setup) can come along:
+copy `configuration.yaml`, `database.db` and `coordinator_backup.json` from the
+Mac's `~/zigbee2mqtt/data/` into `/opt/zigbee2mqtt/data/` on the Pi first, and the
+script points them at the Pi's dongle without touching the network key.
+
+Zigbee2MQTT's own page is at `http://<pi-address>:8099` (8080 is the board), for
+renaming switches. Schedules run on the Pi in its own time zone (`timezone`
+above), so they work with every screen off.
+
+Only if your broker is somewhere else, tell the board in `config.json`
+(`"lights": false` turns the Lights widget off):
 
 ```json
-{ "lights": { "mqtt_host": "localhost", "mqtt_port": 1883, "base_topic": "zigbee2mqtt" } }
+{ "lights": { "mqtt_host": "localhost", "mqtt_port": 1883, "base_topic": "zigbee2mqtt", "username": "", "password": "" } }
 ```
-
-Those are the defaults, so `"lights": {}` is enough when Mosquitto runs on the
-same Pi. Add `"username"` and `"password"` if Mosquitto asks for them. If
-Mosquitto runs in Docker, give it `listener 1883` and publish that port to the Pi
-(`-p 1883:1883`) so the board can reach it. The board's MQTT
-client is built in, so there's nothing to install. Schedules run on the Pi in
-its own time zone (`timezone` above), so they work with every screen off.
 
 ## Updating
 
@@ -365,9 +377,12 @@ a visit. To check on the Pi itself:
   a week — publish the consent screen to stop that.
 - **Connect Google Calendar says it must be done on the board.** The sign-in has
   to start from the Pi's own screen; a phone can't complete Google's redirect.
-- **The Lights widget says "Can't reach the lights".** Mosquitto isn't running,
-  or `lights` in `config.json` points somewhere else. Check with
-  `systemctl status mosquitto` (or `docker ps`). The board keeps retrying.
+- **The Lights widget says "Can't reach the lights".** Zigbee isn't set up yet:
+  plug in the dongle and run `sudo ./pi/zigbee.sh`. If it was working, check
+  `systemctl status mosquitto zigbee2mqtt`. The board keeps retrying.
+- **Pairing finds nothing.** Hold the switch's button for the full ~30 seconds
+  until it blinks fast, and keep it near the Pi. `journalctl -u zigbee2mqtt -f`
+  shows what Zigbee2MQTT sees.
 - **A light says "No response", or lights don't switch.** Zigbee2MQTT is stopped
   or the switch has no power. The Zigbee2MQTT web page shows which.
 - **A light shows On when it's off.** Tap ⋯ on it in the Lights app and turn on

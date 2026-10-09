@@ -222,7 +222,76 @@
 }
 
 .lights-app__header {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.2rem;
   margin: 0.9rem 0 1.6rem;
+}
+
+.lights-app__heading {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Pair a Light: green to start, quiet while pairing (or when it can't start). */
+.lights-app__pair {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--hit);
+  padding: 0.5rem 1.4rem 0.5rem 1.1rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.lights-app__pair:active {
+  background: var(--accent-pressed);
+}
+
+.lights-app__pair--quiet {
+  background: var(--fill-strong);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.lights-app__pair--quiet:active {
+  background: var(--fill);
+}
+
+.lights-app__pair-icon {
+  display: grid;
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.lights-app__pairing {
+  margin-bottom: 1.2rem;
+  padding: 1.3rem 1.5rem;
+  border-radius: var(--radius-panel);
+  border: var(--card-border);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.lights-app__pairing-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-size: var(--fs-empty);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.lights-app__pairing-text {
+  margin: 0.4rem 0 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
 }
 
 .lights-app__title {

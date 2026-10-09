@@ -9,6 +9,8 @@ import {
   DAY_NAMES,
   nextLabel,
   nextSchedule,
+  pairingCountdown,
+  pairingMessage,
   repeatLabel,
   scheduleSummary,
   setPeriod,
@@ -18,12 +20,23 @@ import {
   toTime,
 } from './format.js';
 import { name } from './meta.js';
-import { bulbIcon, createTile, toggleLight, unreachableMessage, updateTile } from './tile.js';
+import {
+  announcePairing,
+  bulbIcon,
+  canPair,
+  createTile,
+  toggleLight,
+  togglePairing,
+  unreachableMessage,
+  updateTile,
+} from './tile.js';
 
 const MINUTE_STEP = 5;
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 // "Next: Off at 11:00 PM" moves on as the minutes pass.
 const STATUS_REFRESH_MS = 60 * 1000;
+// The pairing countdown, which only ticks while pairing is open.
+const COUNTDOWN_MS = 1000;
 
 const chevronUp =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 15l6.5-6.5 6.5 6.5"/></svg>';
@@ -34,6 +47,7 @@ export function mount(root, { services }) {
   const { lights } = services;
   let firstRender = true;
   let sheet = null;
+  let countdown = null;
 
   // The lights
 
@@ -42,6 +56,20 @@ export function mount(root, { services }) {
   const noticeTitle = el('p', { class: 'empty-state__title' });
   const noticeText = el('p', { class: 'empty-state__text' });
   const notice = el('div', { class: 'empty-state' }, el('div', { class: 'empty-state__art', html: bulbIcon }), noticeTitle, noticeText);
+
+  // Pairing a new switch: the same as + on the widget.
+
+  const pairIcon = el('span', { class: 'lights-app__pair-icon' });
+  const pairLabel = el('span');
+  const pairButton = el('button', { class: 'lights-app__pair', type: 'button', onclick: () => togglePairing(lights) }, pairIcon, pairLabel);
+  const pairingTime = el('span', { class: 'lights-widget__pairing-time' });
+  const pairingText = el('p', { class: 'lights-app__pairing-text', 'aria-live': 'polite' });
+  const pairing = el(
+    'div',
+    { class: 'lights-app__pairing' },
+    el('p', { class: 'lights-app__pairing-title' }, 'Pairing ', pairingTime),
+    pairingText,
+  );
 
   // The schedules
 
@@ -60,8 +88,13 @@ export function mount(root, { services }) {
     el(
       'section',
       { class: 'lights-app__main', 'aria-label': name },
-      el('header', { class: 'lights-app__header' }, el('h1', { class: 'lights-app__title', text: name }), meta),
-      el('div', { class: 'lights-app__scroll' }, grid, notice),
+      el(
+        'header',
+        { class: 'lights-app__header' },
+        el('div', { class: 'lights-app__heading' }, el('h1', { class: 'lights-app__title', text: name }), meta),
+        pairButton,
+      ),
+      el('div', { class: 'lights-app__scroll' }, pairing, grid, notice),
     ),
     el(
       'section',
@@ -137,18 +170,41 @@ export function mount(root, { services }) {
       noticeTitle.textContent = 'Connecting…';
       noticeText.textContent = '';
     } else if (!state.configured) {
-      noticeTitle.textContent = 'Lights aren’t set up';
-      noticeText.textContent = 'Add a "lights" section to config.json on the Pi, pointing at the Mosquitto broker Zigbee2MQTT uses, then restart the board.';
+      noticeTitle.textContent = 'Lights are turned off';
+      noticeText.textContent = 'Take "lights": false out of config.json on the Pi, then restart the board.';
     } else if (!state.connected) {
       noticeTitle.textContent = 'Can’t reach the lights';
-      noticeText.textContent = 'Check that Mosquitto and Zigbee2MQTT are running on the Pi. The board keeps trying.';
+      noticeText.textContent = 'New here? Plug the Zigbee dongle into the Pi and run sudo ./pi/install.sh. Otherwise check that Mosquitto is running. The board keeps trying.';
     } else {
       noticeTitle.textContent = 'No lights yet';
-      noticeText.textContent = 'Pair a switch in Zigbee2MQTT and give it a name. It shows up here on its own.';
+      noticeText.textContent = 'Tap Pair a Light, then hold the new switch’s button for about 30 seconds until its light blinks fast.';
     }
   }
 
+  function tick() {
+    pairingTime.textContent = pairingCountdown(lights.getState().pairing.until);
+  }
+
+  function renderPairing(state) {
+    const ready = canPair(state);
+    const open = ready && state.pairing.open;
+    pairIcon.innerHTML = open ? icons.close : icons.plus;
+    pairLabel.textContent = open ? 'Stop Pairing' : 'Pair a Light';
+    // Still shown when pairing can't start, so a tap can say what's missing.
+    pairButton.classList.toggle('lights-app__pair--quiet', open || !ready);
+    pairing.hidden = !open;
+    pairingText.textContent = pairingMessage(state.pairing.found);
+    tick();
+    if (open && !countdown) countdown = setInterval(tick, COUNTDOWN_MS);
+    if (!open && countdown) {
+      clearInterval(countdown);
+      countdown = null;
+    }
+    announcePairing(state.pairing);
+  }
+
   function render(state) {
+    renderPairing(state);
     const shown = state.configured ? state.lights : [];
     meta.textContent = statusLabel(state);
     showNext(state);
@@ -404,6 +460,7 @@ export function mount(root, { services }) {
     unmount() {
       unsubscribe();
       clearInterval(clock);
+      clearInterval(countdown);
       closeSheet();
     },
   };

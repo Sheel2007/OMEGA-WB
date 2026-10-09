@@ -91,14 +91,15 @@ def light(lights, light_id):
 
 class ConfigTest(unittest.TestCase):
     def test_settings_default_to_a_local_broker(self):
-        self.assertEqual(settings_from(True), {
-            "host": "localhost", "port": 1883, "base_topic": "zigbee2mqtt", "username": None, "password": None,
-        })
+        local = {"host": "localhost", "port": 1883, "base_topic": "zigbee2mqtt", "username": None, "password": None}
+        self.assertEqual(settings_from(None), local, "nothing in config.json")
+        self.assertEqual(settings_from(True), local)
+        self.assertEqual(settings_from({}), local)
         self.assertEqual(settings_from({"mqtt_host": "pi.local", "mqtt_port": 1884, "base_topic": "z2m/",
                                         "username": "board", "password": "pw"})["base_topic"], "z2m")
 
-    def test_no_or_unusable_settings_leave_the_lights_off(self):
-        self.assertIsNone(settings_from(None))
+    def test_false_or_unusable_settings_leave_the_lights_off(self):
+        self.assertIsNone(settings_from(False))
         with self.assertLogs("board.lights", level="WARNING"):
             self.assertIsNone(settings_from({"mqtt_port": "nope"}))
         with self.assertLogs("board.lights", level="WARNING"):
@@ -293,6 +294,10 @@ class PairingTest(unittest.TestCase):
             lights.pair(True)
         with self.assertRaises(LightsUnavailable):
             Lights().pair(True)
+        never_ran = Lights(mqtt=settings_from(None), client_factory=FakeClient)
+        never_ran.handle_connect()
+        with self.assertRaises(LightsUnavailable, msg="Zigbee2MQTT hasn't said it's online"):
+            never_ran.pair(True)
 
 
 class ScheduleTest(unittest.TestCase):

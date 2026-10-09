@@ -91,7 +91,7 @@ test('counts and status say what matters at a glance', () => {
   const healthy = { configured: true, connected: true, hub: true, lights: LIGHTS };
   assert.equal(statusLabel(healthy), '1 of 3 on');
   assert.equal(statusLabel({ ...healthy, configured: null }), 'Connecting…');
-  assert.equal(statusLabel({ ...healthy, configured: false }), 'Not set up');
+  assert.equal(statusLabel({ ...healthy, configured: false }), 'Turned off');
   assert.equal(statusLabel({ ...healthy, connected: false }), 'Can’t reach the lights');
   assert.equal(statusLabel({ ...healthy, hub: false }), 'Zigbee2MQTT is off');
 

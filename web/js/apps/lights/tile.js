@@ -11,10 +11,45 @@ const moreIcon =
 
 // Why a light can't be switched right now, in words that say what to check.
 export function unreachableMessage(state, light) {
-  if (!state.configured) return 'The lights aren’t set up on this board yet.';
+  if (!state.configured) return 'The lights are turned off in config.json.';
   if (!state.connected) return 'Can’t reach the lights. Check that Mosquitto is running on the Pi.';
   if (state.hub === false) return 'Zigbee2MQTT isn’t running, so the lights can’t be switched.';
   return `${light.name} isn’t responding. Check it has power.`;
+}
+
+// Pairing: the same button in the widget and the app.
+
+export function canPair(state) {
+  return Boolean(state.configured && state.connected && state.hub === true);
+}
+
+function pairBlockedMessage(state) {
+  if (state.configured === null) return 'Still connecting to the lights. Try again in a moment.';
+  if (!state.configured) return 'The lights are turned off in config.json ("lights": false).';
+  if (!state.connected) return 'Zigbee isn’t set up on the Pi yet. Plug in the dongle and run sudo ./pi/install.sh.';
+  if (state.hub === false) return 'Zigbee2MQTT isn’t running, so pairing can’t start.';
+  return 'Zigbee2MQTT hasn’t started on the Pi yet. Plug in the dongle and run sudo ./pi/install.sh.';
+}
+
+export function togglePairing(lights) {
+  const state = lights.getState();
+  if (!canPair(state)) {
+    toast(pairBlockedMessage(state));
+    return;
+  }
+  lights.pair(!state.pairing.open).catch((err) => toast(err.message));
+}
+
+// Says once (on whichever screen part notices first) that a light was added or
+// pairing was refused. The first call only takes note of how things already are.
+let announced = null;
+
+export function announcePairing({ found, error }) {
+  const news = error ? `error:${error}` : found?.state === 'ready' ? `ready:${found.name}` : '';
+  if (announced !== null && news && news !== announced) {
+    toast(error || `${found.name} added. Rename it in Zigbee2MQTT if you like.`);
+  }
+  announced = news;
 }
 
 export function toggleLight(lights, id) {

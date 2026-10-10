@@ -83,10 +83,19 @@ export function createLightsService({ live }) {
       });
     },
 
-    // fields: { time: 'HH:MM', on, lights: [ids] (none = every light), days: [0-6] (none = once) }
+    // fields: { time: 'HH:MM', on, lights: [ids] (none = every light), days: [0-6] (none = once),
+    //          offAgain: minutes (0 = never), watchFor: hours } — the last two only for Turn off.
     addSchedule(fields) {
       const id = newId();
-      const schedule = { time: fields.time, on: fields.on, lights: [...fields.lights], days: [...fields.days], enabled: true };
+      const schedule = {
+        time: fields.time,
+        on: fields.on,
+        lights: [...fields.lights],
+        days: [...fields.days],
+        enabled: true,
+        offAgain: fields.on ? 0 : fields.offAgain ?? 0,
+        watchFor: fields.watchFor ?? 8,
+      };
       return synced.mutate('schedules/add', { ...schedule, id }, (state) => {
         state.schedules = [...state.schedules, { ...schedule, id }].sort(byTime);
         return state;

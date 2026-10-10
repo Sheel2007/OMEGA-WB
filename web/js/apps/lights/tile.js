@@ -1,10 +1,13 @@
 // A light's tile, shared by the widget and the app: one big button that switches the
 // light the other way. Warm when on, quiet when off, like the lights in a home app.
 import { el, haptic, toast } from '../../ui.js';
-import { lightStateLabel } from './format.js';
+import { isBatteryLow, lightStateLabel } from './format.js';
 
 export const bulbIcon =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6a6.9 6.9 0 0 0-4 12.5c.6.5 1 1.2 1 2v.4h6v-.4c0-.8.4-1.5 1-2a6.9 6.9 0 0 0-4-12.5z" fill="currentColor"/><path d="M9.4 19.6h5.2M10.4 22h3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+export const batteryIcon =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="7" width="17" height="10" rx="2.2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="20.3" y="10" width="2.2" height="4" rx="1" fill="currentColor"/><rect x="5" y="9.5" width="4" height="5" rx="1" fill="currentColor"/></svg>';
 
 const moreIcon =
   '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="2.1"/><circle cx="12" cy="12" r="2.1"/><circle cx="18.5" cy="12" r="2.1"/></svg>';
@@ -78,7 +81,13 @@ export function createTile({ onToggle, onMore }) {
         'span',
         { class: 'light-tile__text' },
         el('span', { class: 'light-tile__name' }),
-        el('span', { class: 'light-tile__state' }),
+        el(
+          'span',
+          { class: 'light-tile__state' },
+          el('span', { class: 'light-tile__state-text' }),
+          // Only when a battery-powered switch is running low.
+          el('span', { class: 'light-tile__battery' }),
+        ),
       ),
     ),
   );
@@ -96,6 +105,13 @@ export function updateTile(node, light) {
   toggle.setAttribute('aria-pressed', String(light.on === true));
   toggle.setAttribute('aria-disabled', String(!light.reachable));
   name.textContent = light.name;
-  state.textContent = lightStateLabel(light);
+  const [stateText, battery] = state.children;
+  stateText.textContent = lightStateLabel(light);
+  const low = isBatteryLow(light);
+  battery.hidden = !low;
+  if (low) {
+    battery.innerHTML = `${batteryIcon}<span>${Number(light.battery)}%</span>`;
+    battery.setAttribute('aria-label', `Battery low, ${light.battery}%`);
+  }
   node.querySelector('.light-tile__more')?.setAttribute('aria-label', `${light.name} settings`);
 }

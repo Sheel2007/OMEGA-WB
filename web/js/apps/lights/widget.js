@@ -1,7 +1,7 @@
 // Lights: the home-screen widget. Tap a light to switch it; tap anywhere else to open
 // the app for schedules and settings. The button in the corner pairs a new switch.
 import { appIcon, el, fitRows, icons, reconcile } from '../../ui.js';
-import { nextLabel, nextSchedule, pairingCountdown, pairingMessage, statusLabel } from './format.js';
+import { lowBatteryLabel, nextLabel, nextSchedule, pairingCountdown, pairingMessage, statusLabel } from './format.js';
 import * as meta from './meta.js';
 import { announcePairing, canPair, createTile, toggleLight, togglePairing, updateTile } from './tile.js';
 
@@ -58,7 +58,9 @@ export function createWidget({ services, openApp }) {
   function showStatus(state) {
     const next = nextLabel(nextSchedule(state.schedules, new Date()), new Date());
     const healthy = state.configured && state.connected && state.hub !== false && state.lights.length;
-    status.textContent = healthy && next ? `${statusLabel(state)} · ${next}` : statusLabel(state);
+    // A battery running low matters more than the next schedule, so it comes first.
+    const parts = [statusLabel(state), healthy && lowBatteryLabel(state.lights), healthy && next];
+    status.textContent = parts.filter(Boolean).join(' · ');
   }
 
   function emptyMessage(state) {

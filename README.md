@@ -100,6 +100,17 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     lights (or **All lights**, which includes ones paired later), and the days it
     repeats. Pick no days and it runs once, then switches itself off. The switch
     on each schedule pauses it; tap a schedule to change or delete it.
+  - **Turn off again** — a Turn off schedule can also keep the lights off: if
+    someone switches one back on (to grab something at night, say), it goes off
+    again after 15 min, 30 min or 1 hr, and its tile shows when ("Until 11:45 PM").
+    Pick how long to keep watching (the choices show the end time, like 7:00 AM).
+    A Turn on schedule for those lights ends the watching early, and so does
+    pausing or changing the schedule.
+  - **Batteries** — battery-powered switches report their charge. At 30% or
+    less, the light's tile shows a battery mark and the percentage, and the
+    widget's header says so ("Porch battery low"), so there's time to change the
+    batteries before the switch stops answering. ⋯ on a light shows its level and
+    when it last reported.
   - **Swap On and Off** — tap ⋯ on a light. Use it if a light comes on when the
     board says Off (a switch paired or wired the other way round). Schedules
     follow the swap too.

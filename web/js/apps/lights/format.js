@@ -69,8 +69,29 @@ export function lightsLabel(ids, lights) {
   return `${names[0]} and ${names.length - 1} more`;
 }
 
+// "15 min", "1 hr", "1 hr 30 min".
+export function durationLabel(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
+}
+
+// When a Turn off schedule stops watching for lights switched back on: "7:00 AM".
+export function watchEnd(schedule) {
+  const { hours, minutes } = parseTime(schedule.time);
+  return toTime(hours * 60 + minutes + schedule.watchFor * 60);
+}
+
+// "Off again after 30 min, until 7:00 AM", or '' when the schedule doesn't watch.
+export function againLabel(schedule) {
+  if (schedule.on || !schedule.offAgain) return '';
+  return `Off again after ${durationLabel(schedule.offAgain)}, until ${clockLabel(watchEnd(schedule))}`;
+}
+
 export function scheduleSummary(schedule, lights) {
-  return `${schedule.on ? 'Turn on' : 'Turn off'} · ${lightsLabel(schedule.lights, lights)} · ${repeatLabel(schedule.days)}`;
+  const again = againLabel(schedule);
+  return `${schedule.on ? 'Turn on' : 'Turn off'} · ${lightsLabel(schedule.lights, lights)} · ${repeatLabel(schedule.days)}${again ? ` · ${again}` : ''}`;
 }
 
 // When a schedule next runs, after `now`, or null if it's switched off.
@@ -148,9 +169,39 @@ export function pairingMessage(found) {
   }
 }
 
+// Battery-powered switches: warn at this charge or below, while there's time to swap batteries.
+export const LOW_BATTERY_PERCENT = 30;
+
+export function isBatteryLow(light) {
+  return light.battery != null && light.battery <= LOW_BATTERY_PERCENT;
+}
+
+// "Porch battery low", "2 batteries low", or ''.
+export function lowBatteryLabel(lights) {
+  const low = lights.filter(isBatteryLow);
+  if (!low.length) return '';
+  return low.length === 1 ? `${low[0].name} battery low` : `${low.length} batteries low`;
+}
+
+// "Battery 22% — replace soon · reported 2 hr ago", or '' for a switch without one.
+export function batteryLabel(light, now = Date.now()) {
+  if (light.battery == null) return '';
+  const level = `Battery ${light.battery}%${isBatteryLow(light) ? ' — replace soon' : ''}`;
+  if (!light.batteryAt) return level;
+  const minutes = Math.max(0, Math.floor((now - light.batteryAt) / 60000));
+  let ago;
+  if (minutes < 1) ago = 'just now';
+  else if (minutes < 60) ago = `${minutes} min ago`;
+  else if (minutes < 48 * 60) ago = `${Math.round(minutes / 60)} hr ago`;
+  else ago = `${Math.round(minutes / (24 * 60))} days ago`;
+  return `${level} · reported ${ago}`;
+}
+
 // What a light's tile says under its name.
 export function lightStateLabel(light) {
   if (!light.reachable) return 'No response';
   if (light.on === null) return 'Checking…';
+  // On, but a Turn off schedule will switch it off again then.
+  if (light.on && light.offAt) return `Until ${clockLabel(light.offAt)}`;
   return light.on ? 'On' : 'Off';
 }

@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  againLabel,
+  batteryLabel,
+  isBatteryLow,
+  lowBatteryLabel,
   clockLabel,
+  durationLabel,
   clockParts,
   countLabel,
   lightsLabel,
@@ -18,6 +23,7 @@ import {
   stepHour,
   stepMinute,
   toTime,
+  watchEnd,
 } from '../../web/js/apps/lights/format.js';
 
 const LIGHTS = [
@@ -111,4 +117,38 @@ test('pairing counts down in minutes and seconds, and says how the new switch is
   assert.equal(pairingMessage({ state: 'ready', name: 'Light 0009' }), 'Light 0009 is ready.');
   assert.match(pairingMessage({ state: 'failed', name: 'Light 0009' }), /didn’t finish setting up/);
   assert.match(pairingMessage({ state: 'other', name: 'Hall sensor' }), /isn’t an on\/off switch/);
+});
+
+test('a Turn off schedule that turns lights off again says so', () => {
+  assert.equal(durationLabel(15), '15 min');
+  assert.equal(durationLabel(60), '1 hr');
+  assert.equal(durationLabel(90), '1 hr 30 min');
+
+  const night = schedule({ time: '23:00', on: false, days: [0, 1, 2, 3, 4, 5, 6], offAgain: 30, watchFor: 8 });
+  assert.equal(watchEnd(night), '07:00', 'past midnight wraps to the morning');
+  assert.equal(againLabel(night), 'Off again after 30 min, until 7:00 AM');
+  assert.equal(scheduleSummary(night, LIGHTS), 'Turn off · All lights · Every day · Off again after 30 min, until 7:00 AM');
+  assert.equal(againLabel({ ...night, offAgain: 0 }), '');
+  assert.equal(againLabel({ ...night, on: true }), '', 'only Turn off schedules watch');
+
+  assert.equal(lightStateLabel({ ...LIGHTS[0], offAt: '23:45' }), 'Until 11:45 PM', 'on, and when it goes off again');
+  assert.equal(lightStateLabel({ ...LIGHTS[1], offAt: null }), 'Off');
+});
+
+test('switches at 30% battery or less are flagged, with plain words', () => {
+  const porch = { ...LIGHTS[0], name: 'Porch', battery: 22, batteryAt: 1_000_000 };
+  const hall = { ...LIGHTS[1], name: 'Hall', battery: 30 };
+  const kitchen = { ...LIGHTS[2], name: 'Kitchen', battery: 31 };
+  const mains = { ...LIGHTS[0], battery: null };
+  assert.deepEqual([porch, hall, kitchen, mains].map(isBatteryLow), [true, true, false, false]);
+
+  assert.equal(lowBatteryLabel([kitchen, mains]), '');
+  assert.equal(lowBatteryLabel([porch, kitchen]), 'Porch battery low');
+  assert.equal(lowBatteryLabel([porch, hall, kitchen]), '2 batteries low');
+
+  assert.equal(batteryLabel(mains), '', 'nothing for a switch without a battery');
+  assert.equal(batteryLabel(kitchen), 'Battery 31%');
+  assert.equal(batteryLabel(porch, 1_000_000 + 30_000), 'Battery 22% — replace soon · reported just now');
+  assert.equal(batteryLabel(porch, 1_000_000 + 2 * 3600_000), 'Battery 22% — replace soon · reported 2 hr ago');
+  assert.equal(batteryLabel(porch, 1_000_000 + 3 * 86400_000), 'Battery 22% — replace soon · reported 3 days ago');
 });

@@ -219,6 +219,36 @@ class RenameTest(unittest.TestCase):
             self.assertEqual(next(i for i in again.snapshot()["lights"] if i["id"] == BEDROOM)["name"], "Reading Lamp")
 
 
+class BatteryTest(unittest.TestCase):
+    def test_battery_reports_are_kept_and_shown(self):
+        lights = connected_lights()
+        self.assertIsNone(light(lights, BEDROOM)["battery"], "unknown until the switch says")
+        lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON","battery":63.5,"linkquality":90}')
+        self.assertEqual(light(lights, BEDROOM)["battery"], 64)
+        self.assertEqual(light(lights, BEDROOM)["batteryAt"], 1_000_000)
+        version = lights.snapshot()["version"]
+        lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON","battery":64}')
+        self.assertEqual(lights.snapshot()["version"], version, "the same level isn't news")
+        lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON","battery":28}')
+        self.assertEqual(light(lights, BEDROOM)["battery"], 28)
+        self.assertGreater(lights.snapshot()["version"], version)
+
+    def test_nonsense_battery_values_are_ignored(self):
+        lights = connected_lights()
+        for payload in (b'{"battery":"low"}', b'{"battery":-5}', b'{"battery":180}', b'{"battery":true}', b'[1, 2]'):
+            lights.handle_message("zigbee2mqtt/kitchen_light", payload)
+        self.assertIsNone(light(lights, KITCHEN)["battery"])
+
+    def test_the_battery_level_survives_a_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "lights.json")
+            lights = connected_lights(path)
+            lights.handle_message("zigbee2mqtt/kitchen_light", b'{"state":"OFF","battery":22}')
+            again = Lights(path)
+            kitchen = next(i for i in again.snapshot()["lights"] if i["id"] == KITCHEN)
+            self.assertEqual((kitchen["battery"], kitchen["batteryAt"]), (22, 1_000_000))
+
+
 class SwitchingTest(unittest.TestCase):
     def test_set_sends_the_state_and_shows_it_straight_away(self):
         lights = connected_lights()
@@ -434,6 +464,119 @@ class ScheduleTest(unittest.TestCase):
         lights.handle_disconnect()
         with self.assertLogs("board.lights", level="WARNING"):
             lights.run_due(datetime(2026, 10, 9, 7, 59), datetime(2026, 10, 9, 8, 0))
+
+
+class Clock:
+    """The board's wall clock, moved by hand."""
+
+    def __init__(self, *parts):
+        self.now = datetime(*parts)
+
+    def __call__(self):
+        return self.now
+
+    def at(self, *parts):
+        self.now = datetime(*parts)
+        return self.now
+
+
+class TurnOffAgainTest(unittest.TestCase):
+    def night(self, path=None, **fields):
+        """11 PM: everything off, and anything switched back on goes off again after 30 minutes."""
+        clock = Clock(2026, 10, 9, 22, 0)
+        lights = connected_lights(path, clock=clock)
+        lights.add_schedule({"time": "23:00", "on": False, "days": [0, 1, 2, 3, 4, 5, 6], "offAgain": 30, "watchFor": 8, **fields})
+        lights.run_due(datetime(2026, 10, 9, 22, 59), clock.at(2026, 10, 9, 23, 0))
+        lights._client.published.clear()
+        return lights, clock
+
+    def test_a_light_switched_back_on_goes_off_again_after_the_wait(self):
+        lights, clock = self.night()
+        clock.at(2026, 10, 9, 23, 15)
+        lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON"}')
+        self.assertEqual(light(lights, BEDROOM)["offAt"], "23:45", "every screen can say when")
+
+        lights.enforce(clock.at(2026, 10, 9, 23, 44))
+        self.assertEqual(lights._client.published, [])
+        lights.enforce(clock.at(2026, 10, 9, 23, 45))
+        self.assertEqual(lights._client.published, [("zigbee2mqtt/bedroom_light/set", {"state": "OFF"})])
+        self.assertFalse(light(lights, BEDROOM)["on"])
+        self.assertIsNone(light(lights, BEDROOM)["offAt"])
+
+        # On again later: a fresh 30 minutes from then.
+        clock.at(2026, 10, 9, 23, 50)
+        lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON"}')
+        self.assertEqual(light(lights, BEDROOM)["offAt"], "00:20")
+
+    def test_a_swapped_switch_is_turned_off_the_right_way_round(self):
+        lights, clock = self.night()
+        lights.swap(KITCHEN, True)
+        clock.at(2026, 10, 9, 23, 30)
+        lights.handle_message("zigbee2mqtt/kitchen_light", b'{"state":"OFF"}')  # swapped: the light is on
+        lights._client.published.clear()
+        lights.enforce(clock.at(2026, 10, 10, 0, 0))
+        self.assertEqual(lights._client.published, [("zigbee2mqtt/kitchen_light/set", {"state": "ON"})])
+
+    def test_watching_stops_when_its_time_is_up(self):
+        lights, clock = self.night()
+        clock.at(2026, 10, 10, 6, 45)
+        lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON"}')
+        self.assertIsNone(light(lights, BEDROOM)["offAt"], "7:15 is after the watch ends at 7:00")
+        lights.enforce(clock.at(2026, 10, 10, 7, 15))
+        self.assertEqual(lights._client.published, [])
+        self.assertEqual(lights._watches, [], "the finished watch is dropped")
+
+    def test_a_turn_on_schedule_ends_the_watch_for_its_lights(self):
+        lights, clock = self.night()
+        lights.add_schedule({"time": "06:00", "on": True, "lights": [BEDROOM], "days": [5, 6]})
+        lights.run_due(datetime(2026, 10, 10, 5, 59), clock.at(2026, 10, 10, 6, 0))
+        self.assertTrue(light(lights, BEDROOM)["on"])
+        lights.handle_message("zigbee2mqtt/kitchen_light", b'{"state":"ON"}')
+        lights._client.published.clear()
+        lights.enforce(clock.at(2026, 10, 10, 6, 40))
+        self.assertEqual(lights._client.published, [("zigbee2mqtt/kitchen_light/set", {"state": "OFF"})],
+                         "the bedroom stays on as scheduled; the kitchen is still watched")
+
+    def test_only_the_schedules_own_lights_are_watched(self):
+        lights, clock = self.night(lights=[BEDROOM])
+        clock.at(2026, 10, 9, 23, 10)
+        lights.handle_message("zigbee2mqtt/kitchen_light", b'{"state":"ON"}')
+        lights.enforce(clock.at(2026, 10, 10, 1, 0))
+        self.assertEqual(lights._client.published, [])
+        self.assertIsNone(light(lights, KITCHEN)["offAt"])
+
+    def test_changing_or_deleting_the_schedule_ends_tonights_watch(self):
+        lights, _ = self.night()
+        schedule_id = lights.snapshot()["schedules"][0]["id"]
+        lights.update_schedule(schedule_id, {"offAgain": 15})
+        self.assertEqual(lights._watches, [])
+        lights, _ = self.night()
+        lights.remove_schedule(lights.snapshot()["schedules"][0]["id"])
+        self.assertEqual(lights._watches, [])
+
+    def test_a_watch_survives_a_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "lights.json")
+            self.night(path)
+            clock = Clock(2026, 10, 9, 23, 20)
+            again = Lights(path, mqtt=settings_from(True), clock=clock, client_factory=FakeClient)
+            again.handle_connect()
+            again.handle_message("zigbee2mqtt/bridge/state", b'{"state":"online"}')
+            again.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
+            again.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON"}')
+            again._client.published.clear()
+            again.enforce(clock.at(2026, 10, 9, 23, 50))
+            self.assertEqual(again._client.published, [("zigbee2mqtt/bedroom_light/set", {"state": "OFF"})])
+
+    def test_turn_off_again_settings_are_checked(self):
+        lights = connected_lights()
+        on = lights.add_schedule({"time": "07:00", "on": True, "offAgain": 30})["schedule"]
+        self.assertEqual(on["offAgain"], 0, "only a Turn off schedule watches")
+        plain = lights.add_schedule({"time": "23:00", "on": False})["schedule"]
+        self.assertEqual((plain["offAgain"], plain["watchFor"]), (0, 8))
+        for bad in ({"offAgain": 3}, {"offAgain": 241}, {"offAgain": True}, {"watchFor": 0}, {"watchFor": 13}):
+            with self.assertRaises(ValidationError, msg=bad):
+                lights.add_schedule({"time": "23:00", "on": False, **bad})
 
 
 class PersistenceTest(unittest.TestCase):

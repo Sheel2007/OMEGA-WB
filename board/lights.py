@@ -43,7 +43,13 @@ TIME = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 LIGHT_ID = re.compile(r"^0x[0-9a-f]{16}$")
 CLIENT_ID = re.compile(r"^[a-f0-9]{8,32}$")
 TOPIC_SAFE = re.compile(r"^[^#+\x00]+$")
-SCHEDULE_FIELDS = ("time", "on", "lights", "days", "enabled")
+SCHEDULE_FIELDS = ("time", "on", "lights", "days", "enabled", "offAgain", "watchFor")
+# "Turn off again": a light switched back on after a Turn off schedule goes off again
+# after offAgain minutes, for watchFor hours after the schedule ran.
+MAX_OFF_AGAIN_MINUTES = 240
+DEFAULT_WATCH_HOURS = 8
+MAX_WATCH_HOURS = 12
+MINUTE_STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 
 
 class LightsUnavailable(Exception):
@@ -198,6 +204,12 @@ def clean_schedule(raw):
     enabled = raw.get("enabled", True)
     if not isinstance(enabled, bool):
         raise ValidationError("'enabled' must be true or false.")
+    off_again = raw.get("offAgain", 0)
+    if not _whole(off_again) or not (off_again == 0 or 5 <= off_again <= MAX_OFF_AGAIN_MINUTES):
+        raise ValidationError("Turn lights off again after 5 minutes to 4 hours, or never.")
+    watch_for = raw.get("watchFor", DEFAULT_WATCH_HOURS)
+    if not _whole(watch_for) or not 1 <= watch_for <= MAX_WATCH_HOURS:
+        raise ValidationError("Keep watching for 1 to %d hours." % MAX_WATCH_HOURS)
     return {
         "time": time,
         "on": on,
@@ -206,7 +218,14 @@ def clean_schedule(raw):
         # No lights means every light, including ones paired later.
         "lights": list(dict.fromkeys(i.lower() for i in lights)),
         "enabled": enabled,
+        # Only a Turn off schedule watches for lights being switched back on.
+        "offAgain": 0 if on else off_again,
+        "watchFor": watch_for,
     }
+
+
+def _whole(value):
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def weekday(moment):
@@ -256,6 +275,7 @@ class Lights(JsonStore):
         self._connected = False
         self._subscribed = set()
         self._fired = {}       # schedule id -> the local minute it last ran
+        self._on_since = {}    # id -> local time the light was last seen coming on
         self._stop = threading.Event()
         self._thread = None
         super().__init__(path, feed=feed)
@@ -301,6 +321,10 @@ class Lights(JsonStore):
                     self.run_due(max(last, now - timedelta(minutes=MAX_CATCH_UP_MINUTES)), now)
                 except Exception:
                     log.exception("Lights: a schedule failed to run")
+            try:
+                self.enforce(now)
+            except Exception:
+                log.exception("Lights: couldn't turn a light off again")
             # A clock that went back just waits; _fired stops a minute running twice.
             last = now
 
@@ -321,6 +345,18 @@ class Lights(JsonStore):
                 if not schedule["days"]:
                     schedule["enabled"] = False
                     changed = True
+                if schedule["on"]:
+                    # Lights scheduled on aren't switched off again by an earlier watch.
+                    changed = self._stop_watching(targets) or changed
+                elif schedule["offAgain"]:
+                    self._watches = [w for w in self._watches if w["schedule"] != schedule["id"]]
+                    self._watches.append({
+                        "schedule": schedule["id"],
+                        "lights": list(schedule["lights"]) or None,
+                        "after": schedule["offAgain"],
+                        "until": (minute + timedelta(hours=schedule["watchFor"])).isoformat(timespec="minutes"),
+                    })
+                    changed = True
             if changed:
                 self._commit()
         for light_id, on in sends:
@@ -328,6 +364,69 @@ class Lights(JsonStore):
                 self.set(light_id, on)
             except (LightsUnavailable, NotFound) as err:
                 log.warning("Lights: a schedule couldn't switch %s: %s", light_id, err)
+
+    def enforce(self, now):
+        """Turns off again any light switched back on while a Turn off schedule watches it."""
+        sends = []
+        with self._changed:
+            stamp = now.isoformat(timespec="minutes")
+            live = [w for w in self._watches if w["until"] > stamp]
+            for light_id in self._devices:
+                deadline = self._deadline(light_id, live)
+                if deadline is not None and now >= deadline:
+                    sends.append(light_id)
+            if len(live) != len(self._watches):
+                self._watches = live
+                self._commit()
+        for light_id in sends:
+            device = self._devices.get(light_id) or {}
+            log.info("Lights: turning %s off again; it was left on", self._names.get(light_id) or device.get("name", light_id))
+            try:
+                self.set(light_id, False)
+            except (LightsUnavailable, NotFound) as err:
+                log.warning("Lights: couldn't turn %s off again: %s", light_id, err)
+
+    def _deadline(self, light_id, watches):
+        """When a light that's on gets turned off again, or None. Call with self._changed held."""
+        since = self._on_since.get(light_id)
+        if since is None or not self._is_on(light_id):
+            return None
+        best = None
+        for watch in watches:
+            if watch["lights"] is not None and light_id not in watch["lights"]:
+                continue
+            deadline = since + timedelta(minutes=watch["after"])
+            # Only while that watch lasts: a light switched on near its end stays on.
+            if deadline.isoformat(timespec="minutes") < watch["until"] and (best is None or deadline < best):
+                best = deadline
+        return best
+
+    def _stop_watching(self, light_ids):
+        """Takes lights out of every watch. Call with self._changed held; True if anything changed."""
+        gone = set(light_ids)
+        kept = []
+        for watch in self._watches:
+            if watch["lights"] is None and not gone & set(self._devices):
+                kept.append(watch)
+                continue
+            # "Every light" becomes the lights that are still being watched.
+            lights = [i for i in (watch["lights"] or sorted(self._devices)) if i not in gone]
+            if lights:
+                kept.append({**watch, "lights": lights})
+        changed = kept != self._watches
+        self._watches = kept
+        return changed
+
+    def _is_on(self, light_id):
+        raw = self._raw.get(light_id)
+        return raw is not None and (raw == "ON") != (light_id in self._swapped)
+
+    def _note_on(self, light_id):
+        """Keeps track of when each light came on. Call with self._changed held."""
+        if self._is_on(light_id):
+            self._on_since.setdefault(light_id, self._wall_clock())
+        else:
+            self._on_since.pop(light_id, None)
 
     # From the broker (the MQTT thread)
 
@@ -374,6 +473,8 @@ class Lights(JsonStore):
                     for gone in set(self._raw) - set(found):
                         self._raw.pop(gone, None)
                         self._online.pop(gone, None)
+                    for gone in set(self._battery) - set(found):
+                        self._battery.pop(gone, None)
                     self._commit()
             self._follow()
             return
@@ -401,10 +502,28 @@ class Lights(JsonStore):
                 report = json.loads(payload)
             except ValueError:
                 return
-            state = report.get("state") if isinstance(report, dict) else None
+            if not isinstance(report, dict):
+                return
+            state = report.get("state")
             if state in ("ON", "OFF") and self._raw.get(light_id) != state:
                 self._raw[light_id] = state
+                self._note_on(light_id)
                 self._announce()
+            self._note_battery(light_id, report.get("battery"))
+
+    def _note_battery(self, light_id, level):
+        """Keeps a battery-powered switch's charge (percent). Call with self._changed held.
+
+        Saved to disk only when the percentage changes, which is rarely; the time of
+        the latest report is kept in memory and goes out with the next update.
+        """
+        if not isinstance(level, (int, float)) or isinstance(level, bool) or not 0 <= level <= 100:
+            return
+        level = round(level)
+        known = self._battery.get(light_id)
+        self._battery[light_id] = {"level": level, "at": self._epoch_ms()}
+        if known is None or known["level"] != level:
+            self._commit()
 
     def _follow(self):
         """Subscribes to every light's reports, and asks the new ones how they are."""
@@ -501,6 +620,7 @@ class Lights(JsonStore):
             # Shown straight away; the switch's own report confirms it (or puts it right).
             if light_id in self._devices and self._raw.get(light_id) != command:
                 self._raw[light_id] = command
+                self._note_on(light_id)
                 self._announce()
             return {"state": self._state()}
 
@@ -538,6 +658,7 @@ class Lights(JsonStore):
                 raise NotFound("That light isn't paired with the board any more.")
             if swapped != (light_id in self._swapped):
                 self._swapped.add(light_id) if swapped else self._swapped.discard(light_id)
+                self._note_on(light_id)
                 self._commit()
             return {"state": self._state()}
 
@@ -565,6 +686,8 @@ class Lights(JsonStore):
                 schedule.update(cleaned)
                 # A schedule switched back on (or moved) may run again today.
                 self._fired.pop(schedule_id, None)
+                # Changing a schedule (or pausing it) ends tonight's watch; it starts afresh next run.
+                self._watches = [w for w in self._watches if w["schedule"] != schedule_id]
                 self._schedules.sort(key=_order)
                 self._commit()
             return {"state": self._state(), "schedule": copy.deepcopy(schedule)}
@@ -576,6 +699,7 @@ class Lights(JsonStore):
             self._schedules.pop(index)
             self._discard(index, schedule)
             self._fired.pop(schedule_id, None)
+            self._watches = [w for w in self._watches if w["schedule"] != schedule_id]
             self._commit()
             return {"state": self._state(), "schedule": copy.deepcopy(schedule)}
 
@@ -630,10 +754,15 @@ class Lights(JsonStore):
         self._names = {}       # id -> the name people gave it on the board
         self._swapped = set()
         self._schedules = []
+        self._watches = []     # lights to turn off again if they're switched back on (see enforce)
+        self._battery = {}     # id -> {"level": percent, "at": epoch ms of the latest report}
 
     def _state(self):
         lights = []
+        stamp = self._wall_clock().isoformat(timespec="minutes")
+        live = [w for w in self._watches if w["until"] > stamp]
         for light_id, device in self._devices.items():
+            deadline = self._deadline(light_id, live)
             raw = self._raw.get(light_id)
             swapped = light_id in self._swapped
             lights.append({
@@ -642,6 +771,11 @@ class Lights(JsonStore):
                 "on": None if raw is None else (raw == "ON") != swapped,
                 "reachable": self._reachable(light_id),
                 "swapped": swapped,
+                # "23:45": when it'll be turned off again, if a Turn off schedule is watching it.
+                "offAt": deadline.strftime("%H:%M") if deadline else None,
+                # Percent, for switches that run on batteries; None for the rest.
+                "battery": self._battery.get(light_id, {}).get("level"),
+                "batteryAt": self._battery.get(light_id, {}).get("at"),
             })
         lights.sort(key=lambda light: (light["name"].lower(), light["id"]))
         return {
@@ -660,6 +794,8 @@ class Lights(JsonStore):
             "names": dict(self._names),
             "swapped": sorted(self._swapped),
             "schedules": self._schedules,
+            "watches": self._watches,
+            "battery": self._battery,
         }
 
     def _from_disk(self, data):
@@ -679,3 +815,21 @@ class Lights(JsonStore):
             schedule["id"] = raw["id"]
             schedules.append(schedule)
         self._schedules = sorted(schedules, key=_order)
+        self._watches = [w for w in (_valid_watch(raw) for raw in data.get("watches", [])) if w]
+        self._battery = {
+            i: {"level": b["level"], "at": b.get("at") if _whole(b.get("at")) else None}
+            for i, b in (data.get("battery") or {}).items()
+            if LIGHT_ID.match(i) and isinstance(b, dict) and _whole(b.get("level")) and 0 <= b["level"] <= 100
+        }
+
+
+def _valid_watch(raw):
+    if not isinstance(raw, dict):
+        return None
+    lights = raw.get("lights")
+    if lights is not None and not (isinstance(lights, list) and all(isinstance(i, str) and LIGHT_ID.match(i) for i in lights)):
+        return None
+    if not (isinstance(raw.get("schedule"), str) and _whole(raw.get("after")) and raw["after"] > 0
+            and isinstance(raw.get("until"), str) and MINUTE_STAMP.match(raw["until"])):
+        return None
+    return {"schedule": raw["schedule"], "lights": lights, "after": raw["after"], "until": raw["until"]}

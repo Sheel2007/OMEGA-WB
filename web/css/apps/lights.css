@@ -73,10 +73,40 @@
 }
 
 .light-tile__state {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
   margin-top: 0.1rem;
   font-size: var(--fs-caption);
   font-weight: 650;
   color: var(--text-2);
+}
+
+.light-tile__state-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A battery-powered switch at 30% or less: an icon and its percentage. */
+.light-tile__battery {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+
+.light-tile__battery svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.light-tile--on .light-tile__battery {
+  color: var(--lamp-on-text);
 }
 
 .light-tile--on .light-tile__toggle {
@@ -789,6 +819,13 @@
   color: var(--on-accent);
 }
 
+.schedule-editor__hint {
+  margin: 0;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
 .schedule-editor__repeat {
   margin: 0;
   font-size: var(--fs-caption);
@@ -890,6 +927,27 @@
 .light-sheet__power--on .light-tile__icon {
   background: var(--lamp-on-dot);
   color: var(--lamp-on-glyph);
+}
+
+.light-sheet__battery {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0 0.4rem;
+  font-size: var(--fs-body);
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.light-sheet__battery-icon {
+  display: grid;
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.light-sheet__battery--low {
+  color: var(--danger);
 }
 
 .light-sheet__swap {

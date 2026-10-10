@@ -4,8 +4,12 @@
 import { createKeyboard } from '../../keyboard.js';
 import { animateLayout, el, icons, reconcile, toast } from '../../ui.js';
 import {
+  batteryLabel,
+  isBatteryLow,
+  lowBatteryLabel,
   clockLabel,
   clockParts,
+  durationLabel,
   DAY_LETTERS,
   DAY_NAMES,
   nextLabel,
@@ -19,10 +23,12 @@ import {
   stepHour,
   stepMinute,
   toTime,
+  watchEnd,
 } from './format.js';
 import { name } from './meta.js';
 import {
   announcePairing,
+  batteryIcon,
   bulbIcon,
   canPair,
   createTile,
@@ -33,6 +39,9 @@ import {
 } from './tile.js';
 
 const MINUTE_STEP = 5;
+// "Turn off again": how long a light may stay on (0 = never), and for how many hours to watch.
+const OFF_AGAIN_MINUTES = [0, 15, 30, 60];
+const WATCH_HOURS = [2, 4, 6, 8, 10];
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 // "Next: Off at 11:00 PM" moves on as the minutes pass.
 const STATUS_REFRESH_MS = 60 * 1000;
@@ -207,7 +216,7 @@ export function mount(root, { services, kiosk }) {
   function render(state) {
     renderPairing(state);
     const shown = state.configured ? state.lights : [];
-    meta.textContent = statusLabel(state);
+    meta.textContent = [statusLabel(state), state.connected && lowBatteryLabel(state.lights)].filter(Boolean).join(' · ');
     showNext(state);
     showNotice(state);
     const apply = () => {
@@ -281,8 +290,15 @@ export function mount(root, { services, kiosk }) {
     const existing = id ? lights.getSchedules().find((s) => s.id === id) : null;
     if (id && !existing) return;
     const draft = existing
-      ? { time: existing.time, on: existing.on, lights: [...existing.lights], days: [...existing.days] }
-      : { time: toTime((new Date().getHours() + 1) * 60), on: true, lights: [], days: [...EVERY_DAY] };
+      ? {
+          time: existing.time,
+          on: existing.on,
+          lights: [...existing.lights],
+          days: [...existing.days],
+          offAgain: existing.offAgain ?? 0,
+          watchFor: existing.watchFor ?? 8,
+        }
+      : { time: toTime((new Date().getHours() + 1) * 60), on: true, lights: [], days: [...EVERY_DAY], offAgain: 0, watchFor: 8 };
 
     const hourValue = el('span', { class: 'time-picker__value' });
     const minuteValue = el('span', { class: 'time-picker__value' });
@@ -295,6 +311,15 @@ export function mount(root, { services, kiosk }) {
       el('button', { class: 'day-pill', type: 'button', text: letter, 'aria-label': DAY_NAMES[day], onclick: () => toggleDay(day) }),
     );
     const repeat = el('p', { class: 'schedule-editor__repeat' });
+    const againChips = el('div', { class: 'chip-row' });
+    const watchChips = el('div', { class: 'chip-row' });
+    const watchRow = el('div', { class: 'schedule-editor__group' }, el('p', { class: 'schedule-editor__hint', text: 'Keep watching until' }), watchChips);
+    const again = group(
+      'Turn off again',
+      el('p', { class: 'schedule-editor__hint', text: 'If someone switches a light back on afterwards, turn it off again after:' }),
+      againChips,
+      watchRow,
+    );
 
     const content = el(
       'div',
@@ -310,6 +335,7 @@ export function mount(root, { services, kiosk }) {
       el('div', { class: 'segmented', role: 'group', 'aria-label': 'What the schedule does' }, turnOn, turnOff),
       group('Lights', lightChips),
       group('Repeat', el('div', { class: 'day-pills' }, dayPills), repeat),
+      again,
       existing && el('button', { class: 'schedule-editor__delete', type: 'button', text: 'Delete Schedule', onclick: remove }),
     );
 
@@ -353,6 +379,20 @@ export function mount(root, { services, kiosk }) {
         },
       );
       dayPills.forEach((pill, day) => pill.setAttribute('aria-pressed', String(draft.days.includes(day))));
+      // Only a Turn off schedule watches for lights switched back on.
+      again.hidden = draft.on;
+      watchRow.hidden = !draft.offAgain;
+      choiceChips(againChips, OFF_AGAIN_MINUTES, {
+        label: (minutes) => (minutes ? durationLabel(minutes) : 'Never'),
+        pressed: (minutes) => draft.offAgain === minutes,
+        pick: (minutes) => set({ offAgain: minutes }),
+      });
+      choiceChips(watchChips, WATCH_HOURS, {
+        label: (hours) => clockLabel(watchEnd({ time: draft.time, watchFor: hours })),
+        title: (hours) => `For ${hours} hours, until ${clockLabel(watchEnd({ time: draft.time, watchFor: hours }))}`,
+        pressed: (hours) => draft.watchFor === hours,
+        pick: (hours) => set({ watchFor: hours }),
+      });
       repeat.textContent = draft.days.length ? repeatLabel(draft.days) : 'Once — pick days to repeat it';
     }
 
@@ -360,8 +400,9 @@ export function mount(root, { services, kiosk }) {
       const own = sheet;
       own.primaryButton.disabled = true;
       try {
-        if (existing) await lights.updateSchedule(existing.id, { ...draft, enabled: true });
-        else await lights.addSchedule(draft);
+        const fields = { ...draft, offAgain: draft.on ? 0 : draft.offAgain };
+        if (existing) await lights.updateSchedule(existing.id, { ...fields, enabled: true });
+        else await lights.addSchedule(fields);
         if (sheet === own) closeSheet();
       } catch (err) {
         toast(err.message);
@@ -434,6 +475,9 @@ export function mount(root, { services, kiosk }) {
       el('span', { class: 'light-tile__icon', html: bulbIcon }),
       stateText,
     );
+    // Battery-powered switches only.
+    const batteryText = el('span');
+    const battery = el('p', { class: 'light-sheet__battery' }, el('span', { class: 'light-sheet__battery-icon', html: batteryIcon }), batteryText);
     const swap = el(
       'button',
       { class: 'light-sheet__swap', type: 'button', role: 'switch', onclick: swapOnOff },
@@ -453,11 +497,15 @@ export function mount(root, { services, kiosk }) {
       const state = lights.getState();
       const now = state.lights.find((l) => l.id === lightId);
       if (!now) return closeSheet();
+      battery.hidden = now.battery == null;
+      battery.classList.toggle('light-sheet__battery--low', isBatteryLow(now));
+      batteryText.textContent = batteryLabel(now);
       power.classList.toggle('light-sheet__power--on', now.on === true);
       power.setAttribute('aria-pressed', String(now.on === true));
       power.setAttribute('aria-disabled', String(!now.reachable));
       if (!now.reachable) stateText.textContent = unreachableMessage(state, now);
       else if (now.on === null) stateText.textContent = 'Checking… Tap to turn on';
+      else if (now.on && now.offAt) stateText.textContent = `On — turns off again at ${clockLabel(now.offAt)}`;
       else stateText.textContent = now.on ? 'On — tap to turn off' : 'Off — tap to turn on';
       swap.setAttribute('aria-checked', String(now.swapped));
     }
@@ -483,7 +531,7 @@ export function mount(root, { services, kiosk }) {
 
     openSheet({
       title: light.name,
-      content: el('div', { class: 'light-sheet' }, nameField, power, swap),
+      content: el('div', { class: 'light-sheet' }, nameField, power, battery, swap),
       primary: { label: 'Done', onClick: done },
       cancel: false,
       refresh: paint,
@@ -517,6 +565,21 @@ export function mount(root, { services, kiosk }) {
       closeSheet();
     },
   };
+}
+
+// A row of chips, one of which is picked. Rebuilt in place, keyed by value.
+function choiceChips(parent, values, { label, title = label, pressed, pick }) {
+  reconcile(
+    parent,
+    values,
+    (value) => String(value),
+    (value) => el('button', { class: 'chip chip--choice', type: 'button', onclick: () => pick(value) }),
+    (chip, value) => {
+      chip.textContent = label(value);
+      chip.setAttribute('aria-label', title(value));
+      chip.setAttribute('aria-pressed', String(pressed(value)));
+    },
+  );
 }
 
 function segment(label, onclick) {

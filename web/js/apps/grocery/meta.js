@@ -1,7 +1,10 @@
 export const id = 'grocery';
 export const name = 'Grocery';
 export const description = 'Scan or search what to get at Lidl and Trader Joe’s';
-export const widgetSize = 'tall';
+// The size it starts at, and every size it can be resized to in edit mode
+// (small, medium, large; see SIZES in widget-layout.js). It must look right in each.
+export const widgetSize = 'large';
+export const widgetSizes = ['small', 'medium', 'large'];
 export const iconBackground = 'var(--icon-grocery)';
 export const iconGlyph = `<svg viewBox="0 0 64 64" aria-hidden="true">
   <path d="M14 22v-5a3 3 0 0 1 3-3h5M42 14h5a3 3 0 0 1 3 3v5M50 42v5a3 3 0 0 1-3 3h-5M22 50h-5a3 3 0 0 1-3-3v-5" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>

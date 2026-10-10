@@ -188,6 +188,12 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
   screen. These choices are saved separately on each screen, so your phone can
   look different from the board.
+- **Arranging the home screen:** press and hold a widget (or pick **Edit home
+  screen** in the menu). Then drag any widget wherever you want it; the others
+  move out of the way, and holding it at the side of the screen flips to the next
+  page. Drag the round handle in a widget's bottom-right corner to make it small,
+  medium or large, or tap the handle to step through the sizes. Tap **Done** when
+  you're finished.
 - In kiosk mode, the board goes back to the home screen after 90 seconds
   untouched, and it reloads itself once a night at 4am to stay fresh.
 
@@ -422,7 +428,8 @@ web/
   js/main.js            starts everything
   js/services/          the only code that talks to the server or localStorage
   js/apps/<id>/         one folder per app: meta.js, widget.js, app.js, index.js
-  js/widget-layout.js   where widgets go on each page (pure, tested)
+  js/widget-layout.js   where widgets go, how big they are, and how a drag or resize
+                        moves the others (pure, tested)
   js/pager.js           swiping between pages; home-editor.js: edit mode
   js/scene/             Blocks critters (art, what they do, the low-rate ticker)
   js/menu.js            the top-right menu
@@ -437,8 +444,11 @@ tests/                  unit tests (Python unittest + node --test)
 
 Make a folder `web/js/apps/<id>/` like `notes/`:
 
-- `meta.js` exports `id`, `name`, `description`, `widgetSize` (`tall`, `wide` or
-  `medium`), `iconBackground` and `iconGlyph`.
+- `meta.js` exports `id`, `name`, `description`, `widgetSize` (the size it starts
+  at), `widgetSizes` (every size it can be resized to: `small`, `medium`,
+  `large`), `iconBackground` and `iconGlyph`. The widget has to look right at each
+  size it lists; style them from `.widget--small`, `.widget--medium` and
+  `.widget--large` (see CLAUDE.md).
 - `widget.js` exports `createWidget(context)`, which returns `{ node, destroy }`.
   `destroy()` must undo every subscription, timer and observer the widget made.
 - `app.js` (optional) exports `mount(root, context)` for a full-screen app.

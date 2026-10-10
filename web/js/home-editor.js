@@ -1,30 +1,31 @@
-// Edit mode for the home screen: drag widgets to rearrange them (across pages too),
-// remove them with −, add them with +. No jiggle animation (it would never stop);
-// editing shows as a dashed outline instead.
+// Edit mode for the home screen, like an iPhone's: pick a widget up and drag it
+// anywhere (across pages too), resize it from its corner, remove it with −, add
+// one with +. No jiggle animation (it would never stop); editing shows as a
+// dashed outline instead.
 //
 // While a widget is dragged it floats in .home__drag-layer and a placeholder holds
-// its slot; the other widgets reflow around the placeholder as a live preview.
-// Nothing is saved until the drop.
+// the spot it would drop into: the cell under the widget's top-left corner. The
+// widgets it would land on move aside as a live preview (placeWidget). Resizing
+// previews the same way (resizeWidget). Nothing is saved until the finger lifts.
 import { animateLayout, el, haptic, icons } from './ui.js';
-import { arrange, dropIndex, insertWidget, removeWidget } from './widget-layout.js';
+import { cellFromPoint, findWidget, nearestSize, placeWidget, removeWidget, resizeWidget } from './widget-layout.js';
 
 // A pointer this close to the pager's side edge flips to the next page after a pause.
 const EDGE_REM = 4;
 const EDGE_DWELL_MS = 650;
 const EDGE_REPEAT_MS = 1000;
-// Re-pick the drop spot only after the pointer moves this far, and not straight after a reflow.
-const REEVALUATE_PX = 8;
-const REFLOW_LOCK_MS = 250;
+// Movement (px) before a press on the resize handle counts as a drag rather than a tap.
+const RESIZE_SLOP = 10;
 const SETTLE_MS = 220;
 const COMPACT = '(max-width: 900px), (max-height: 560px)';
 const WIDGETS_SELECTOR = '.home-page > .widget, .home-page > .home-slot';
+const SIZE_LABELS = { small: 'Small', medium: 'Medium', large: 'Large' };
 
 // onChange(editing) is called when edit mode starts or ends.
 export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWidget, onAddWidgetRequest, onChange }) {
   const lifetime = new AbortController();
   const compact = matchMedia(COMPACT);
-  const sizeOf = (id) => apps.find((a) => a.id === id).widgetSize;
-  const layOut = (pages) => arrange(pages, sizeOf, settings.getLayout()).pages;
+  const appOf = (id) => apps.find((a) => a.id === id);
   const dragLayer = el('div', { class: 'home__drag-layer', 'aria-hidden': 'true' });
   const editBar = el(
     'div',
@@ -38,14 +39,24 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
 
   let editing = false;
   let drag = null;
+  let resize = null;
   let whileEditing = null;
 
   // Edit controls inside each widget
 
+  function sizeOfWidget(id) {
+    return findWidget(settings.getPages(), id)?.size;
+  }
+
+  function nextSize(id, size) {
+    const sizes = appOf(id).widgetSizes;
+    return sizes[(sizes.indexOf(size) + 1) % sizes.length];
+  }
+
   function toolsFor(node) {
     const id = node.dataset.widget;
-    const name = apps.find((a) => a.id === id)?.name ?? 'widget';
-    const tools = el(
+    const name = appOf(id)?.name ?? 'widget';
+    const remove = el(
       'div',
       { class: 'widget__edit' },
       el('button', {
@@ -55,35 +66,38 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
         html: icons.minus,
         onclick: () => onRemoveWidget(id),
       }),
-      // Phones have no drag: these move a widget up or down the single column.
-      el('button', { class: 'widget__edit-button widget__edit-button--step', type: 'button', 'aria-label': `Move ${name} up`, html: icons.arrowUp, onclick: () => step(id, -1) }),
-      el('button', { class: 'widget__edit-button widget__edit-button--step', type: 'button', 'aria-label': `Move ${name} down`, html: icons.arrowDown, onclick: () => step(id, 1) }),
     );
-    return tools;
+    const handle = el('button', {
+      class: 'widget__resize',
+      type: 'button',
+      html: icons.resize,
+      onpointerdown: (event) => startResize(node, event),
+      // A keyboard press (detail 0) steps through the sizes; pointers are handled above.
+      onclick: (event) => event.detail === 0 && settings.resizeWidget(id, nextSize(id, sizeOfWidget(id))),
+    });
+    const label = el('span', { class: 'widget__size-label', 'aria-hidden': 'true' });
+    return [remove, handle, label];
+  }
+
+  function labelTools(node) {
+    const id = node.dataset.widget;
+    const size = node.dataset.size;
+    const handle = node.querySelector(':scope > .widget__resize');
+    const name = appOf(id)?.name ?? 'widget';
+    handle?.setAttribute('aria-label', `Resize ${name} (now ${SIZE_LABELS[size] ?? size})`);
+    const label = node.querySelector(':scope > .widget__size-label');
+    if (label) label.textContent = SIZE_LABELS[size] ?? size;
   }
 
   function decorate() {
     home.querySelectorAll('.home-page > .widget').forEach((node) => {
-      if (!node.querySelector(':scope > .widget__edit')) node.append(toolsFor(node));
+      if (!node.querySelector(':scope > .widget__edit')) node.append(...toolsFor(node));
+      labelTools(node);
     });
   }
 
   function undecorate() {
-    home.querySelectorAll('.widget__edit').forEach((tools) => tools.remove());
-  }
-
-  // Moves a widget one place along the flattened (phone) order.
-  function step(id, direction) {
-    const flat = settings.getWidgets();
-    const index = flat.indexOf(id);
-    const neighbour = flat[index + direction];
-    if (!neighbour) return;
-    const pages = settings.getPages();
-    const page = pages.findIndex((ids) => ids.includes(neighbour));
-    const at = pages[page].indexOf(neighbour);
-    const without = removeWidget(pages, id).pages;
-    const target = { page, index: direction < 0 ? at : without[page].indexOf(neighbour) + 1 };
-    animateLayout(home, () => settings.moveWidget(id, target), { selector: WIDGETS_SELECTOR });
+    home.querySelectorAll('.widget__edit, .widget__resize, .widget__size-label').forEach((tool) => tool.remove());
   }
 
   // Entering and leaving
@@ -103,6 +117,7 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
   function exit() {
     if (!editing) return;
     cancelDrag();
+    cancelResize();
     editing = false;
     whileEditing.abort();
     home.classList.remove('home--editing');
@@ -111,32 +126,50 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
     onChange?.(false);
   }
 
+  // The grid of the page on screen, measured from the pager (which never moves)
+  // rather than the page (which may still be sliding into place).
+  function pageGeometry() {
+    const box = home.querySelector('.pager').getBoundingClientRect();
+    const page = pager.pages()[pager.current] ?? pager.pages()[0];
+    const style = getComputedStyle(page);
+    const padLeft = parseFloat(style.paddingLeft) || 0;
+    const padRight = parseFloat(style.paddingRight) || 0;
+    const { cols, rows } = settings.getLayout().grid;
+    return {
+      left: box.left + padLeft,
+      top: box.top,
+      width: box.width - padLeft - padRight,
+      height: box.height,
+      colGap: parseFloat(style.columnGap) || 0,
+      rowGap: parseFloat(style.rowGap) || 0,
+      cols,
+      rows,
+    };
+  }
+
+  function show(pages, options) {
+    animateLayout(home, () => host.render(pages, options), { selector: WIDGETS_SELECTOR });
+    decorate();
+  }
+
   // Dragging
 
-  function rectsOnPage(page) {
-    const pageEl = pager.pages()[page];
-    if (!pageEl) return { others: [], hole: null };
-    const slot = pageEl.querySelector(':scope > .home-slot');
-    const others = [...pageEl.querySelectorAll(':scope > .widget')].map((node) => node.getBoundingClientRect());
-    return { others, hole: slot?.getBoundingClientRect() ?? null };
-  }
+  const sameTarget = (a, b) => a.page === b.page && a.col === b.col && a.row === b.row;
 
   function preview(target) {
     drag.target = target;
-    const pages = layOut(insertWidget(drag.base, drag.id, target));
-    animateLayout(home, () => host.render(pages, { ghost: { id: drag.id, element: drag.slot } }), { selector: WIDGETS_SELECTOR });
-    decorate();
-    drag.rects = rectsOnPage(pager.current);
-    drag.lockedUntil = performance.now() + REFLOW_LOCK_MS;
+    drag.pages = placeWidget(drag.base, drag.item, target, settings.getLayout());
+    show(drag.pages, { ghost: { id: drag.item.id, element: drag.slot } });
+  }
+
+  function targetAt(point) {
+    const corner = { x: point.x - drag.grab.x, y: point.y - drag.grab.y };
+    return { page: pager.current, ...cellFromPoint(corner, pageGeometry()) };
   }
 
   function evaluate(point) {
-    if (performance.now() < drag.lockedUntil) return;
-    const { others, hole } = drag.rects;
-    const index = dropIndex(others, point, { hole });
-    if (index === null) return;
-    const target = { page: pager.current, index };
-    if (target.page !== drag.target.page || target.index !== drag.target.index) preview(target);
+    const target = targetAt(point);
+    if (!sameTarget(target, drag.target)) preview(target);
   }
 
   function edgeDirection(point) {
@@ -150,20 +183,16 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
   function flipPage(direction) {
     const next = pager.current + direction;
     if (next < 0) return;
-    const pages = layOut(insertWidget(drag.base, drag.id, drag.target));
+    // Past the last page opens a new, empty page to drop onto (unless the widget is
+    // already alone on the last page, which would just be the same).
+    const pages = drag.pages;
     if (next >= pages.length) {
-      // Past the last page: open a new, empty page to drop onto (unless the
-      // widget is already alone on the last page, which would just be the same).
-      const aloneOnLast = drag.target.page === pages.length - 1 && pages[pages.length - 1].length === 1;
-      if (aloneOnLast) return;
-      preview({ page: pages.length, index: 0 });
-      pager.goTo(next);
-    } else {
-      pager.goTo(next);
-      // Until the pointer says otherwise, the widget joins the end of the new page.
-      preview({ page: next, index: rectsOnPage(next).others.length });
+      const last = pages[pages.length - 1];
+      if (last.length === 1 && last[0].id === drag.item.id) return;
     }
-    drag.rects = rectsOnPage(pager.current);
+    const point = drag.last;
+    preview({ ...targetAt(point), page: Math.min(next, pages.length) });
+    pager.goTo(next);
   }
 
   function updateEdge(point) {
@@ -183,10 +212,9 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
 
   function startDrag({ widget, pointerId, x, y }) {
     if (!editing) enter();
-    if (compact.matches || drag) return;
+    if (compact.matches || drag || resize) return;
     const id = widget.dataset.widget;
-    const pages = settings.getPages();
-    const { pages: base, from } = removeWidget(pages, id);
+    const { pages: base, from } = removeWidget(settings.getPages(), id);
     if (!from) return;
     const homeBox = home.getBoundingClientRect();
     const box = widget.getBoundingClientRect();
@@ -207,24 +235,25 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
 
     const listeners = new AbortController();
     drag = {
-      id,
+      item: { id, size: from.size },
       node: widget,
       slot,
       base,
-      target: from,
+      pages: settings.getPages(),
+      target: { page: from.page, col: from.col, row: from.row },
+      // Where on the widget it was picked up, so its corner follows the finger.
+      grab: { x: x - box.left, y: y - box.top },
       start: { x, y },
       last: { x, y },
-      rects: rectsOnPage(pager.current),
-      lockedUntil: 0,
       edge: 0,
       edgeTimer: null,
       frame: 0,
-      pointerId,
       listeners,
     };
     const move = (event) => {
       if (event.pointerId !== pointerId) return;
       const point = { x: event.clientX, y: event.clientY };
+      drag.last = point;
       if (!drag.frame) {
         drag.frame = requestAnimationFrame(() => {
           if (!drag) return;
@@ -233,8 +262,6 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
         });
       }
       updateEdge(point);
-      if (Math.hypot(point.x - drag.last.x, point.y - drag.last.y) < REEVALUATE_PX) return;
-      drag.last = point;
       evaluate(point);
     };
     const opts = { signal: listeners.signal };
@@ -271,11 +298,12 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
 
   function drop() {
     if (!drag) return;
-    const { id, target } = drag;
+    const { item, target } = drag;
     finishDrag();
     land();
     drag = null;
-    settings.moveWidget(id, target);
+    settings.moveWidget(item.id, target);
+    host.render(settings.getPages());
     decorate();
   }
 
@@ -285,6 +313,76 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
     land();
     drag = null;
     host.render(settings.getPages());
+  }
+
+  // Resizing: drag the corner handle to the size you want (it snaps to the nearest
+  // size the widget comes in), or tap it to step through the sizes.
+
+  function startResize(node, event) {
+    if (!editing || drag || resize || event.button > 0) return;
+    event.preventDefault();
+    const id = node.dataset.widget;
+    const size = sizeOfWidget(id);
+    if (!size) return;
+    const handle = event.currentTarget;
+    handle.setPointerCapture?.(event.pointerId);
+    const listeners = new AbortController();
+    const box = node.getBoundingClientRect();
+    const geometry = pageGeometry();
+    resize = {
+      id,
+      node,
+      from: size,
+      size,
+      corner: { x: box.left, y: box.top },
+      pitch: { x: (geometry.width + geometry.colGap) / geometry.cols, y: (geometry.height + geometry.rowGap) / geometry.rows },
+      start: { x: event.clientX, y: event.clientY },
+      moved: false,
+      listeners,
+    };
+    node.classList.add('widget--resizing');
+    pager.setLocked(true);
+    const opts = { signal: listeners.signal };
+    handle.addEventListener('pointermove', onResizeMove, opts);
+    handle.addEventListener('pointerup', () => endResize(true), opts);
+    handle.addEventListener('pointercancel', () => endResize(false), opts);
+  }
+
+  function onResizeMove(event) {
+    const { corner, pitch, start } = resize;
+    if (!resize.moved && Math.hypot(event.clientX - start.x, event.clientY - start.y) < RESIZE_SLOP) return;
+    resize.moved = true;
+    // How many cells the widget would span if its corner were under the finger.
+    const want = {
+      w: Math.max(1, Math.round((event.clientX - corner.x) / pitch.x)),
+      h: Math.max(1, Math.round((event.clientY - corner.y) / pitch.y)),
+    };
+    const layout = settings.getLayout();
+    const size = nearestSize(appOf(resize.id).widgetSizes, layout.spans, want, resize.size);
+    if (size === resize.size) return;
+    resize.size = size;
+    haptic();
+    show(resizeWidget(settings.getPages(), resize.id, size, layout));
+  }
+
+  function endResize(commit) {
+    if (!resize) return;
+    const { id, node, from, size, moved, listeners } = resize;
+    listeners.abort();
+    node.classList.remove('widget--resizing');
+    pager.setLocked(false);
+    resize = null;
+    const chosen = moved ? size : nextSize(id, from);
+    if (commit && chosen !== from) {
+      animateLayout(home, () => settings.resizeWidget(id, chosen), { selector: WIDGETS_SELECTOR });
+    } else {
+      host.render(settings.getPages());
+    }
+    decorate();
+  }
+
+  function cancelResize() {
+    endResize(false);
   }
 
   compact.addEventListener('change', () => cancelDrag(), { signal: lifetime.signal });

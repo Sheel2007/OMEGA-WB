@@ -593,6 +593,26 @@
   color: var(--accent-text);
 }
 
+/* Large: the four games share the height, with bigger names. */
+.widget--large .games-widget__list {
+  gap: 0.7rem;
+}
+
+.widget--large .games-widget__game {
+  flex: 1;
+  max-height: 7rem;
+  gap: 1rem;
+  padding: 0.4rem 1.1rem 0.4rem 0.6rem;
+}
+
+.widget--large .games-widget__name {
+  font-size: var(--fs-item);
+}
+
+.widget--large .games-widget__state {
+  font-size: var(--fs-body);
+}
+
 /* Phones: one column; boards shrink to fit the width. */
 @media (max-width: 900px), (max-height: 560px) {
   .games-app__cards {

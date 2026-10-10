@@ -1,7 +1,10 @@
 export const id = 'notes';
 export const name = 'Notes';
 export const description = 'Messages for everyone at home';
-export const widgetSize = 'medium';
+// The size it starts at, and every size it can be resized to in edit mode
+// (small, medium, large; see SIZES in widget-layout.js). It must look right in each.
+export const widgetSize = 'small';
+export const widgetSizes = ['small', 'medium', 'large'];
 export const iconBackground = 'var(--icon-notes)';
 export const iconGlyph = `<svg viewBox="0 0 64 64" aria-hidden="true">
   <path d="M15 12h34a3 3 0 0 1 3 3v23L38 52H15a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z" fill="#fff"/>

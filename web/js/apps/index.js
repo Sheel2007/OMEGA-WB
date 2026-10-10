@@ -1,4 +1,5 @@
-// Every app on the board. Each module exports id, name, description, widgetSize,
+// Every app on the board. Each module exports id, name, description, widgetSize
+// (the size its widget starts at), widgetSizes (every size it can be resized to),
 // iconBackground and iconGlyph, plus createWidget(context) and, if it opens full
 // screen, mount(root, context). Apps with mount() get a dock icon.
 import * as calendar from './calendar/index.js';

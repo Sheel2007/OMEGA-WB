@@ -295,7 +295,7 @@
 }
 
 /* The card itself takes the press (to drag it); nothing inside it reacts. */
-.home--editing .widget > :not(.widget__edit) {
+.home--editing .widget > :not(.widget__edit, .widget__resize) {
   pointer-events: none;
 }
 
@@ -331,9 +331,54 @@
   color: #ffffff;
 }
 
-/* Up/down moves are for phones, which have no drag. */
-.widget__edit-button--step {
+/* Resize handle: bottom-right corner, drag it or tap it. A 60px target. */
+.widget__resize {
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+  box-shadow: var(--shadow-sm);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.widget__resize svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+/* The size it's becoming, shown only while the handle is held. */
+.widget__size-label {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  z-index: 3;
   display: none;
+  padding: 0.3rem 1rem;
+  border-radius: var(--radius-pill);
+  background: var(--inverse-bg);
+  color: var(--inverse-text);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.widget--resizing {
+  outline-style: solid !important;
+  outline-color: var(--focus) !important;
+}
+
+.widget--resizing > .widget__size-label {
+  display: block;
 }
 
 .home-slot {
@@ -416,10 +461,6 @@
 
   .page-dots {
     display: none;
-  }
-
-  .widget__edit-button--step {
-    display: grid;
   }
 
   .edit-bar {

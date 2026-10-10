@@ -1,8 +1,8 @@
-// Home-screen widgets: puts each chosen widget on its page at the grid area
-// widget-layout.js worked out, moves widgets between pages without rebuilding
-// them, and fully tears down the ones that were removed.
+// Home-screen widgets: puts each chosen widget on its page at its place and size
+// (placements from widget-layout.js), moves widgets between pages without
+// rebuilding them, and fully tears down the ones that were removed.
 import { el, reducedMotion } from './ui.js';
-import { arrange } from './widget-layout.js';
+import { SIZES, widgetOrder } from './widget-layout.js';
 
 const APPEAR_MS = 280;
 
@@ -16,7 +16,6 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, onRen
   const mounted = new Map();
   const firstPage = track.firstElementChild;
   const clock = firstPage.querySelector('.clock');
-  const sizeOf = (id) => apps.find((a) => a.id === id).widgetSize;
   let firstRender = true;
 
   function pageElement(index) {
@@ -31,7 +30,7 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, onRen
     if (!widget) {
       const app = apps.find((a) => a.id === id);
       widget = app.createWidget(context);
-      widget.node.classList.add('widget', `widget--${app.widgetSize}`);
+      widget.node.classList.add('widget');
       widget.node.dataset.widget = id;
       widget.node.dataset.key = id;
       widget.isNew = true;
@@ -40,10 +39,17 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, onRen
     return widget;
   }
 
+  // Each widget says how big it is with widget--small, widget--medium or widget--large.
+  function setSize(node, size) {
+    for (const other of SIZES) node.classList.toggle(`widget--${other}`, other === size);
+    node.dataset.size = size;
+  }
+
+  // pages: lists of placements { id, size, col, row }, as SettingsService keeps them.
   // ghost: { id, element } puts `element` (the drop placeholder) where widget `id`
   // would go, while the widget itself is being dragged around.
   function render(pages, { ghost = null } = {}) {
-    const wanted = new Set(pages.flat());
+    const wanted = new Set(widgetOrder(pages));
     for (const [id, widget] of mounted) {
       if (wanted.has(id)) continue;
       widget.destroy();
@@ -52,18 +58,18 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, onRen
     }
 
     const layout = getLayout();
-    const { placements } = arrange(pages, sizeOf, layout);
     track.style.setProperty('--grid-cols', layout.grid.cols);
     track.style.setProperty('--grid-rows', layout.grid.rows);
     clock.style.gridArea = gridArea(layout.clock);
     const added = [];
-    pages.forEach((ids, p) => {
+    pages.forEach((items, p) => {
       const pageEl = pageElement(p);
       let previous = p === 0 ? clock : null;
-      for (const id of ids) {
+      for (const { id, size, col, row } of items) {
         const widget = widgetFor(id);
         const node = ghost?.id === id ? ghost.element : widget.node;
-        node.style.gridArea = gridArea(placements.get(id));
+        node.style.gridArea = gridArea({ col, row, ...layout.spans[size] });
+        setSize(widget.node, size);
         const expected = previous ? previous.nextSibling : pageEl.firstChild;
         if (expected !== node) pageEl.insertBefore(node, expected);
         previous = node;

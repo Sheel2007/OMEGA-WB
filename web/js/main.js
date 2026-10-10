@@ -56,7 +56,9 @@ const services = {
   weather: createWeatherService(),
   games: createGamesStore(),
   settings: createSettingsService({
-    widgetSizes: Object.fromEntries(APPS.filter((app) => app.createWidget).map((app) => [app.id, app.widgetSize])),
+    widgets: Object.fromEntries(
+      APPS.filter((app) => app.createWidget).map((app) => [app.id, { size: app.widgetSize, sizes: app.widgetSizes }]),
+    ),
     defaultWidgets: DEFAULT_WIDGETS,
     widgetsSince: WIDGETS_SINCE,
   }),
@@ -191,7 +193,7 @@ const pager = createPager({
   onLongPress: (press) => editor.startDrag(press),
   onTap: (event) => event.target.closest('.widget') || editor.exit(),
   holdMs: () => (editor.editing ? EDIT_HOLD_MS : undefined),
-  ignore: (event) => Boolean(event.target.closest('.widget__edit')),
+  ignore: (event) => Boolean(event.target.closest('.widget__edit, .widget__resize')),
 });
 const glass = createGlass({
   board: document.querySelector('.board'),

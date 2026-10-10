@@ -198,7 +198,8 @@
 
 /* While editing, the remove button takes the top-left corner the name sits in. */
 :root[data-theme="apple"] .home--editing .widget-head {
-  padding-left: 2.6rem;
+  /* Clears the 60px button and its 0.6rem inset. */
+  padding-left: 3.1rem;
 }
 
 /* Empty states: one short, quiet, centred line. */

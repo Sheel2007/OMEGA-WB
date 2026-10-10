@@ -231,6 +231,11 @@
   place-items: center;
 }
 
+/* A small widget gives the names the room the pictures took. */
+.widget--small .grocery-widget__glyph-slot {
+  display: none;
+}
+
 .grocery-widget__pic {
   width: 2.7rem;
   height: 2.7rem;

@@ -1,15 +1,20 @@
 // Where widgets go on the home pages. Pure functions, so they're tested in node.
 //
-// Each page is a 12 × 4 grid; page 1 also has the clock in its top-left 4 × 2.
-// Widgets keep the order the user chose: a page takes the longest run of the
-// list that fits (found with a small search), and the rest moves to the next page.
+// Every widget has a place of its own: a page, a column and a row on that page's
+// grid, and a size. Edit mode drags a widget to the cell under the finger and
+// pushes whatever it lands on to the nearest free space (placeWidget), and resizes
+// one in place the same way (resizeWidget). A layout is a list of pages, each a
+// list of placements { id, size, col, row } in reading order.
 //
+// Each page is a 12 × 4 grid; page 1 also has the clock in its top-left 4 × 2.
 // The Apple theme lays pages out in iOS widget units instead (LAYOUTS.apple): a
-// 4 × 2 grid of near-square cells where a widget is small (1 × 1), medium (2 × 1)
-// or large (2 × 2), and the clock takes one medium slot.
+// 4 × 2 grid of near-square cells, with the clock in one medium slot.
+//
+// Widgets come in three sizes (SIZES); each app says which it supports in meta.js.
 
+export const SIZES = ['small', 'medium', 'large'];
 export const GRID = { cols: 12, rows: 4 };
-export const SPANS = { tall: { w: 5, h: 4 }, wide: { w: 4, h: 2 }, medium: { w: 3, h: 2 } };
+export const SPANS = { small: { w: 3, h: 2 }, medium: { w: 4, h: 2 }, large: { w: 5, h: 4 } };
 // The clock only needs room for the time and the date under it; the rest of the
 // top row is left for widgets, so the five the board ships with share page 1.
 export const CLOCK_AREA = { col: 1, row: 1, w: 4, h: 2 };
@@ -19,7 +24,7 @@ export const LAYOUTS = {
   apple: {
     id: 'apple',
     grid: { cols: 4, rows: 2 },
-    spans: { tall: { w: 2, h: 2 }, wide: { w: 2, h: 1 }, medium: { w: 1, h: 1 } },
+    spans: { small: { w: 1, h: 1 }, medium: { w: 2, h: 1 }, large: { w: 2, h: 2 } },
     clock: { col: 1, row: 1, w: 2, h: 1 },
   },
 };
@@ -29,8 +34,11 @@ export function layoutFor(theme) {
   return theme === 'apple' ? LAYOUTS.apple : LAYOUTS.board;
 }
 
-// paginate() with a layout's grid, spans and clock. sizeOf(id) gives the widget's
-// size name (tall, wide or medium).
+// Laying out a list in order (new screens, and screens saved before widgets had
+// places of their own): a page takes the longest run of the list that fits (found
+// with a small search), and the rest moves to the next page.
+
+// paginate() with a layout's grid, spans and clock. sizeOf(id) gives the widget's size.
 export function arrange(pages, sizeOf, layout = LAYOUTS.board) {
   return paginate(pages, (id) => layout.spans[sizeOf(id)], { grid: layout.grid, firstPageReserved: [layout.clock] });
 }
@@ -128,34 +136,197 @@ export function paginate(pages, spanOf, { firstPageReserved = [CLOCK_AREA], grid
   return result;
 }
 
+// Placements
+
+const byReading = (a, b) => a.row - b.row || a.col - b.col;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+function overlaps(a, b) {
+  return a.col < b.col + b.w && b.col < a.col + a.w && a.row < b.row + b.h && b.row < a.row + a.h;
+}
+
+function boxOf(item, layout) {
+  return { col: item.col, row: item.row, ...layout.spans[item.size] };
+}
+
+// Is `box` inside the grid, clear of the clock on page 1, and clear of `items`?
+function isOpen(box, items, page, layout) {
+  const { grid, clock } = layout;
+  if (box.col < 1 || box.row < 1 || box.col + box.w - 1 > grid.cols || box.row + box.h - 1 > grid.rows) return false;
+  if (page === 0 && overlaps(box, clock)) return false;
+  return items.every((other) => !overlaps(box, boxOf(other, layout)));
+}
+
+function openSpots(items, page, size, layout) {
+  const { w, h } = layout.spans[size];
+  const spots = [];
+  for (let row = 1; row + h - 1 <= layout.grid.rows; row++) {
+    for (let col = 1; col + w - 1 <= layout.grid.cols; col++) {
+      if (isOpen({ col, row, w, h }, items, page, layout)) spots.push({ col, row });
+    }
+  }
+  return spots;
+}
+
+// The first free spot in reading order, or null if the page has no room.
+export function firstSpot(items, page, size, layout) {
+  return openSpots(items, page, size, layout)[0] ?? null;
+}
+
+// The free spot closest to `near` (ties go to reading order), or null.
+export function nearestSpot(items, page, size, layout, near) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const spot of openSpots(items, page, size, layout)) {
+    const distance = Math.hypot(spot.col - near.col, spot.row - near.row);
+    if (distance < bestDistance) {
+      best = spot;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+// Sorts every page into reading order and drops empty pages after the first.
+function tidy(pages) {
+  const kept = pages.filter((items, p) => p === 0 || items.length > 0).map((items) => [...items].sort(byReading));
+  return kept.length ? kept : [[]];
+}
+
+// Puts `item` on the first page from `from` on with room for it (a new page if none).
+function settle(pages, from, item, layout) {
+  for (let page = from; ; page++) {
+    if (page === pages.length) pages.push([]);
+    const spot = firstSpot(pages[page], page, item.size, layout);
+    if (spot) {
+      pages[page].push({ ...item, ...spot });
+      return page;
+    }
+  }
+}
+
+// Page lists of ids (laid out in order) as placements.
+export function fromOrder(idPages, sizeOf, layout = LAYOUTS.board) {
+  const { pages, placements } = arrange(idPages, sizeOf, layout);
+  return pages.map((ids) => ids.map((id) => ({ id, size: sizeOf(id), col: placements.get(id).col, row: placements.get(id).row })));
+}
+
+// Every widget's id, page by page in reading order (the order a phone lists them in).
+export function widgetOrder(pages) {
+  return pages.flatMap((items) => items.map((item) => item.id));
+}
+
+export function findWidget(pages, id) {
+  for (const [page, items] of pages.entries()) {
+    const item = items.find((other) => other.id === id);
+    if (item) return { page, ...item };
+  }
+  return null;
+}
+
+// Checks saved pages: drops unknown, repeated or malformed widgets, gives any
+// widget a size it supports, and moves a widget that's off the grid, over the
+// clock or on top of another to the nearest free space (or a later page).
+// specOf(id) is { size, sizes } for a known widget and null otherwise.
+export function normalize(raw, layout, specOf) {
+  if (!Array.isArray(raw)) return null;
+  const seen = new Set();
+  const pages = [];
+  const homeless = [];
+  raw.filter(Array.isArray).forEach((items, page) => {
+    pages.push([]);
+    const valid = items
+      .filter((item) => item && typeof item.id === 'string' && specOf(item.id) && !seen.has(item.id) && seen.add(item.id))
+      .map((item) => {
+        const spec = specOf(item.id);
+        const size = spec.sizes.includes(item.size) ? item.size : spec.size;
+        const placed = Number.isInteger(item.col) && Number.isInteger(item.row);
+        return { id: item.id, size, col: placed ? item.col : Infinity, row: placed ? item.row : Infinity };
+      })
+      .sort(byReading);
+    for (const item of valid) {
+      if (Number.isFinite(item.col) && isOpen(boxOf(item, layout), pages[page], page, layout)) pages[page].push(item);
+      else homeless.push({ item, page });
+    }
+  });
+  if (pages.length === 0) pages.push([]);
+  for (const { item, page } of homeless) {
+    const near = Number.isFinite(item.col) ? item : { col: 1, row: 1 };
+    const spot = nearestSpot(pages[page], page, item.size, layout, near);
+    if (spot) pages[page].push({ ...item, ...spot });
+    else settle(pages, page + 1, { id: item.id, size: item.size }, layout);
+  }
+  return tidy(pages);
+}
+
+// Puts `item` ({ id, size }) at `target` ({ page, col, row }; page may be
+// pages.length for a new page), as close to that cell as the grid and the clock
+// allow. Widgets it lands on move to the nearest free space on that page, or to
+// the next page with room.
+export function placeWidget(pages, item, target, layout) {
+  const { grid, spans } = layout;
+  const span = spans[item.size];
+  const next = pages.map((items) => items.filter((other) => other.id !== item.id));
+  while (next.length <= target.page) next.push([]);
+  const page = target.page;
+  const wanted = { col: clamp(target.col, 1, grid.cols - span.w + 1), row: clamp(target.row, 1, grid.rows - span.h + 1) };
+  // Only the clock can stop it here; anything else in the way is pushed aside.
+  const spot = nearestSpot([], page, item.size, layout, wanted);
+  if (!spot) {
+    settle(next, page + 1, { id: item.id, size: item.size }, layout);
+    return tidy(next);
+  }
+  const placed = { id: item.id, size: item.size, ...spot };
+  const box = boxOf(placed, layout);
+  const pushed = next[page].filter((other) => overlaps(box, boxOf(other, layout))).sort(byReading);
+  next[page] = [...next[page].filter((other) => !pushed.includes(other)), placed];
+  for (const other of pushed) {
+    const free = nearestSpot(next[page], page, other.size, layout, other);
+    if (free) next[page].push({ ...other, ...free });
+    else settle(next, page + 1, { id: other.id, size: other.size }, layout);
+  }
+  return tidy(next);
+}
+
+// Changes a widget's size where it stands (moving it in from the edge if it no
+// longer fits there), pushing aside whatever it now covers.
+export function resizeWidget(pages, id, size, layout) {
+  const found = findWidget(pages, id);
+  if (!found) return pages;
+  return placeWidget(pages, { id, size }, { page: found.page, col: found.col, row: found.row }, layout);
+}
+
+// Adds a widget in the first free spot: on `page` if given, otherwise on the first
+// page with room (or a new page). Returns the pages and the page it went on.
+export function addWidget(pages, item, layout, { page } = {}) {
+  const next = pages.map((items) => [...items]);
+  const at = settle(next, page ?? 0, { id: item.id, size: item.size }, layout);
+  const tidied = tidy(next);
+  return { pages: tidied, page: findWidget(tidied, item.id)?.page ?? at };
+}
+
+// Takes a widget off. `from` (its page, place and size) puts it back with placeWidget.
 export function removeWidget(pages, id) {
-  const page = pages.findIndex((ids) => ids.includes(id));
-  if (page === -1) return { pages, from: null };
-  const index = pages[page].indexOf(id);
-  return { pages: pages.map((ids) => ids.filter((x) => x !== id)), from: { page, index } };
+  const from = findWidget(pages, id);
+  if (!from) return { pages, from: null };
+  return { pages: pages.map((items) => items.filter((item) => item.id !== id)), from };
 }
 
-// `page` may be pages.length, which starts a new page.
-export function insertWidget(pages, id, { page = pages.length - 1, index } = {}) {
-  const next = pages.map((ids) => [...ids]);
-  while (next.length <= page) next.push([]);
-  const target = next[page];
-  target.splice(index ?? target.length, 0, id);
-  return next;
+// The cell a widget whose top-left corner is at `point` would snap to. `grid` is
+// the page's box on screen ({ left, top, width, height }) with its gaps, columns
+// and rows.
+export function cellFromPoint(point, { left, top, width, height, colGap = 0, rowGap = 0, cols, rows }) {
+  const pitchX = (width + colGap) / cols;
+  const pitchY = (height + rowGap) / rows;
+  return {
+    col: clamp(Math.round((point.x - left) / pitchX) + 1, 1, cols),
+    row: clamp(Math.round((point.y - top) / pitchY) + 1, 1, rows),
+  };
 }
 
-export function moveWidget(pages, id, target) {
-  return insertWidget(removeWidget(pages, id).pages, id, target);
-}
-
-// How many of the (reading-order) rects come before the pointer. Inside `hole`
-// (the dragged widget's own slot) returns null: stay where you are.
-export function dropIndex(rects, point, { axis = 'x', hole = null } = {}) {
-  const inside = (r) => point.x >= r.left && point.x <= r.right && point.y >= r.top && point.y <= r.bottom;
-  if (hole && inside(hole)) return null;
-  const before =
-    axis === 'y'
-      ? (r) => (r.top + r.bottom) / 2 < point.y
-      : (r) => r.bottom <= point.y || (r.top <= point.y && (r.left + r.right) / 2 < point.x);
-  return rects.filter(before).length;
+// Of `sizes`, the one whose span is closest to `want` ({ w, h } in cells). Ties
+// keep `current`, then go to the smaller size.
+export function nearestSize(sizes, spans, want, current) {
+  const cost = (size) => Math.abs(spans[size].w - want.w) + Math.abs(spans[size].h - want.h);
+  return [...sizes].sort((a, b) => cost(a) - cost(b) || (b === current) - (a === current) || SIZES.indexOf(a) - SIZES.indexOf(b))[0];
 }

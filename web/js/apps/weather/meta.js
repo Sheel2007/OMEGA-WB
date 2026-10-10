@@ -1,7 +1,10 @@
 export const id = 'weather';
 export const name = 'Weather';
 export const description = 'Today and the next four days';
-export const widgetSize = 'wide';
+// The size it starts at, and every size it can be resized to in edit mode
+// (small, medium, large; see SIZES in widget-layout.js). It must look right in each.
+export const widgetSize = 'medium';
+export const widgetSizes = ['small', 'medium', 'large'];
 export const iconBackground = 'var(--icon-weather)';
 export const iconGlyph = `<svg viewBox="0 0 64 64" aria-hidden="true">
   <circle cx="25" cy="25" r="10" fill="#ffd54a"/>

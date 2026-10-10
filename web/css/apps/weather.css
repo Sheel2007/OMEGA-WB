@@ -112,6 +112,53 @@
   color: var(--text-2);
 }
 
+/* Sizes. Small is just today, like an iPhone's small weather widget: the reading,
+   the conditions and the high and low (no days ahead). Large gives today's
+   reading the extra room. */
+
+.widget--small .weather-widget__now {
+  flex: 1;
+  flex-wrap: wrap;
+  align-content: center;
+  column-gap: 0.8rem;
+  row-gap: 0.4rem;
+}
+
+.widget--small .weather-widget__details {
+  flex-basis: 100%;
+}
+
+.widget--small .weather-widget__days {
+  display: none;
+}
+
+.widget--large .weather-widget__now {
+  flex: 1;
+  gap: 1.6rem;
+}
+
+.widget--large .weather-widget__icon {
+  width: 8rem;
+  height: 8rem;
+}
+
+.widget--large .weather-widget__temp {
+  font-size: 7.5rem;
+}
+
+.widget--large .weather-widget__label {
+  font-size: var(--fs-title);
+}
+
+.widget--large .weather-widget__day-icon {
+  width: 3.6rem;
+  height: 3.6rem;
+}
+
+.widget--large .weather-widget__day-temps {
+  font-size: var(--fs-item);
+}
+
 /* Only the Apple theme shows the placeholder (apple.css). */
 .weather-widget__placeholder {
   display: none;

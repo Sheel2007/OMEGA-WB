@@ -8,7 +8,9 @@ const REDUCED_OPEN_MS = 150;
 const REDUCED_CLOSE_MS = 120;
 
 // onChange(appId | null) is called when an app opens or closes.
-export function createAppHost({ layer, dock, apps, context, onChange }) {
+// closeTo(appId): what a closing app shrinks back into (its widget, if it's on
+// screen), or nothing for a plain fade.
+export function createAppHost({ layer, apps, context, onChange, closeTo = () => null }) {
   const root = document.documentElement;
   let current = null;
   let pendingOrigin = null;
@@ -24,7 +26,7 @@ export function createAppHost({ layer, dock, apps, context, onChange }) {
     if (location.hash && location.hash !== '#/') location.hash = '#/';
   }
 
-  // Zoom out of (or back into) the widget or dock icon the app was opened from.
+  // Zoom out of the widget or icon the app was opened from (or back into its widget).
   function zoomFrames(origin) {
     const rect = origin?.getBoundingClientRect();
     const board = layer.parentElement.getBoundingClientRect();
@@ -117,7 +119,7 @@ export function createAppHost({ layer, dock, apps, context, onChange }) {
       instance.unmount();
       return;
     }
-    const origin = dock.querySelector(`[data-app="${app.id}"]`);
+    const origin = closeTo(app.id);
     const frames = zoomFrames(origin)
       .reverse()
       .map((frame, i, all) => ({ ...frame, offset: 1 - (frame.offset ?? (all.length - 1 - i) / (all.length - 1)) }));

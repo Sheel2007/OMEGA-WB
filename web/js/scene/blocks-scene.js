@@ -27,7 +27,7 @@ function remToPx(value) {
 
 // params: the page's URL parameters. ?critter=now sends one straight away,
 // ?critter=stay keeps it on stage for ten minutes (for measuring).
-export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid, params, random = Math.random }) {
+export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [], params, random = Math.random }) {
   const lifetime = new AbortController();
   const pauses = new Set();
   const clouds = [...skyEl.querySelectorAll('.sky__cloud')];

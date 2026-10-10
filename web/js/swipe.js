@@ -36,3 +36,19 @@ export function velocity(samples) {
   const dt = last.t - first.t;
   return dt > 0 ? (last.x - first.x) / dt : 0;
 }
+
+// The app library slides up from the bottom of the home screen under the finger:
+// 0 is closed, 1 is open. Dragging up (dy < 0) opens it.
+// Let go past this share of the way (from where it started), or flick, and it goes the rest.
+const LIBRARY_COMMIT = 0.25;
+
+export function libraryProgress({ from, dy, height }) {
+  if (!height) return from;
+  return Math.min(1, Math.max(0, from - dy / height));
+}
+
+// Whether it ends up open. vy is the finger's speed in px/ms (up is negative).
+export function libraryTarget({ from, progress, vy }) {
+  if (Math.abs(vy) >= TURN_SPEED) return vy < 0;
+  return from >= 1 ? progress > 1 - LIBRARY_COMMIT : progress > LIBRARY_COMMIT;
+}

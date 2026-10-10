@@ -1,7 +1,7 @@
 # Home Board
 
 A shared board for the apartment that runs full screen on a Raspberry Pi and
-looks like an iPad home screen: a big clock, widgets, and a dock of apps. The
+looks like an iPad home screen: a big clock, widgets, and every app a swipe up away. The
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
@@ -67,7 +67,7 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 
 ## Using it
 
-- **On the board:** tap a widget or its dock icon to open the app. On a
+- **On the board:** tap a widget to open its app, or swipe up for all of them. On a
   touchscreen an on-screen keyboard appears when you type. Changes show up on
   every screen instantly.
 - **On your phone:** open Grocery on the board and scan the QR code under
@@ -87,7 +87,12 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   calendars you can't write to (Holidays, Birthdays) have no × and say which
   calendar they came from. There's a QR code under "On your phone" for adding
   events from your phone.
-- **Pages:** swipe left and right (or tap the dots above the dock).
+- **Pages:** swipe left and right (or tap the dots at the bottom).
+- **All apps:** swipe up anywhere on the home screen (the way you'd scroll down
+  a page), tap **All apps** at the bottom, or scroll down with a mouse. Every app
+  is there, with a line on how it's doing ("2 of 3 on", "Nothing to get"), so an
+  app you don't keep as a widget is still one swipe and a tap away. Swipe it back
+  down, tap outside it, tap ✕ or press Escape to close it.
 - **Arranging widgets:** hold a widget for half a second (or pick **Edit home
   screen** in the menu). Then drag widgets around; hold one against the left or
   right edge to carry it to another page (or to a new page past the last one).
@@ -205,9 +210,6 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   resize, pull the curved bracket in a widget's bottom-right corner: it stretches
   with your finger and snaps to small, medium or large when you let go. Tap
   **Done** when you're finished.
-- **Show dock** in the menu hides the row of app icons along the bottom (each
-  screen remembers its own choice). The widgets get the extra room, and each app
-  still opens from its widget.
 - In kiosk mode, the board goes back to the home screen after 90 seconds
   untouched, and it reloads itself once a night at 4am to stay fresh.
 
@@ -437,7 +439,7 @@ web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks / Glass themes
   css/scene.css         the Blocks scenery (pixel art) and critters
-  css/apple.css         the Glass theme's cards, clock, dock and fonts
+  css/apple.css         the Glass theme's cards, clock, app library and fonts
   fonts/inter/          Inter (SIL Open Font License), used by the Glass theme
   js/main.js            starts everything
   js/services/          the only code that talks to the server or localStorage
@@ -466,7 +468,7 @@ Make a folder `web/js/apps/<id>/` like `notes/`:
 - `widget.js` exports `createWidget(context)`, which returns `{ node, destroy }`.
   `destroy()` must undo every subscription, timer and observer the widget made.
 - `app.js` (optional) exports `mount(root, context)` for a full-screen app.
-  Apps with one get a dock icon.
+  Apps with one are in the app library (swipe up on the home screen).
 - `index.js` re-exports all of that.
 
 Add its styles in `web/css/apps/<id>.css`, link that file in `index.html`, and

@@ -1,7 +1,7 @@
 /* The Apple theme (shown as "Glass" in the menu): iPadOS-style home screen.
    Everything here is scoped to [data-theme="apple"]; the other themes never see it.
 
-   Glass without backdrop-filter. A live blur(30px) over every card and the dock
+   Glass without backdrop-filter. A live blur(30px) over every card
    re-blurs each frame something under it moves (a page sliding), which is more
    than the Pi 4's GPU can keep up with. Each glass surface instead paints a copy
    of the wallpaper made the way the blur and saturate(180%) would make it
@@ -58,9 +58,9 @@
   display: none;
 }
 
-/* Glass: widgets, the dock and the page dots. */
+/* Glass: widgets, the page dots and the app library. */
 
-:root[data-theme="apple"] :is(.widget, .dock, .page-dots) {
+:root[data-theme="apple"] :is(.widget, .page-dots, .app-library) {
   isolation: isolate;
   border: var(--glass-border);
   background: var(--glass-frost);
@@ -68,7 +68,7 @@
   corner-shape: squircle;
 }
 
-:root[data-theme="apple"] :is(.widget, .dock, .page-dots)::before {
+:root[data-theme="apple"] :is(.widget, .page-dots, .app-library)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -82,13 +82,15 @@
   background-position: calc(-1 * var(--glass-x, 0px)) calc(-1 * var(--glass-y, 0px));
 }
 
-:root[data-theme="apple"][data-glass="live"] :is(.widget, .dock, .page-dots) {
+:root[data-theme="apple"][data-glass="live"] :is(.widget, .page-dots) {
   backdrop-filter: blur(30px) saturate(180%);
 }
 
-:root[data-theme="apple"][data-glass="live"] :is(.widget, .dock, .page-dots)::before {
+:root[data-theme="apple"][data-glass="live"] :is(.widget, .page-dots)::before {
   display: none;
 }
+
+/* The library is too big a surface to blur live on the Pi: it keeps the copy. */
 
 /* Pages: iOS widget units (LAYOUTS.apple in widget-layout.js), 20px apart. */
 
@@ -317,22 +319,29 @@
   display: none;
 }
 
-/* Dock: the same glass, rounder, flat icons with more room between them. */
+/* App library: the same glass, with each app on a frosted tile. */
 
-:root[data-theme="apple"] .dock {
-  gap: 1.8rem;
-  padding: 1rem 1.4rem;
-  border-radius: 1.6rem;
+:root[data-theme="apple"] .app-library {
+  color: #ffffff;
 }
 
-:root[data-theme="apple"] .dock__app {
-  width: 4.2rem;
-  height: 4.2rem;
+:root[data-theme="apple"] .app-library__app {
+  border: var(--glass-border);
+  background: var(--glass-frost);
+  corner-shape: squircle;
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-:root[data-theme="apple"] .dock__app:active {
+:root[data-theme="apple"] .app-library__app:active {
   transform: scale(0.96);
+}
+
+:root[data-theme="apple"] .app-library__meta {
+  color: var(--sky-text-quiet);
+}
+
+:root[data-theme="apple"] .app-library-hint {
+  color: var(--sky-text-quiet);
 }
 
 :root[data-theme="apple"] .app-icon {

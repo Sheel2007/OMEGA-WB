@@ -1,5 +1,6 @@
 // Starts the board: services, wallpaper, clock, widgets, apps and the menu.
 import { createAppHost } from './app-host.js';
+import { createAppLibrary } from './app-library.js';
 import { backdropCss, wallpaperCss } from './apple-wallpaper.js';
 import { APPS, DEFAULT_WIDGETS, WIDGETS_SINCE } from './apps/index.js';
 import { createGlass } from './glass.js';
@@ -21,7 +22,7 @@ import { createSettingsService } from './services/settings.js';
 import { createWeatherService } from './services/weather.js';
 import { createBlocksScene } from './scene/blocks-scene.js';
 import { dayPhase, guessLocation, parseTimeOverride, startSky } from './sky.js';
-import { appIcon, el, icons, reducedMotion, toast } from './ui.js';
+import { icons, reducedMotion, toast } from './ui.js';
 
 // In kiosk mode, an app left open goes back to the home screen after this long.
 const IDLE_RETURN_MS = 90 * 1000;
@@ -146,42 +147,25 @@ function showStatus(status) {
 showStatus('live');
 live.onStatus(showStatus);
 
-// Apps, dock and widgets
+// Apps, the app library and widgets
 
 const context = { services, kiosk, info };
-const dock = document.querySelector('.dock');
+const home = document.querySelector('.home');
 const appHost = createAppHost({
   layer: document.querySelector('.app-shell'),
-  dock,
   apps: APPS,
   context,
   onChange: (appId) => {
     scenePaused.app = Boolean(appId);
     scene?.setPaused('app', scenePaused.app);
+    // An app opened from the library comes back to the home screen, not the library.
+    if (!appId) library?.close({ animate: false });
   },
+  // A closing app shrinks back into its widget when that's on the page in view.
+  closeTo: (appId) => pager.pages()[pager.current]?.querySelector(`.widget[data-widget="${appId}"]`) ?? null,
 });
 context.openApp = appHost.openApp;
 
-for (const app of APPS.filter((a) => a.mount)) {
-  dock.append(
-    el(
-      'button',
-      {
-        class: 'dock__app',
-        type: 'button',
-        'aria-label': app.name,
-        dataset: { app: app.id },
-        onclick: (event) => {
-          editor.exit();
-          appHost.openApp(app.id, { origin: event.currentTarget });
-        },
-      },
-      appIcon(app),
-    ),
-  );
-}
-
-const home = document.querySelector('.home');
 const track = home.querySelector('.pager__track');
 // Long-press a widget to edit the home screen; while editing, a short hold picks it up.
 const EDIT_HOLD_MS = 150;
@@ -194,6 +178,12 @@ const pager = createPager({
   onTap: (event) => event.target.closest('.widget') || editor.exit(),
   holdMs: () => (editor.editing ? EDIT_HOLD_MS : undefined),
   ignore: (event) => Boolean(event.target.closest('.widget__edit, .widget__resize')),
+  // Swiping up (scrolling down) brings up every app.
+  vertical: {
+    begin: (y, dy) => library?.drag.begin(y, dy) ?? false,
+    move: (y, t) => library?.drag.move(y, t),
+    end: () => library?.drag.end(),
+  },
 });
 const glass = createGlass({
   board: document.querySelector('.board'),
@@ -215,12 +205,20 @@ const phoneHome = compact.matches
   : null;
 if (phoneHome) home.insertBefore(phoneHome.node, home.querySelector('.page-dots'));
 
-// The dock can be hidden from the menu; the pages then take its room.
-function showDock(on) {
-  dock.hidden = !on;
-  home.classList.toggle('home--no-dock', !on);
+// Every app, a swipe up from the home screen; the phone's home screen already is the apps.
+const library = phoneHome
+  ? null
+  : createAppLibrary({
+      home,
+      apps: APPS,
+      services,
+      openApp: (id, options) => appHost.openApp(id, options),
+      canOpen: () => !editor.editing,
+    });
+if (library) {
+  home.querySelector('.page-dots').after(library.hint);
+  home.append(...library.nodes);
 }
-showDock(services.settings.getDock());
 if (!phoneHome) widgets.render(services.settings.getPages());
 
 function addWidget(id) {
@@ -261,10 +259,10 @@ const editor = createHomeEditor({
   onChange: (editing) => {
     scenePaused.edit = editing;
     scene?.setPaused('edit', editing);
+    if (editing) library?.close();
   },
 });
 services.settings.subscribe((settings) => {
-  showDock(settings.dock);
   if (phoneHome) return;
   widgets.render(settings.pages);
   editor.refresh();
@@ -277,7 +275,10 @@ const menu = createBoardMenu({
   // Arranging widgets is a board job; a phone shows the apps as icons.
   widgetsEditable: !phoneHome,
   onExit: exitToDesktop,
-  onAddWidget: addWidget,
+  onAddWidget: (id) => {
+    library?.close();
+    addWidget(id);
+  },
   onRemoveWidget: removeWidget,
   onEditHome: () => editor.enter(),
 });
@@ -294,12 +295,6 @@ function syncScene({ theme, scenery }) {
       sceneEl,
       params,
       getPhase: () => phase,
-      // Critters don't stop to linger where the dock would hide them.
-      getAvoid: () => {
-        const stage = sceneEl.getBoundingClientRect();
-        const box = dock.getBoundingClientRect();
-        return [{ left: box.left - stage.left, right: box.right - stage.left }];
-      },
     });
     scene.setPaused('app', scenePaused.app);
     scene.setPaused('edit', scenePaused.edit);
@@ -331,6 +326,7 @@ if (kiosk) {
     onIdle: () => {
       menu.close();
       editor.exit();
+      library?.close({ animate: false });
       appHost.goHome();
       pager.goTo(0);
     },

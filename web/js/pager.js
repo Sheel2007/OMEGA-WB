@@ -1,5 +1,6 @@
 // Home pages that slide sideways under a finger (or mouse). One pointer state
-// machine handles swipes and long-presses, so the two never fight. While a
+// machine handles swipes, long-presses and up-and-down drags (handed to `vertical`,
+// the app library), so they never fight. While a
 // finger is down the track is moved with translate3d once per frame; on release
 // a composited CSS transition settles it.
 import { resist, swipeTarget, velocity } from './swipe.js';
@@ -17,7 +18,9 @@ const COMPACT = '(max-width: 900px), (max-height: 560px)';
 // holdMs(): how long a press on a widget must last to call onLongPress (shorter while editing).
 // ignore(event): presses that aren't gestures at all (e.g. a widget's remove button).
 // onTap(event): a press that neither moved nor turned into a long-press.
-export function createPager({ home, viewport, track, dots, onChange, onLongPress, onTap, holdMs = () => LONG_PRESS_MS, ignore = () => false }) {
+// vertical: { begin(y, dy) → whether it takes the drag, move(y, t), end() } for drags
+// that go more up or down than sideways.
+export function createPager({ home, viewport, track, dots, onChange, onLongPress, onTap, vertical, holdMs = () => LONG_PRESS_MS, ignore = () => false }) {
   const lifetime = new AbortController();
   const compact = matchMedia(COMPACT);
   let page = 0;
@@ -82,6 +85,8 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     clearTimeout(gesture.longPress);
     cancelAnimationFrame(gesture.frame);
     gesture.listeners.abort();
+    // However the gesture ends, the app library settles rather than staying half open.
+    if (gesture.mode === 'vertical') vertical.end();
     gesture = null;
   }
 
@@ -122,13 +127,25 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     if (gesture.mode === 'pressed') {
       if (Math.hypot(dx, dy) < SLOP) return;
       clearTimeout(gesture.longPress);
-      if (Math.abs(dx) <= Math.abs(dy) || count < 2) {
+      if (Math.abs(dx) <= Math.abs(dy)) {
+        // Up or down: the app library's, if it wants it.
+        if (!vertical?.begin(gesture.y, dy)) {
+          gesture.mode = 'ignored';
+          return;
+        }
+        gesture.mode = 'vertical';
+      } else if (count < 2) {
         gesture.mode = 'ignored';
         return;
+      } else {
+        gesture.mode = 'swiping';
+        track.classList.remove('pager__track--animating');
       }
-      gesture.mode = 'swiping';
-      track.classList.remove('pager__track--animating');
       viewport.setPointerCapture?.(gesture.id);
+    }
+    if (gesture.mode === 'vertical') {
+      vertical.move(event.clientY, event.timeStamp);
+      return;
     }
     if (gesture.mode !== 'swiping') return;
     gesture.dx = dx;
@@ -148,6 +165,10 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     const { mode, dx, samples } = gesture;
     endGesture();
     if (mode === 'pressed') onTap?.(event);
+    if (mode === 'vertical') {
+      guardNextClick();
+      return;
+    }
     if (mode !== 'swiping') return;
     guardNextClick();
     const target = swipeTarget({ page, count, dx, vx: velocity(samples), width: viewport.clientWidth });

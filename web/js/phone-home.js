@@ -4,42 +4,11 @@
 // and nothing here runs on the Pi. A phone can't leave the compact layout (turning
 // it sideways only swaps which of width and height is the short one), so the choice
 // is made once, when the board starts.
-import { statusLabel as lightsStatus } from './apps/lights/format.js';
-import { countLabel as notesCount } from './apps/notes/format.js';
-import { leaderLabel } from './apps/roommate-games/format.js';
-import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
-import { summaryLabel as grocerySummary } from './apps/grocery/format.js';
+import { watchSubtitle } from './app-subtitles.js';
 import { svg as grocerySvg } from './apps/grocery/views.js';
 import { describeWeather } from './apps/weather/conditions.js';
 import { weatherIcon } from './apps/weather/icons.js';
 import { appIcon, el } from './ui.js';
-
-// What each icon says underneath its name: enough to know whether it's worth opening.
-// Each returns a subscribe(fn) that reports the line, and stops when the handle is called.
-const SUBTITLES = {
-  notes: ({ notes }) => (set) => notes.subscribe((state) => set(notesCount(state.notes.length))),
-
-  calendar: ({ calendar }) => (set) =>
-    calendar.subscribe(({ events, sources }) =>
-      set(nextLabel(mergeEvents({ events, feed: sources.events }), dayKey(new Date()))),
-    ),
-
-  lights: ({ lights }) => (set) => {
-    set(lightsStatus(lights.getState()));
-    return lights.subscribe((state) => set(lightsStatus(state)));
-  },
-
-  'roommate-games': ({ roommateGames }) => (set) =>
-    roommateGames.subscribe((state) => set(leaderLabel(state.players) || 'Sign up to play')),
-
-  grocery: ({ grocery }) => (set) =>
-    grocery.subscribe((state) => set(grocerySummary(state.items, state.currency))),
-
-  games: () => (set) => {
-    set('Pick a game');
-    return () => {};
-  },
-};
 
 export function createPhoneHome({ apps, openApp, services }) {
   const stops = [];
@@ -81,9 +50,7 @@ export function createPhoneHome({ apps, openApp, services }) {
     );
     grid.append(el('li', { class: 'app-grid__item' }, button));
 
-    const watch = SUBTITLES[app.id]?.(services);
-    if (watch) stops.push(watch((text) => (subtitle.textContent = text)));
-    else subtitle.textContent = app.description;
+    stops.push(watchSubtitle(app, services, (text) => (subtitle.textContent = text)));
   }
 
   // The phone is the grocery scanner: one tap from the home screen to the camera.

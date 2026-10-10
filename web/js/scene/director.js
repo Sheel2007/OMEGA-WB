@@ -28,7 +28,7 @@ function walk(from, to, start, speed) {
   return { from, to, start, end: start + duration, frameMs: speed === RUN_SPEED ? RUN_FRAME_MS : WALK_FRAME_MS };
 }
 
-// A spot to linger that isn't hidden behind anything in `avoid` (e.g. the dock).
+// A spot to linger that isn’t hidden behind anything in `avoid` (anything in front of the floor).
 function lingerSpot(random, { width, size, avoid }) {
   const lo = width * EDGE_MARGIN;
   const hi = width * (1 - EDGE_MARGIN) - size;

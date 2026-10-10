@@ -1,5 +1,5 @@
 /* Home screen: pages of widgets that slide sideways, the clock on page 1, page
-   dots, and the "All apps" hint; swiping up brings up the app library. Each page is a fixed 12 × 4 grid (one cell is
+   dots; swiping up brings up the app library. Each page is a fixed 12 × 4 grid (one cell is
    about 130 × 184px at 1920×1080); widgets get explicit grid areas from
    widget-layout.js, and the clock takes the top-left 7 × 2 of page 1. */
 
@@ -8,14 +8,14 @@
   inset: 0;
   z-index: 1;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
   row-gap: 1.2rem;
   padding: calc(var(--status-h) + 0.8rem) 0 1.6rem;
   transition: transform 0.45s var(--ease-out), opacity 0.4s var(--ease-out);
 }
 
 .home--paged {
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .is-app-open .home {
@@ -254,142 +254,45 @@
   background: var(--accent-pressed);
 }
 
-/* "All apps": a quiet hint along the bottom, on the sky like the clock. Tap it,
-   drag it up, or swipe up anywhere on the pages (app-library.js). */
+/* The app library (app-library.js): the pages lift away and the apps rise over
+   the wallpaper, dimmed by a solid scrim (no blur, for the Pi's GPU). Only
+   transform and opacity change while it moves. */
 
-.app-library-hint {
-  position: relative;
-  z-index: 3;
-  justify-self: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 12rem;
-  min-height: var(--hit);
-  margin-block: -0.6rem;
-  padding: 0 1.2rem;
-  border-radius: var(--radius-pill);
-  color: var(--sky-text);
-  text-shadow: var(--sky-text-shadow-sm);
-  touch-action: none;
+.home--library > .pager,
+.home--library > .page-dots,
+.home--library > .home__scene {
+  will-change: transform, opacity;
+  transform-origin: 50% 0;
 }
-
-.app-library-hint__icon {
-  display: grid;
-  height: 1.4rem;
-}
-
-.app-library-hint__icon svg {
-  width: 1.8rem;
-  height: 1.8rem;
-  margin-top: -0.2rem;
-}
-
-.app-library-hint__label {
-  font-size: var(--fs-caption);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.app-library-hint:active {
-  transform: scale(0.96);
-}
-
-/* Edit mode owns the home screen; the library waits until Done. */
-.home--editing .app-library-hint {
-  visibility: hidden;
-}
-
-/* The app library: a panel that slides up over the pages, below the status bar,
-   with a solid scrim behind it (no blur, for the Pi's GPU). Only transform and
-   opacity change while it moves. */
 
 .app-library__scrim {
   position: absolute;
   inset: 0;
   z-index: 4;
-  background: rgb(6 10 30 / 0.45);
+  background: var(--library-dim);
   opacity: 0;
+  will-change: opacity;
 }
 
 .app-library {
   position: absolute;
   inset: var(--status-h) 0 0;
   z-index: 5;
-  display: flex;
-  flex-direction: column;
-  padding: 0 var(--gutter) 2.4rem;
-  border-radius: var(--radius-card) var(--radius-card) 0 0;
-  border: var(--card-border);
-  border-bottom: 0;
-  background: var(--card);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  will-change: transform;
+  display: grid;
+  place-items: center;
+  padding: 0 var(--gutter) 5rem;
+  opacity: 0;
+  will-change: transform, opacity;
   touch-action: none;
   outline: none;
-}
-
-.app-library--animating {
-  transition: transform 0.32s var(--ease-out), opacity 0.32s var(--ease-out);
-}
-
-/* A tap target the width of a hand, with the usual grabber bar in it. */
-.app-library__grabber {
-  align-self: center;
-  display: grid;
-  place-items: center;
-  width: 12rem;
-  height: var(--hit);
-  flex: none;
-}
-
-.app-library__grabber::before {
-  content: "";
-  width: 5rem;
-  height: 0.4rem;
-  border-radius: var(--radius-pill);
-  background: var(--line);
-}
-
-.app-library__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.6rem;
-}
-
-.app-library__title {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: 2.4rem;
-  font-weight: 750;
-}
-
-.app-library__close {
-  display: grid;
-  place-items: center;
-  width: var(--hit);
-  height: var(--hit);
-  border-radius: var(--radius-pill);
-  background: var(--fill);
-  color: var(--text-2);
-}
-
-.app-library__close svg {
-  width: 1.4rem;
-  height: 1.4rem;
-}
-
-.app-library__close:active {
-  background: var(--fill-strong);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app-library__grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 13rem;
-  gap: 1.6rem;
+  grid-template-columns: repeat(var(--library-cols, 3), 13rem);
+  column-gap: 4.4rem;
+  row-gap: 3.2rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -399,49 +302,55 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
+  gap: 1.1rem;
   width: 100%;
-  height: 100%;
-  padding: 1.2rem 1rem;
+  padding: 0.6rem 0;
   border-radius: var(--radius-panel);
-  border: var(--control-border);
-  background: var(--fill);
-  text-align: center;
+  color: #ffffff;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.app-library__app:active {
-  transform: scale(0.97);
-  background: var(--fill-strong);
-}
-
+/* Big, soft-shadowed icons that give under the finger and spring back. */
 .app-library__icon {
-  width: 5.6rem;
-  height: 5.6rem;
-  margin-bottom: 0.2rem;
+  width: 8.4rem;
+  height: 8.4rem;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 0.8rem 2rem rgb(0 0 0 / 0.28);
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.app-library__icon svg {
+  width: 70%;
+  height: 70%;
+}
+
+.app-library__app:active .app-library__icon {
+  transform: scale(0.88);
+  transition: transform 0.12s var(--ease-out);
+}
+
+.app-library__app:focus-visible {
+  outline: 0.25rem solid #ffffff;
+  outline-offset: 0.4rem;
 }
 
 .app-library__name {
   max-width: 100%;
   overflow: hidden;
-  font-size: var(--fs-item);
-  font-weight: 750;
+  font-size: 1.4rem;
+  font-weight: 600;
   line-height: 1.2;
+  letter-spacing: -0.005em;
   text-overflow: ellipsis;
+  text-shadow: var(--library-label-shadow);
   white-space: nowrap;
 }
 
-.app-library__meta {
-  max-width: 100%;
-  /* Kept even while empty, so every tile lines up. */
-  min-height: 1.2em;
-  overflow: hidden;
-  font-size: var(--fs-caption);
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--text-2);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+[data-theme="blocks"] .app-library__icon {
+  box-shadow: 0.4rem 0.4rem 0 rgb(0 0 0 / 0.35);
+}
+
+[data-theme="blocks"] .app-library__name {
+  font-weight: 700;
 }
 
 /* Edit mode. No jiggle (CLAUDE.md: no endless animations); a dashed outline,
@@ -708,8 +617,7 @@
   /* The icons are the home screen on a phone, so the page dots and the app
      library that stands in for them on the board both have nothing left to do. The pager itself
      still lays out as contents, above: it's what holds the clock. */
-  .page-dots,
-  .app-library-hint {
+  .page-dots {
     display: none;
   }
 

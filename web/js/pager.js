@@ -19,7 +19,8 @@ const COMPACT = '(max-width: 900px), (max-height: 560px)';
 // ignore(event): presses that aren't gestures at all (e.g. a widget's remove button).
 // onTap(event): a press that neither moved nor turned into a long-press.
 // vertical: { begin(y, dy) → whether it takes the drag, move(y, t), end() } for drags
-// that go more up or down than sideways.
+// that go more up or down than sideways. It starts from where the finger is then,
+// so nothing jumps by the distance it took to tell.
 export function createPager({ home, viewport, track, dots, onChange, onLongPress, onTap, vertical, holdMs = () => LONG_PRESS_MS, ignore = () => false }) {
   const lifetime = new AbortController();
   const compact = matchMedia(COMPACT);
@@ -129,7 +130,7 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
       clearTimeout(gesture.longPress);
       if (Math.abs(dx) <= Math.abs(dy)) {
         // Up or down: the app library's, if it wants it.
-        if (!vertical?.begin(gesture.y, dy)) {
+        if (!vertical?.begin(event.clientY, dy)) {
           gesture.mode = 'ignored';
           return;
         }

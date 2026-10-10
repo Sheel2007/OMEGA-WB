@@ -1,52 +1,63 @@
-// The board's app library: every app, one swipe away, in place of a dock that was
-// always on screen. Swipe up on the home screen (the way you'd scroll down a page)
-// and it slides up under the finger; pager.js hands it those vertical drags. It also
-// opens from the "All apps" hint at the bottom (tap it or drag it up) and the mouse
-// wheel. Swipe it down, tap outside it, tap the grabber or press Escape to close it.
-// While a finger is down it's moved with translate3d once per frame; on release a
-// composited CSS transition settles it. Phones don't get one: their home screen is
-// already the apps (phone-home.js).
-import { watchSubtitle } from './app-subtitles.js';
-import { libraryProgress, libraryTarget, velocity } from './swipe.js';
-import { appIcon, el, icons, reducedMotion } from './ui.js';
+// The board's app library: every app, one swipe away, without a dock taking room
+// on the home screen. Swipe up anywhere on the home screen (the way you'd scroll
+// down a page) and the pages lift away while the apps rise under the finger, one
+// for one; let go and a spring carries it the rest of the way at the speed the
+// finger was going. The mouse wheel works too. Swipe down, tap anywhere that isn't
+// an app, or press Escape to close it.
+//
+// Only transform and opacity ever change. While a finger is down they're written
+// once per frame; the settle is a Web Animation (a spring as a CSS linear() easing,
+// see swipe.js), so the compositor runs it however busy the page is. Phones don't
+// get one: their home screen is already the apps (phone-home.js).
+import { libraryProgress, libraryTarget, spring, velocity } from './swipe.js';
+import { appIcon, el, reducedMotion } from './ui.js';
 
-// Movement (px) before a press on the hint or the library becomes a drag.
-const SLOP = 12;
-// A little longer than the settling transition in home.css (0.32s).
-const SETTLE_MS = 360;
+// Movement (px) before a press on the edges or the library becomes a drag.
+const SLOP = 10;
+// How far (as a share of the home screen's height) the finger travels to open it.
+const DISTANCE = 0.4;
+// The pages lift this much of that distance as they fade, shrinking a touch.
+const PAGES_LIFT = 0.3;
+const PAGES_SHRINK = 0.06;
+// Opening has a little life in it; closing doesn't bounce.
+const OPEN_SPRING = { response: 0.46, damping: 0.82 };
+const CLOSE_SPRING = { response: 0.36, damping: 1 };
+// Keyframes along the way, so the settle follows the same path as the finger.
+const PATH_FRAMES = 8;
+// Fastest start a flick can give the spring (whole distances per second).
+const MAX_SPRING_SPEED = 24;
 // Wheel scrolling (px) that opens or closes it, and the pause after, so a
 // trackpad's coasting doesn't flip it straight back.
 const WHEEL_PX = 40;
 const WHEEL_RESET_MS = 200;
-const WHEEL_QUIET_MS = 600;
+const WHEEL_QUIET_MS = 700;
 // A click that follows a drag must not open what's under the finger.
 const CLICK_GUARD_MS = 400;
 const MAX_SAMPLES = 20;
+// Presses here are the pages' (pager.js), the library's own, or a critter's.
+const NOT_AN_EDGE = '.pager, .app-library, .critter';
 
-const chevronUp =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 15l6.5-6.5 6.5 6.5"/></svg>';
+const clamp01 = (n) => Math.min(1, Math.max(0, n));
 
 // canOpen(): false while something else owns the home screen (edit mode).
-export function createAppLibrary({ home, apps, services, openApp, canOpen = () => true }) {
+// onShow(shown): the library has started showing, or is gone again.
+export function createAppLibrary({ home, apps, openApp, canOpen = () => true, onShow }) {
   const lifetime = new AbortController();
   const { signal } = lifetime;
-  let progress = 0; // 0 closed … 1 open
+  let progress = 0; // 0 closed … 1 open (a little more while stretched)
   let open = false;
-  let drag = null; // { from, y, height, samples, frame }
-  let finger = null; // listeners for a press on the hint or the library
-  let settleTimer = null;
-  let stops = []; // the apps' subtitle subscriptions, only while it shows
+  let distance = 0;
+  let drag = null; // { from, y, samples, frame }
+  let settling = null; // { from, to, curve, start, animations }
+  let finger = null; // listeners for a press on the edges or the library
   const wheel = { sum: 0, at: 0, quietUntil: 0 };
 
   const shown = apps.filter((app) => app.mount);
-  const metas = new Map();
   const grid = el(
     'ul',
-    { class: 'app-library__grid', 'aria-label': 'Apps' },
-    shown.map((app) => {
-      const meta = el('span', { class: 'app-library__meta' });
-      metas.set(app, meta);
-      return el(
+    { class: 'app-library__grid', 'aria-label': 'Apps', style: `--library-cols: ${columns(shown.length)}` },
+    shown.map((app) =>
+      el(
         'li',
         { class: 'app-library__item' },
         el(
@@ -54,109 +65,162 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
           {
             class: 'app-library__app',
             type: 'button',
-            'aria-label': `Open ${app.name}`,
             dataset: { app: app.id },
-            onclick: (event) => openApp(app.id, { origin: event.currentTarget }),
+            onclick: (event) => openApp(app.id, { origin: event.currentTarget.firstChild }),
           },
           appIcon(app, 'app-library__icon'),
           el('span', { class: 'app-library__name', text: app.name }),
-          meta,
         ),
-      );
-    }),
+      ),
+    ),
   );
-
   const panel = el(
     'section',
-    { class: 'app-library', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'All apps', tabindex: '-1' },
-    el('button', { class: 'app-library__grabber', type: 'button', 'aria-label': 'Close all apps', onclick: () => close() }),
-    el(
-      'header',
-      { class: 'app-library__head' },
-      el('h2', { class: 'app-library__title', text: 'All apps' }),
-      el('button', { class: 'app-library__close', type: 'button', 'aria-label': 'Close', html: icons.close, onclick: () => close() }),
-    ),
+    {
+      class: 'app-library',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-label': 'All apps',
+      tabindex: '-1',
+      // A tap anywhere that isn't an app closes it.
+      onclick: (event) => event.target.closest('.app-library__app') || close(),
+    },
     grid,
   );
-  const scrim = el('div', { class: 'app-library__scrim', onclick: () => close() });
-  const hint = el(
-    'button',
-    { class: 'app-library-hint', type: 'button', 'aria-label': 'Show all apps', onclick: () => settle(true) },
-    el('span', { class: 'app-library-hint__icon', html: chevronUp }),
-    el('span', { class: 'app-library-hint__label', text: 'All apps' }),
-  );
+  const scrim = el('div', { class: 'app-library__scrim', 'aria-hidden': 'true', onclick: () => close() });
   panel.hidden = true;
   scrim.hidden = true;
 
-  // Showing and hiding
+  // Where everything is at a given progress. The settle animates through these too.
 
-  function paint() {
-    panel.style.transform = progress >= 1 ? '' : `translate3d(0, ${((1 - progress) * 100).toFixed(2)}%, 0)`;
-    scrim.style.opacity = String(progress);
+  // The pages, their dots and (in Blocks) the critters all lift away together.
+  const pageNodes = () => [...home.querySelectorAll(':scope > .pager, :scope > .page-dots, :scope > .home__scene')];
+
+  function look(p) {
+    const lift = (-p * distance * PAGES_LIFT).toFixed(1);
+    return {
+      pages: {
+        transform: `translate3d(0, ${lift}px, 0) scale(${(1 - PAGES_SHRINK * clamp01(p)).toFixed(4)})`,
+        opacity: (1 - clamp01(p / 0.6)).toFixed(3),
+      },
+      panel: { transform: `translate3d(0, ${((1 - p) * distance).toFixed(1)}px, 0)`, opacity: clamp01(p * 1.6).toFixed(3) },
+      scrim: { opacity: clamp01(p).toFixed(3) },
+    };
   }
+
+  function targets() {
+    return [...pageNodes().map((node) => [node, 'pages']), [panel, 'panel'], [scrim, 'scrim']];
+  }
+
+  function paint(p) {
+    const styles = look(p);
+    for (const [node, part] of targets()) Object.assign(node.style, styles[part]);
+  }
+
+  // Showing and hiding
 
   function reveal() {
     if (!panel.hidden) return;
+    distance = Math.round(home.clientHeight * DISTANCE);
+    // Promoted only while it's in use: the pages are a big layer to keep around.
+    home.classList.add('home--library');
     panel.hidden = false;
     scrim.hidden = false;
-    paint();
-    // Starts the slide from below rather than from wherever the panel would be.
-    void panel.offsetHeight;
-    stops = shown.map((app) => watchSubtitle(app, services, (text) => (metas.get(app).textContent = text)));
+    paint(progress);
+    onShow?.(true);
   }
 
   function conceal() {
+    if (panel.hidden) return;
     panel.hidden = true;
     scrim.hidden = true;
-    stops.forEach((stop) => stop());
-    stops = [];
+    for (const node of pageNodes()) {
+      node.style.transform = '';
+      node.style.opacity = '';
+    }
+    home.classList.remove('home--library');
+    onShow?.(false);
   }
 
   // The home screen behind can't be reached (or read out) while the library covers it.
   function setCovered(covered) {
-    home.classList.toggle('home--library', covered);
-    for (const node of home.querySelectorAll(':scope > .pager, :scope > .page-dots, :scope > .app-library-hint')) {
-      node.inert = covered;
-    }
+    for (const node of pageNodes()) node.inert = covered;
   }
 
-  function settle(toOpen, { animate = true } = {}) {
+  // Settling: a spring from where it is to open or closed, starting at `speed`
+  // (progress per ms, from the finger), along the same path the finger drew.
+
+  function stopSettling() {
+    if (!settling) return;
+    const { from, to, curve, start, animations } = settling;
+    settling = null;
+    progress = from + (to - from) * curve.at((performance.now() - start) / curve.duration);
+    paint(progress);
+    animations.forEach((animation) => animation.cancel());
+  }
+
+  function settle(toOpen, speed = 0) {
     if (toOpen && !open && !canOpen()) return;
-    clearTimeout(settleTimer);
-    const smooth = animate && !reducedMotion.matches;
+    stopSettling();
     const wasOpen = open;
+    const from = progress;
+    const to = toOpen ? 1 : 0;
     open = toOpen;
-    if (open || progress > 0) reveal();
-    panel.classList.toggle('app-library--animating', smooth);
-    scrim.classList.toggle('app-library--animating', smooth);
-    progress = open ? 1 : 0;
-    paint();
     setCovered(open);
-    const done = () => {
-      panel.classList.remove('app-library--animating');
-      scrim.classList.remove('app-library--animating');
-      if (!open) conceal();
-    };
-    if (smooth) settleTimer = setTimeout(done, SETTLE_MS);
-    else done();
+    if (open) reveal();
     if (open && !wasOpen) panel.focus({ preventScroll: true });
+    if (reducedMotion.matches || Math.abs(to - from) < 0.002) {
+      progress = to;
+      paint(to);
+      if (!open) conceal();
+      return;
+    }
+    const span = to - from;
+    const startSpeed = Math.max(-MAX_SPRING_SPEED, Math.min(MAX_SPRING_SPEED, (speed * 1000) / span));
+    const curve = spring({ ...(open ? OPEN_SPRING : CLOSE_SPRING), velocity: startSpeed });
+    const path = Array.from({ length: PATH_FRAMES + 1 }, (_, i) => look(from + (span * i) / PATH_FRAMES));
+    const animations = targets().map(([node, part]) =>
+      node.animate(
+        path.map((styles) => styles[part]),
+        { duration: curve.duration, easing: curve.easing, fill: 'forwards' },
+      ),
+    );
+    const own = { from, to, curve, start: performance.now(), animations };
+    settling = own;
+    animations[0].finished.then(
+      () => {
+        if (settling !== own) return;
+        settling = null;
+        progress = to;
+        paint(to);
+        animations.forEach((animation) => animation.cancel());
+        if (!open) conceal();
+      },
+      () => {},
+    );
   }
 
-  function close(options) {
-    if (open || drag || !panel.hidden) settle(false, options);
+  function close({ animate = true } = {}) {
+    if (!animate) {
+      stopSettling();
+      endDrag();
+      open = false;
+      progress = 0;
+      setCovered(false);
+      conceal();
+      return;
+    }
+    if (open || !panel.hidden) settle(false);
   }
 
-  // Dragging: begin with where the finger started; dy says which way it's going.
+  // Dragging: begin where the finger is when it's clearly going up or down.
 
   function begin(y, dy) {
     if (drag) return false;
     if (!open && (dy > 0 || !canOpen())) return false;
-    if (open && dy < 0) return false;
-    clearTimeout(settleTimer);
-    panel.classList.remove('app-library--animating');
-    scrim.classList.remove('app-library--animating');
+    stopSettling();
     reveal();
-    drag = { from: progress, y, height: panel.offsetHeight || home.clientHeight, samples: [], frame: 0 };
+    drag = { from: progress, y, samples: [], frame: 0 };
     return true;
   }
 
@@ -164,22 +228,29 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
     if (!drag) return;
     drag.samples.push({ t, x: y });
     if (drag.samples.length > MAX_SAMPLES) drag.samples.shift();
-    progress = libraryProgress({ from: drag.from, dy: y - drag.y, height: drag.height });
+    progress = libraryProgress({ from: drag.from, dy: y - drag.y, distance });
     if (!drag.frame) {
       drag.frame = requestAnimationFrame(() => {
         if (!drag) return;
         drag.frame = 0;
-        paint();
+        paint(progress);
       });
     }
   }
 
-  function end() {
-    if (!drag) return;
-    const { from, samples, frame } = drag;
-    cancelAnimationFrame(frame);
+  function endDrag() {
+    if (!drag) return null;
+    const ended = drag;
+    cancelAnimationFrame(ended.frame);
     drag = null;
-    settle(libraryTarget({ from, progress, vy: velocity(samples) }));
+    return ended;
+  }
+
+  function end() {
+    const ended = endDrag();
+    if (!ended) return;
+    const vy = velocity(ended.samples);
+    settle(libraryTarget({ from: ended.from, progress, vy }), -vy / distance);
   }
 
   function guardNextClick() {
@@ -192,11 +263,11 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
   }
 
   // A press on `node` that moves mostly up or down becomes a drag of the library.
-  function followDrags(node) {
+  function followDrags(node, skip = () => false) {
     node.addEventListener(
       'pointerdown',
       (down) => {
-        if (drag || finger || down.button > 0) return;
+        if (drag || finger || down.button > 0 || skip(down)) return;
         finger = new AbortController();
         const opts = { signal: finger.signal };
         let dragging = false;
@@ -212,7 +283,7 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
             const dy = event.clientY - down.clientY;
             if (!dragging) {
               if (Math.hypot(dx, dy) < SLOP) return;
-              if (Math.abs(dy) <= Math.abs(dx) || !begin(down.clientY, dy)) return release();
+              if (Math.abs(dy) <= Math.abs(dx) || !begin(event.clientY, dy)) return release();
               dragging = true;
               node.setPointerCapture?.(down.pointerId);
             }
@@ -234,8 +305,9 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
     );
   }
 
-  followDrags(hint);
   followDrags(panel);
+  // The bottom edge, the page dots and the scrim: anywhere the pages don't cover.
+  followDrags(home, (event) => Boolean(event.target.closest(NOT_AN_EDGE)));
   // Long-press on a touchscreen would otherwise open the browser's menu.
   panel.addEventListener('contextmenu', (event) => event.preventDefault(), { signal });
 
@@ -247,7 +319,7 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
       if (event.timeStamp - wheel.at > WHEEL_RESET_MS) wheel.sum = 0;
       wheel.at = event.timeStamp;
       wheel.sum += event.deltaY;
-      if (Math.abs(wheel.sum) < WHEEL_PX || (wheel.sum > 0) === open) return;
+      if (Math.abs(wheel.sum) < WHEEL_PX || wheel.sum > 0 === open) return;
       wheel.sum = 0;
       wheel.quietUntil = event.timeStamp + WHEEL_QUIET_MS;
       settle(!open);
@@ -258,9 +330,8 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
   addEventListener('keydown', (event) => event.key === 'Escape' && open && close(), { signal });
 
   return {
-    // The panel and the scrim behind it go on top of the home screen; the hint goes where the dock was.
+    // The library and the scrim behind it go on top of the home screen.
     nodes: [scrim, panel],
-    hint,
     get isOpen() {
       return open;
     },
@@ -269,17 +340,17 @@ export function createAppLibrary({ home, apps, services, openApp, canOpen = () =
     open: () => settle(true),
     close,
     destroy() {
-      clearTimeout(settleTimer);
-      if (drag) cancelAnimationFrame(drag.frame);
-      drag = null;
+      close({ animate: false });
       finger?.abort();
       finger = null;
       lifetime.abort();
-      conceal();
-      setCovered(false);
       scrim.remove();
       panel.remove();
-      hint.remove();
     },
   };
+}
+
+// Up to four in a row; more than that make two even rows (six is three and three).
+function columns(count) {
+  return count <= 4 ? Math.max(1, count) : Math.ceil(count / 2);
 }

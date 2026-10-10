@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { libraryProgress, libraryTarget, resist, swipeTarget, velocity } from '../../web/js/swipe.js';
+import { libraryProgress, libraryTarget, resist, spring, swipeTarget, velocity } from '../../web/js/swipe.js';
 
 const width = 1000;
 
@@ -43,10 +43,12 @@ test('velocity uses the most recent movement only', () => {
 });
 
 test('the app library follows the finger up and down, between closed and open', () => {
-  assert.equal(libraryProgress({ from: 0, dy: -500, height: 1000 }), 0.5, 'half way up');
-  assert.equal(libraryProgress({ from: 0, dy: 300, height: 1000 }), 0, 'dragging down from closed stays closed');
-  assert.equal(libraryProgress({ from: 1, dy: 250, height: 1000 }), 0.75, 'dragging an open one down');
-  assert.equal(libraryProgress({ from: 1, dy: -400, height: 1000 }), 1, 'never past open');
+  assert.equal(libraryProgress({ from: 0, dy: -500, distance: 1000 }), 0.5, 'half way up');
+  assert.equal(libraryProgress({ from: 0, dy: 300, distance: 1000 }), 0, 'dragging down from closed stays closed');
+  assert.equal(libraryProgress({ from: 1, dy: 250, distance: 1000 }), 0.75, 'dragging an open one down');
+  const stretched = libraryProgress({ from: 1, dy: -200, distance: 1000 });
+  assert.ok(stretched > 1 && stretched < 1.05, 'past open it gives a little');
+  assert.equal(libraryProgress({ from: 1, dy: -5000, distance: 1000 }), 1.08, 'but only so far');
 });
 
 test('the app library opens after a quarter of the way or a flick, and closes the same way', () => {
@@ -57,4 +59,17 @@ test('the app library opens after a quarter of the way or a flick, and closes th
   assert.equal(libraryTarget({ from: 1, progress: 0.8, vy: 0 }), true, 'pulled down a little stays open');
   assert.equal(libraryTarget({ from: 1, progress: 0.7, vy: 0 }), false);
   assert.equal(libraryTarget({ from: 1, progress: 0.95, vy: 0.6 }), false, 'a quick flick down closes it');
+});
+
+test('the spring settles at 1, and a flick carries on at the finger\'s speed', () => {
+  const still = spring();
+  assert.equal(still.at(0), 0);
+  assert.equal(still.at(1), 1);
+  assert.ok(still.duration > 200 && still.duration < 2000, `settles in ${still.duration}ms`);
+  assert.match(still.easing, /^linear\(0, [\d., -]+, 1\)$/);
+  const flicked = spring({ velocity: 6 });
+  assert.ok(flicked.at(0.05) > still.at(0.05), 'already moving when it starts');
+  const firm = spring({ damping: 1 });
+  for (let f = 0; f <= 1; f += 0.02) assert.ok(firm.at(f) <= 1.0005, 'a damping of 1 never overshoots');
+  assert.ok(Math.max(...Array.from({ length: 51 }, (_, i) => spring({ damping: 0.6 }).at(i / 50))) > 1, 'a looser one does');
 });

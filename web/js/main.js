@@ -77,7 +77,7 @@ let place = guessLocation();
 // Blocks scenery (clouds and critters): exists only while the theme is Blocks.
 let scene = null;
 let phase = 'day';
-const scenePaused = { app: false, edit: false };
+const scenePaused = { app: false, edit: false, library: false };
 
 const sky = startSky({
   starsEl: document.querySelector('.sky__stars'),
@@ -211,14 +211,15 @@ const library = phoneHome
   : createAppLibrary({
       home,
       apps: APPS,
-      services,
       openApp: (id, options) => appHost.openApp(id, options),
       canOpen: () => !editor.editing,
+      // The critters wait while the apps are up.
+      onShow: (shown) => {
+        scenePaused.library = shown;
+        scene?.setPaused('library', shown);
+      },
     });
-if (library) {
-  home.querySelector('.page-dots').after(library.hint);
-  home.append(...library.nodes);
-}
+if (library) home.append(...library.nodes);
 if (!phoneHome) widgets.render(services.settings.getPages());
 
 function addWidget(id) {
@@ -298,6 +299,7 @@ function syncScene({ theme, scenery }) {
     });
     scene.setPaused('app', scenePaused.app);
     scene.setPaused('edit', scenePaused.edit);
+    scene.setPaused('library', scenePaused.library);
     scene.setPaused('motion', reducedMotion.matches);
     scene.setPaused('compact', compact.matches);
   } else if (theme !== 'blocks' && scene) {

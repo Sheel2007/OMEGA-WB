@@ -89,10 +89,10 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   events from your phone.
 - **Pages:** swipe left and right (or tap the dots at the bottom).
 - **All apps:** swipe up anywhere on the home screen (the way you'd scroll down
-  a page), tap **All apps** at the bottom, or scroll down with a mouse. Every app
-  is there, with a line on how it's doing ("2 of 3 on", "Nothing to get"), so an
-  app you don't keep as a widget is still one swipe and a tap away. Swipe it back
-  down, tap outside it, tap ✕ or press Escape to close it.
+  a page), or scroll down with a mouse. The pages lift away and every app rises
+  under your finger, so an app you don't keep as a widget is still one swipe and
+  a tap away, without a dock taking room on the screen. Swipe down, tap anywhere
+  that isn't an app, or press Escape to go back.
 - **Arranging widgets:** hold a widget for half a second (or pick **Edit home
   screen** in the menu). Then drag widgets around; hold one against the left or
   right edge to carry it to another page (or to a new page past the last one).

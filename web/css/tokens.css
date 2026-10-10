@@ -93,6 +93,9 @@ html {
   --danger: #b42318;
   --app-bg: #edf1f8;
   --dock: rgb(255 255 255 / 0.6);
+  /* The app library: what dims the wallpaper behind the apps, and their labels' shadow. */
+  --library-dim: rgb(10 20 48 / 0.55);
+  --library-label-shadow: 0 0.1rem 0.6rem rgb(0 0 0 / 0.35);
   --shadow: 0 0.1rem 0.3rem rgb(16 32 72 / 0.06), 0 1rem 2.8rem rgb(16 32 72 / 0.13);
   --shadow-sm: 0 0.05rem 0.15rem rgb(16 32 72 / 0.06), 0 0.3rem 1rem rgb(16 32 72 / 0.06);
   --focus: #1b7f45;
@@ -166,6 +169,9 @@ html {
   --danger: #ff9a91;
   --app-bg: #0b1029;
   --dock: rgb(255 255 255 / 0.12);
+  /* The app library: what dims the wallpaper behind the apps, and their labels' shadow. */
+  --library-dim: rgb(3 5 18 / 0.62);
+  --library-label-shadow: 0 0.1rem 0.6rem rgb(0 0 0 / 0.45);
   --shadow: 0 0.1rem 0.3rem rgb(0 0 0 / 0.2), 0 1rem 2.8rem rgb(0 0 0 / 0.32);
   --shadow-sm: 0 0.3rem 1rem rgb(0 0 0 / 0.2);
   --focus: #7ee2a8;
@@ -249,6 +255,9 @@ html {
   --danger: #a32617;
   --app-bg: #a9c4f5;
   --dock: #ece6d6;
+  /* The app library: what dims the wallpaper behind the apps, and their labels' shadow. */
+  --library-dim: rgb(12 16 46 / 0.62);
+  --library-label-shadow: 0.15rem 0.15rem 0 #1d1d1d;
   --shadow: 0.5rem 0.5rem 0 rgb(0 0 0 / 0.35);
   --shadow-sm: 0.3rem 0.3rem 0 rgb(0 0 0 / 0.3);
   --focus: #2f7a22;
@@ -329,6 +338,9 @@ html {
   --danger: #ff9a91;
   --app-bg: #161925;
   --dock: #2b2e38;
+  /* The app library: what dims the wallpaper behind the apps, and their labels' shadow. */
+  --library-dim: rgb(4 6 20 / 0.62);
+  --library-label-shadow: 0.15rem 0.15rem 0 #1d1d1d;
   --shadow: 0.5rem 0.5rem 0 rgb(0 0 0 / 0.5);
   --shadow-sm: 0.3rem 0.3rem 0 rgb(0 0 0 / 0.45);
   --focus: #8fd47a;
@@ -403,6 +415,9 @@ html {
   --danger: #ff8a80;
   --app-bg: #0b0a1f;
   --dock: rgb(255 255 255 / 0.08);
+  /* The app library: what dims the wallpaper behind the apps, and their labels' shadow. */
+  --library-dim: rgb(0 0 0 / 0.2);
+  --library-label-shadow: 0 0.1rem 0.6rem rgb(0 0 0 / 0.3);
   --shadow: none;
   --shadow-sm: none;
   --focus: #6cb8ff;

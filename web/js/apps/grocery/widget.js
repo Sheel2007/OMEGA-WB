@@ -2,7 +2,7 @@
 // comes to, and the split between Trader Joe's and Lidl.
 import { isReady } from '../../services/grocery.js';
 import { animateLayout, appIcon, el, fitRows, icons, reconcile } from '../../ui.js';
-import { shownDone, toBuyOf, toggleItem } from '../shopping/settle.js';
+import { shownDone, toBuyOf, toggleItem } from './settle.js';
 import { detailLabel, money, STORE_LABELS, summaryLabel, totals } from './format.js';
 import * as meta from './meta.js';
 import { lineCost, picture, pictureKey, svg } from './views.js';

@@ -7,8 +7,6 @@ and turns to stars at night, with the widgets switching to dark mode after dark.
 
 It has seven widgets:
 
-- **Shopping list.** Anyone can add to it on the board's touchscreen or from
-  their phone (scan the QR code in the app). Changes show up everywhere instantly.
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
   Google Calendars. Anyone can add an event on the board or from their phone and
   it goes straight into Google Calendar.
@@ -65,14 +63,12 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 
 ## Using it
 
-- **On the board:** tap the widget or the dock icon to open the list. On a
-  touchscreen an on-screen keyboard appears. Suggestions above the keys
-  come from what you've bought before.
-- **On your phone:** open the shopping list on the board and scan the QR code
-  under "On your phone", or go to `http://<pi-ip>:8080`. You need to be on the
+- **On the board:** tap a widget or its dock icon to open the app. On a
+  touchscreen an on-screen keyboard appears when you type. Changes show up on
+  every screen instantly.
+- **On your phone:** open Grocery on the board and scan the QR code under
+  "Scan with your phone", or go to `http://<pi-ip>:8080`. You need to be on the
   same Wi-Fi.
-- Tap an item to mark it bought. Tap **Clear bought** once things are put away.
-  Removing or clearing items can be undone from the message that pops up.
 - **Notes:** tap + on the Notes widget to post one. Tap × on a note to take
   it down (you can undo that too).
 - **Calendar:** type what's happening, then fill in as much as you like:
@@ -206,8 +202,8 @@ the board estimates sunrise and sunset from your timezone (up to an hour off).
 to be online; it's fetched at most every 15 minutes and shared by every screen.
 Restart after changing settings: `sudo systemctl restart widget-board`.
 
-The shopping list, notes and any calendar events kept on the board itself are
-saved on the Pi in `data/shopping.json`, `data/notes.json` and `data/calendar.json`.
+Notes and any calendar events kept on the board itself are saved on the Pi in
+`data/notes.json` and `data/calendar.json`.
 Light schedules and swapped switches are in `data/lights.json`.
 
 ### Reaching the board when you're out
@@ -235,7 +231,7 @@ can't read is ignored, and the board falls back to its Wi-Fi address.
 
 **Don't put the board on a public address without putting a password in front of
 it.** There are no accounts: anyone who can reach it can read and change the
-shopping list and notes, and — if you've connected Google Calendar — read your
+grocery list and notes, and — if you've connected Google Calendar — read your
 calendars and create or delete events. Tailscale avoids that because only your own
 devices can reach the Pi at all. A public tunnel or a forwarded router port does
 not, and needs authentication adding first.

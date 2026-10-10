@@ -10,7 +10,7 @@ You MUST strictly adhere to the following architectural, performance, and scope 
 - **Primary Languages:** Vanilla HTML5, modern CSS3, and standard modern ES6+ JavaScript ONLY for the board UI. The server is Python 3 standard library only (`board/`), with no pip packages.
 - **FORBIDDEN:** Do NOT use C++, Qt, Electron, Tauri, Python GUI libraries (Tkinter/PyQt), React Native, or heavy full-stack frameworks (Next.js/Nuxt) unless explicitly commanded.
 - **FORBIDDEN DEPENDENCIES:** Do NOT introduce build-tool requirements (Webpack, Vite, Babel) or heavy npm dependency graphs for simple UI tasks. All scripts should run natively in standard Chromium without a bundling step.
-- **Widget Scope:** The board has eight widgets: **Shopping list**, **Weather**, **Notes**, **Calendar**, **Games** (Four in a Row, Reversi, Dots and Boxes, Blackjack), **Lights**, the **Roommate Cup** (the weekly Roommate Games competition: it keeps score, it doesn't host the games), and **Grocery** (Lidl and Trader Joe's: scanned or searched products with price, quantity and who's asking). Do not invent new widgets or games unless the user asks for one.
+- **Widget Scope:** The board has seven widgets: **Weather**, **Notes**, **Calendar**, **Games** (Four in a Row, Reversi, Dots and Boxes, Blackjack), **Lights**, the **Roommate Cup** (the weekly Roommate Games competition: it keeps score, it doesn't host the games), and **Grocery** (Lidl and Trader Joe's: scanned or searched products with price, quantity and who's asking). Do not invent new widgets or games unless the user asks for one.
 
 ---
 
@@ -29,7 +29,7 @@ The target device is a Raspberry Pi 4 running 24/7 in an ambient room.
 ### 3. DISPLAY & RESOLUTION INVARIANTS (10-FOOT UI)
 The screen is a fixed wall/counter monitor viewed from 3 to 10 feet away.
 - **Fixed Viewport:** Assume a 1920×1080 resolution (16:9). Avoid flexible laptop-window behaviors that rely on browser resizing. In this repo `1rem = 20px` on the board (`html` font-size is `min(100vw / 96, 100vh / 54)`), so the board is a 96rem × 54rem canvas.
-- **Phones are the one exception:** roommates open the same pages on their phones (QR code in the shopping app). Below 900px wide (or 560px tall) the compact phone layout applies. Keep it working.
+- **Phones are the one exception:** roommates open the same pages on their phones (QR code in the Grocery and Calendar apps). Below 900px wide (or 560px tall) the compact phone layout applies. Keep it working.
 - **No Tiny Typography:** Minimum body text size is 18px–20px. Primary items, headers, and counters must be 24px–36px+ for glanceability.
 - **High Contrast:** Ensure all text passes WCAG AA contrast standards against the background. Do not use low-contrast grey-on-dark-grey text.
 - **Touch & Hit Targets:** All interactive elements (checkboxes, delete buttons, filter pills) must have a minimum hit area of 48×48px. Never design controls that rely solely on desktop `:hover` states to be visible or functional.
@@ -37,9 +37,9 @@ The screen is a fixed wall/counter monitor viewed from 3 to 10 feet away.
 ---
 
 ### 4. DATA PERSISTENCE & CONCURRENCY
-- When generating data storage code, isolate state operations behind a clean API or storage service interface (e.g., `ShoppingService.getItems()`, `ShoppingService.addItem()`).
+- When generating data storage code, isolate state operations behind a clean API or storage service interface (e.g., `GroceryService.getItems()`, `NotesService.addNote()`).
 - Use atomic updates for list actions (toggle item, remove item, add item) rather than blindly replacing the entire state with stale closures.
-- **Shared data** (shopping list, notes, the calendar's own events) is stored in local JSON files on the Pi (`data/*.json`), written atomically by the Python server, and pushed to every screen over one event stream (`/api/events`). UI components only talk to the services in `web/js/services/`.
+- **Shared data** (notes, the calendar's own events) is stored in local JSON files on the Pi (`data/*.json`), written atomically by the Python server, and pushed to every screen over one event stream (`/api/events`). UI components only talk to the services in `web/js/services/`.
 - **Outside data** (weather, connected calendars) is fetched and cached by the server and shared by every screen. The calendars are read on one background thread (`CalendarSources`) and pushed over the same event stream as the stores, so no screen polls for them.
 - **Google Calendar is two-way**, over the REST API with the installed-app (loopback) OAuth flow in `board/google.py` — stdlib `urllib` only, no client library. Google's device flow can't be used: it doesn't allow Calendar scopes. Signing in is restricted to the board's own screen (`is_local_address`), the refresh token lives in `data/google.json` at mode 600, and it is never sent to a screen. `board/ical.py` stays for read-only subscriptions that need no account.
 - **Lights** are Zigbee switches reached through Zigbee2MQTT on the Mosquitto broker, using the small MQTT 3.1.1 client in `board/mqtt.py` (no paho). `board/lights.py` keeps the schedules, swapped switches and last light list in `data/lights.json`, keeps what each light is doing in memory only (state reports aren't written to the SD card), runs the schedules on its own thread, and pushes everything over the event stream. Lights are keyed by IEEE address, which survives renaming in Zigbee2MQTT.

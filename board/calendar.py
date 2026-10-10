@@ -369,7 +369,7 @@ class CalendarSources:
     """Everything the board reads from elsewhere: a Google account and iCalendar subscriptions.
 
     One background thread refreshes them; every screen gets the result over the event
-    stream, the same way the shopping list arrives.
+    stream, the same way the notes arrive.
     """
 
     label = "calendars"

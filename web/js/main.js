@@ -16,7 +16,6 @@ import { createLiveConnection } from './services/live.js';
 import { createNotesService } from './services/notes.js';
 import { createRoommateGamesService } from './services/roommate-games.js';
 import { createSettingsService } from './services/settings.js';
-import { createShoppingService } from './services/shopping.js';
 import { createWeatherService } from './services/weather.js';
 import { createBlocksScene } from './scene/blocks-scene.js';
 import { dayPhase, guessLocation, parseTimeOverride, startSky } from './sky.js';
@@ -40,11 +39,10 @@ const now = () => fixedTime ?? new Date();
 // Services: the only code that talks to the server or to storage.
 
 const live = createLiveConnection({
-  streams: ['shopping', 'notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery'],
+  streams: ['notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery'],
   onServerRestart: () => location.reload(),
 });
 const services = {
-  shopping: createShoppingService({ live }),
   notes: createNotesService({ live }),
   calendar: createCalendarService({ live }),
   lights: createLightsService({ live }),
@@ -289,7 +287,6 @@ compact.addEventListener('change', () => scene?.setPaused('compact', compact.mat
 
 appHost.start();
 live.start();
-services.shopping.refresh();
 services.notes.refresh();
 services.calendar.refresh();
 services.lights.refresh();

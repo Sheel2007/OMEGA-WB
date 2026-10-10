@@ -1,5 +1,6 @@
 /* Reset, the board canvas, wallpaper, status bar, app shell, toasts, and the
-   small components shared by every app (add bar, panels, chips, empty states). */
+   small components shared by every app (add bar, panels, chips, the phone link,
+   empty states). */
 
 *,
 *::before,
@@ -345,7 +346,7 @@ input {
   animation: toast-out 0.22s ease-in forwards;
 }
 
-/* Add bar: the text field + button at the top of the shopping and notes apps. */
+/* Add bar: the text field + button at the top of the notes and calendar apps. */
 
 .add-bar {
   display: flex;
@@ -475,6 +476,50 @@ input {
   border-radius: 0.4rem;
 }
 
+/* "On your phone" panel: a QR code and the address it opens. */
+
+.phone-link {
+  display: grid;
+  grid-template-columns: minmax(6rem, 42%) 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+.phone-link__qr {
+  aspect-ratio: 1;
+  padding: 0.3rem;
+  border-radius: 0.9rem;
+  background: #ffffff;
+  color: #0f1d3f;
+}
+
+/* Still high-contrast enough to scan, but not a white glare at night. */
+[data-theme="dark"] .phone-link__qr {
+  background: #dfe3ee;
+}
+
+.phone-link__qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.phone-link__text {
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: 1.38;
+  color: var(--text-2);
+}
+
+.phone-link__url {
+  margin: 0.55rem 0 0;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Empty states */
 
 .empty-state {
@@ -556,6 +601,13 @@ input {
   }
 }
 
+/* While typing on a short screen, make room for the keyboard. */
+@media (max-height: 620px) {
+  .is-typing .app-shell__bar {
+    display: none;
+  }
+}
+
 /* Phones: fill the screen; the OS draws its own status bar, so ours only shows the menu (and offline). */
 @media (max-width: 900px), (max-height: 560px) {
   .board {
@@ -586,5 +638,10 @@ input {
      the app already has a Home button, so it only takes up room. */
   .app-shell__indicator {
     display: none;
+  }
+
+  .add-bar {
+    flex-shrink: 0;
+    min-height: auto;
   }
 }

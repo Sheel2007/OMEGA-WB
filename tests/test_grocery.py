@@ -4,7 +4,15 @@ import tempfile
 import unittest
 
 from board.grocery import MAX_QTY, GroceryList, NotFound, ValidationError, normalize_code
-from tests.test_shopping import FakeClock
+
+
+class FakeClock:
+    def __init__(self):
+        self.tick = 0
+
+    def __call__(self):
+        self.tick += 1
+        return "2026-10-01T12:%02d:%02dZ" % divmod(self.tick, 60)
 
 
 class NormalizeCodeTest(unittest.TestCase):

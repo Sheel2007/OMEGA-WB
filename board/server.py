@@ -98,10 +98,9 @@ class BoardServer(ThreadingHTTPServer):
     block_on_close = False
     allow_reuse_address = True
 
-    def __init__(self, address, *, shopping, notes, calendar, calendar_sources, google, feed, weather, kiosk,
+    def __init__(self, address, *, notes, calendar, calendar_sources, google, feed, weather, kiosk,
                  lights, roommate_games, grocery, products, store_products, product_images, photos, web_dir=WEB_DIR,
                  location=None, public_url=None):
-        self.shopping = shopping
         self.grocery = grocery
         self.products = products
         self.store_products = store_products
@@ -128,7 +127,7 @@ class BoardServer(ThreadingHTTPServer):
 
     def live_stores(self):
         """Stores whose state is pushed over /api/events, by event name."""
-        return {"shopping": self.shopping, "notes": self.notes, "calendar": self.calendar,
+        return {"notes": self.notes, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
                 "roommate-games": self.roommate_games, "grocery": self.grocery}
 
@@ -196,9 +195,6 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/info": "info",
         "/api/qr.svg": "qr_code",
         "/api/events": "events",
-        # Pages loaded before the update listen here; "hello" tells them to reload.
-        "/api/shopping/events": "events",
-        "/api/shopping": "shopping_state",
         "/api/notes": "notes_state",
         "/api/calendar": "calendar_state",
         "/api/calendar/sources": "calendar_sources",
@@ -219,11 +215,6 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/grocery/photo": "grocery_photo_upload",
     }
     POST_ROUTES = {
-        "/api/shopping/add": "shopping_add",
-        "/api/shopping/check": "shopping_check",
-        "/api/shopping/remove": "shopping_remove",
-        "/api/shopping/restore": "shopping_restore",
-        "/api/shopping/clear-checked": "shopping_clear_checked",
         "/api/notes/add": "notes_add",
         "/api/notes/remove": "notes_remove",
         "/api/notes/restore": "notes_restore",
@@ -329,9 +320,6 @@ class BoardHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
-
-    def shopping_state(self):
-        self._send_json(HTTPStatus.OK, self.server.shopping.snapshot())
 
     def notes_state(self):
         self._send_json(HTTPStatus.OK, self.server.notes.snapshot())
@@ -479,21 +467,6 @@ class BoardHandler(SimpleHTTPRequestHandler):
             pass
 
     # Write endpoints
-
-    def shopping_add(self, body):
-        return self.server.shopping.add(body.get("name"), item_id=body.get("id"))
-
-    def shopping_check(self, body):
-        return self.server.shopping.check(body.get("id"), body.get("done", True))
-
-    def shopping_remove(self, body):
-        return self.server.shopping.remove(body.get("id"))
-
-    def shopping_restore(self, body):
-        return self.server.shopping.restore(body.get("ids"))
-
-    def shopping_clear_checked(self, body):
-        return self.server.shopping.clear_checked()
 
     def notes_add(self, body):
         return self.server.notes.add(body.get("text"), note_id=body.get("id"))

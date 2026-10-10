@@ -9,7 +9,7 @@ import { createKeyboard } from '../../keyboard.js';
 import { fetchQrSvg } from '../../services/board.js';
 import { isReady } from '../../services/grocery.js';
 import { animateLayout, el, haptic, icons, MAX_ROWS, nudge, reconcile, toast } from '../../ui.js';
-import { boughtOf, shownDone, toBuyOf, toggleItem } from '../shopping/settle.js';
+import { boughtOf, shownDone, toBuyOf, toggleItem } from './settle.js';
 import { readScan } from './codes.js';
 import {
   askers,

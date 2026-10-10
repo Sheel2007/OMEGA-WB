@@ -23,7 +23,6 @@ from board.products import ProductLookup
 from board.store_products import StoreProducts
 from board.roommate_games import RoommateGames
 from board.server import ROOT, BoardServer, lan_address, phone_address
-from board.shopping import ShoppingList
 from board.store import ChangeFeed
 from board.weather import WeatherService
 
@@ -132,7 +131,6 @@ def main():
     )
     server = BoardServer(
         (args.host, port),
-        shopping=ShoppingList(os.path.join(args.data, "shopping.json"), feed=feed),
         notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
         calendar=CalendarStore(os.path.join(args.data, "calendar.json"), feed=feed),
         calendar_sources=sources,

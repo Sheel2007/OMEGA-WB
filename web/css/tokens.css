@@ -56,7 +56,6 @@ html {
   --glow-y: 24%;
   --stars: 0;
 
-  --icon-shopping: linear-gradient(155deg, #4fd681 0%, #22a45a 48%, #157a40 100%);
   --icon-notes: linear-gradient(155deg, #ffd66b 0%, #f4b323 55%, #d98f0f 100%);
   --icon-weather: linear-gradient(160deg, #74bcff 0%, #2f7de1 100%);
   --icon-games: linear-gradient(155deg, #ff8a6b 0%, #e5483a 100%);
@@ -261,7 +260,6 @@ html {
   --sky-text-shadow: 0.25rem 0 0 #1d1d1d, -0.25rem 0 0 #1d1d1d, 0 0.25rem 0 #1d1d1d, 0 -0.25rem 0 #1d1d1d, 0.5rem 0.5rem 0 #1d1d1d;
   --sky-text-shadow-sm: 0.1rem 0 0 #1d1d1d, -0.1rem 0 0 #1d1d1d, 0 0.1rem 0 #1d1d1d, 0 -0.1rem 0 #1d1d1d;
 
-  --icon-shopping: #2f7a22;
   --icon-notes: #d99a0b;
   --icon-weather: #3d6cf0;
   --icon-games: #c8392b;

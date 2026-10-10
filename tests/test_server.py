@@ -16,7 +16,6 @@ from board.lights import Lights, settings_from
 from board.notes import NotesBoard
 from board.roommate_games import RoommateGames
 from board.server import BoardServer, phone_address
-from board.shopping import ShoppingList
 from board.store import ChangeFeed
 from board.products import ProductsUnavailable
 from board.weather import WeatherUnavailable
@@ -107,7 +106,6 @@ class ServerTest(unittest.TestCase):
         cls.lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
         cls.server = BoardServer(
             ("127.0.0.1", 0),
-            shopping=ShoppingList(os.path.join(cls.tmp.name, "data", "shopping.json"), feed=feed),
             notes=NotesBoard(os.path.join(cls.tmp.name, "data", "notes.json"), feed=feed),
             calendar=CalendarStore(os.path.join(cls.tmp.name, "data", "calendar.json"), feed=feed),
             calendar_sources=cls.sources,
@@ -157,51 +155,24 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(raw)["ok"])
 
-    def test_add_check_remove_and_restore_round_trip(self):
-        status, body = self.post("/api/shopping/add", {"name": "round trip"})
-        self.assertEqual(status, 200)
-        self.assertEqual(body["outcome"], "added")
-        item_id = body["item"]["id"]
-
-        status, body = self.post("/api/shopping/check", {"id": item_id, "done": True})
-        self.assertEqual(status, 200)
-        self.assertTrue(next(i for i in body["state"]["items"] if i["id"] == item_id)["done"])
-
-        status, body = self.post("/api/shopping/remove", {"id": item_id})
-        self.assertEqual(status, 200)
-        self.assertNotIn(item_id, [i["id"] for i in body["state"]["items"]])
-
-        status, body = self.post("/api/shopping/restore", {"ids": [item_id]})
-        self.assertEqual(body["restored"], [item_id])
-
-        status, _, raw = self.request("/api/shopping")
-        self.assertIn(item_id, [i["id"] for i in json.loads(raw)["items"]])
-
-    def test_clear_checked(self):
-        _, body = self.post("/api/shopping/add", {"name": "clear me"})
-        self.post("/api/shopping/check", {"id": body["item"]["id"], "done": True})
-        status, body = self.post("/api/shopping/clear-checked", {})
-        self.assertEqual(status, 200)
-        self.assertFalse(any(i["done"] for i in body["state"]["items"]))
-
     def test_validation_errors_are_400_with_a_message(self):
-        status, body = self.post("/api/shopping/add", {"name": "   "})
+        status, body = self.post("/api/notes/add", {"text": "   "})
         self.assertEqual(status, 400)
-        self.assertEqual(body["error"]["message"], "Type an item name first.")
+        self.assertEqual(body["error"]["message"], "Write something first.")
 
     def test_unknown_item_is_404(self):
-        status, body = self.post("/api/shopping/check", {"id": "missing", "done": True})
+        status, body = self.post("/api/notes/remove", {"id": "missing"})
         self.assertEqual(status, 404)
         self.assertIn("message", body["error"])
 
     def test_bad_json_is_400(self):
-        req = urllib.request.Request(self.base + "/api/shopping/add", data=b"{nope", method="POST")
+        req = urllib.request.Request(self.base + "/api/notes/add", data=b"{nope", method="POST")
         with self.assertRaises(urllib.error.HTTPError) as caught:
             urllib.request.urlopen(req, timeout=5)
         self.assertEqual(caught.exception.code, 400)
 
     def test_oversized_body_is_rejected(self):
-        status, _ = self.post("/api/shopping/add", {"name": "x" * 20000})
+        status, _ = self.post("/api/notes/add", {"text": "x" * 20000})
         self.assertEqual(status, 413)
 
     def test_unknown_api_route_is_404(self):
@@ -235,10 +206,10 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(raw.startswith(b"<svg"))
 
     def test_qr_svg_can_point_at_one_app(self):
-        shopping = self.request("/api/qr.svg?app=shopping")[2]
+        grocery = self.request("/api/qr.svg?app=grocery")[2]
         calendar = self.request("/api/qr.svg?app=calendar")[2]
         self.assertTrue(calendar.startswith(b"<svg"))
-        self.assertNotEqual(shopping, calendar)
+        self.assertNotEqual(grocery, calendar)
         self.assertEqual(self.request("/api/qr.svg?app=../secret")[0], 400)
 
     def test_qr_svg_can_point_at_google_calendar_but_nowhere_else(self):
@@ -268,30 +239,18 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 8)
+            events = self._read_events(stream, 7)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
-                             {"shopping", "notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery"})
+                             {"notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery"})
             versions = {name: state["version"] for name, state in events[1:]}
-
-            self.post("/api/shopping/add", {"name": "live update"})
-            name, state = self._read_events(stream, 1)[0]
-            self.assertEqual(name, "shopping")
-            self.assertGreater(state["version"], versions["shopping"])
-            self.assertIn("Live update", [i["name"] for i in state["items"]])
 
             self.post("/api/notes/add", {"text": "live note"})
             name, state = self._read_events(stream, 1)[0]
             self.assertEqual(name, "notes")
+            self.assertGreater(state["version"], versions["notes"])
             self.assertIn("live note", [n["text"] for n in state["notes"]])
-        finally:
-            sock.close()
-
-    def test_old_event_url_still_says_hello_so_old_pages_reload(self):
-        sock = self._open_stream("/api/shopping/events")
-        try:
-            self.assertEqual(self._read_events(sock.makefile("rb"), 1)[0][0], "hello")
         finally:
             sock.close()
 

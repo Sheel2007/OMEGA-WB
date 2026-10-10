@@ -7,7 +7,6 @@
 import { statusLabel as lightsStatus } from './apps/lights/format.js';
 import { countLabel as notesCount } from './apps/notes/format.js';
 import { leaderLabel } from './apps/roommate-games/format.js';
-import { countLabel as shoppingCount, toBuyOf } from './apps/shopping/settle.js';
 import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
 import { summaryLabel as grocerySummary } from './apps/grocery/format.js';
 import { svg as grocerySvg } from './apps/grocery/views.js';
@@ -18,9 +17,6 @@ import { appIcon, el } from './ui.js';
 // What each icon says underneath its name: enough to know whether it's worth opening.
 // Each returns a subscribe(fn) that reports the line, and stops when the handle is called.
 const SUBTITLES = {
-  shopping: ({ shopping }) => (set) =>
-    shopping.subscribe((state) => set(shoppingCount(toBuyOf(state.items).length))),
-
   notes: ({ notes }) => (set) => notes.subscribe((state) => set(notesCount(state.notes.length))),
 
   calendar: ({ calendar }) => (set) =>

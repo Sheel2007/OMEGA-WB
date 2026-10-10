@@ -36,7 +36,7 @@ class EncodeTest(unittest.TestCase):
             qr.encode("x" * 107)
 
     def test_has_finder_patterns_timing_and_dark_module(self):
-        modules = qr.encode("http://192.168.1.23:8080/#/app/shopping")
+        modules = qr.encode("http://192.168.1.23:8080/#/app/grocery")
         size = len(modules)
         for x0, y0 in ((0, 0), (size - 7, 0), (0, size - 7)):
             ring = [modules[y0][x0 + i] for i in range(7)]

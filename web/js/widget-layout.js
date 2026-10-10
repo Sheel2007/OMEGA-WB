@@ -3,12 +3,37 @@
 // Each page is a 12 × 4 grid; page 1 also has the clock in its top-left 4 × 2.
 // Widgets keep the order the user chose: a page takes the longest run of the
 // list that fits (found with a small search), and the rest moves to the next page.
+//
+// The Apple theme lays pages out in iOS widget units instead (LAYOUTS.apple): a
+// 4 × 2 grid of near-square cells where a widget is small (1 × 1), medium (2 × 1)
+// or large (2 × 2), and the clock takes one medium slot.
 
 export const GRID = { cols: 12, rows: 4 };
 export const SPANS = { tall: { w: 5, h: 4 }, wide: { w: 4, h: 2 }, medium: { w: 3, h: 2 } };
 // The clock only needs room for the time and the date under it; the rest of the
 // top row is left for widgets, so the five the board ships with share page 1.
 export const CLOCK_AREA = { col: 1, row: 1, w: 4, h: 2 };
+
+export const LAYOUTS = {
+  board: { id: 'board', grid: GRID, spans: SPANS, clock: CLOCK_AREA },
+  apple: {
+    id: 'apple',
+    grid: { cols: 4, rows: 2 },
+    spans: { tall: { w: 2, h: 2 }, wide: { w: 2, h: 1 }, medium: { w: 1, h: 1 } },
+    clock: { col: 1, row: 1, w: 2, h: 1 },
+  },
+};
+
+// Which layout a theme setting uses. Every theme but Apple shares the board's.
+export function layoutFor(theme) {
+  return theme === 'apple' ? LAYOUTS.apple : LAYOUTS.board;
+}
+
+// paginate() with a layout's grid, spans and clock. sizeOf(id) gives the widget's
+// size name (tall, wide or medium).
+export function arrange(pages, sizeOf, layout = LAYOUTS.board) {
+  return paginate(pages, (id) => layout.spans[sizeOf(id)], { grid: layout.grid, firstPageReserved: [layout.clock] });
+}
 
 // Exact for every list of up to 8 widgets (checked against an unlimited search) and
 // under 1ms on a laptop; the cap stops a pathological input from hanging the board.
@@ -74,7 +99,7 @@ export function packPage(ids, spanOf, { reserved = [], grid = GRID } = {}) {
   return { placed: [], overflow: [...ids] };
 }
 
-function paginateOnce(pages, spanOf, firstPageReserved) {
+function paginateOnce(pages, spanOf, firstPageReserved, grid) {
   const out = [];
   const placements = new Map();
   let carry = [];
@@ -82,7 +107,7 @@ function paginateOnce(pages, spanOf, firstPageReserved) {
     const ids = [...carry, ...(pages[i] ?? [])];
     if (ids.length === 0 && out.length > 0) continue;
     const page = out.length;
-    const { placed, overflow } = packPage(ids, spanOf, { reserved: page === 0 ? firstPageReserved : [] });
+    const { placed, overflow } = packPage(ids, spanOf, { reserved: page === 0 ? firstPageReserved : [], grid });
     out.push(placed.map((box) => box.id));
     placed.forEach(({ id, ...box }) => placements.set(id, { page, ...box }));
     carry = overflow;
@@ -93,10 +118,10 @@ function paginateOnce(pages, spanOf, firstPageReserved) {
 
 // Normalises page lists: fills each page in order, spills what doesn't fit, drops
 // empty pages after the first, and stores every page in reading order.
-export function paginate(pages, spanOf, { firstPageReserved = [CLOCK_AREA] } = {}) {
-  let result = paginateOnce(pages, spanOf, firstPageReserved);
+export function paginate(pages, spanOf, { firstPageReserved = [CLOCK_AREA], grid = GRID } = {}) {
+  let result = paginateOnce(pages, spanOf, firstPageReserved, grid);
   for (let pass = 1; pass < MAX_PASSES; pass++) {
-    const again = paginateOnce(result.pages, spanOf, firstPageReserved);
+    const again = paginateOnce(result.pages, spanOf, firstPageReserved, grid);
     if (JSON.stringify(again.pages) === JSON.stringify(result.pages)) break;
     result = again;
   }

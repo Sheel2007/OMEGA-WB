@@ -7,6 +7,8 @@ const THEMES = [
   { id: 'light', label: 'Light' },
   { id: 'dark', label: 'Dark' },
   { id: 'blocks', label: 'Blocks' },
+  // The iPadOS-style theme. Named for what it looks like, not whose look it is.
+  { id: 'apple', label: 'Glass' },
 ];
 // How long "Tap again to exit" waits for the second tap.
 const EXIT_CONFIRM_MS = 4000;

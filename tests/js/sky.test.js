@@ -75,7 +75,9 @@ test('skyFor follows the sun in auto mode and holds still otherwise', () => {
   assert.ok(skyFor('blocks', -15).stars > 0.8);
   assert.equal(skyFor('blocks', 30).stars, 0);
   assert.deepEqual(skyFor('mystery', 20), skyAt(20));
-  assert.deepEqual(THEME_MODES, ['auto', 'light', 'dark', 'blocks']);
+  assert.equal(skyFor('apple', 60).theme, 'apple', 'Apple holds still too');
+  assert.ok(skyFor('apple', 60).stars > 0 && skyFor('apple', 60).stars < 0.6, 'with a few faint stars');
+  assert.deepEqual(THEME_MODES, ['auto', 'light', 'dark', 'blocks', 'apple']);
 });
 
 test('contrastRatio and mixHex follow the WCAG maths', () => {

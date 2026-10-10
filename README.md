@@ -27,9 +27,13 @@ It has seven widgets:
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
-theme (Auto, Light, Dark, or **Blocks**, a blocky pixel world whose sky follows
+theme (Auto, Light, Dark, **Blocks**, a blocky pixel world whose sky follows
 the real time of day, with a cat, fox, slime or robot wandering by depending on
-the hour), adds and removes widgets, and on the board itself exits full screen.
+the hour, or **Glass**, an iPadOS-style look with frosted cards over a soft
+purple wallpaper, Inter type and iOS-shaped widgets), adds and removes widgets,
+and on the board itself exits full screen. Each screen remembers its own theme,
+and Glass keeps its own widget arrangement, so switching back leaves the other
+layout as it was.
 
 Everything runs on what ships with Raspberry Pi OS: a small Python server
 (standard library only) and plain HTML/CSS/JS. There's nothing to install
@@ -392,7 +396,8 @@ npm test                       # Python + JS tests (no packages needed)
 
 Add `?at=19:30` to the URL to preview the board at another time of day, and
 `?critter=now` (or `?critter=stay`) to bring a Blocks critter out straight away
-(or keep it on screen, for measuring).
+(or keep it on screen, for measuring). `?glass=live` gives the Glass theme a real
+`backdrop-filter` blur instead of its pre-made one, to compare on the Pi.
 
 The rules for working on the board (Pi performance limits, the 1920×1080
 layout, text sizes, contrast, touch targets) are in [CLAUDE.md](CLAUDE.md).
@@ -410,8 +415,10 @@ board/                  server: JSON stores, HTTP API + live updates, weather,
                         product list for predictions and the pictures (grocery_images.py)
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
-  css/tokens.css        colours, type sizes and the Light / Dark / Blocks themes
+  css/tokens.css        colours, type sizes and the Light / Dark / Blocks / Glass themes
   css/scene.css         the Blocks scenery (pixel art) and critters
+  css/apple.css         the Glass theme's cards, clock, dock and fonts
+  fonts/inter/          Inter (SIL Open Font License), used by the Glass theme
   js/main.js            starts everything
   js/services/          the only code that talks to the server or localStorage
   js/apps/<id>/         one folder per app: meta.js, widget.js, app.js, index.js
@@ -420,6 +427,8 @@ web/
   js/scene/             Blocks critters (art, what they do, the low-rate ticker)
   js/menu.js            the top-right menu
   js/sky.js             sun position and the wallpaper colours
+  js/apple-wallpaper.js the Glass wallpaper and the copy of it its cards show;
+                        glass.js lines that copy up behind each card
 pi/                     Raspberry Pi install script, kiosk launcher, service file
 tests/                  unit tests (Python unittest + node --test)
 ```
@@ -454,6 +463,15 @@ a visit. To check on the Pi itself:
    on Light. They should be within a few percent of each other.
 3. If either looks worse, turn off **Moving scenery** in the menu: Blocks then
    costs the same as Light.
+
+### Checking the Glass theme on the Pi
+
+Glass doesn't blur live: a real `backdrop-filter` re-blurs every card on every
+frame of a page swipe. In Chrome with the GPU off and the CPU slowed 4× it
+dropped about a quarter of the frames while switching pages, against one frame
+for the pre-made copy (and none for Dark). To see it on the Pi, open the board
+with `?glass=live` and swipe between pages, then without it. If live blur looks
+smooth there you can keep the parameter, but the copy looks the same.
 
 ## Troubleshooting
 

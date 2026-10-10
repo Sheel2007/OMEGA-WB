@@ -1,6 +1,8 @@
 // Starts the board: services, wallpaper, clock, widgets, apps and the menu.
 import { createAppHost } from './app-host.js';
+import { backdropCss, wallpaperCss } from './apple-wallpaper.js';
 import { APPS, DEFAULT_WIDGETS, WIDGETS_SINCE } from './apps/index.js';
+import { createGlass } from './glass.js';
 import { createHomeEditor } from './home-editor.js';
 import { createWidgetHost } from './home.js';
 import { createPager } from './pager.js';
@@ -32,6 +34,9 @@ const compact = matchMedia('(max-width: 900px), (max-height: 560px)');
 
 const params = new URLSearchParams(location.search);
 const kiosk = params.has('kiosk') && params.get('kiosk') !== '0';
+// ?glass=live gives the Apple theme real backdrop-filter blur instead of its
+// pre-made copy of the wallpaper, to compare the two on the Pi itself.
+if (params.get('glass') === 'live') document.documentElement.dataset.glass = 'live';
 // ?at=19:30 previews the board at another time of day.
 const fixedTime = parseTimeOverride(params.get('at'));
 const now = () => fixedTime ?? new Date();
@@ -59,6 +64,11 @@ const services = {
 const info = fetchInfo();
 
 // Wallpaper and theme
+
+// The Apple wallpaper and the copy of it its glass cards show (apple-wallpaper.js).
+// Fixed, so they're set once; only the Apple theme's CSS uses them.
+document.documentElement.style.setProperty('--apple-wallpaper', wallpaperCss());
+document.documentElement.style.setProperty('--apple-backdrop', backdropCss());
 
 let place = guessLocation();
 // Blocks scenery (clouds and critters): exists only while the theme is Blocks.
@@ -183,7 +193,19 @@ const pager = createPager({
   holdMs: () => (editor.editing ? EDIT_HOLD_MS : undefined),
   ignore: (event) => Boolean(event.target.closest('.widget__edit')),
 });
-const widgets = createWidgetHost({ track, apps: APPS, context, pager });
+const glass = createGlass({
+  board: document.querySelector('.board'),
+  home,
+  isActive: () => document.documentElement.dataset.theme === 'apple' && document.documentElement.dataset.glass !== 'live',
+});
+const widgets = createWidgetHost({
+  track,
+  apps: APPS,
+  context,
+  pager,
+  getLayout: () => services.settings.getLayout(),
+  onRender: () => glass.refresh(),
+});
 // On a phone the widgets are never built: the app icons take their place, so there
 // are no cards to get in the way of a scroll and nothing to arrange.
 const phoneHome = compact.matches

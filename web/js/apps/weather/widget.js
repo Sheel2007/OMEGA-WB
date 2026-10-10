@@ -18,6 +18,16 @@ export function createWidget({ services }) {
   const days = el('ol', { class: 'weather-widget__days', 'aria-label': 'Next few days' });
   const now = el('div', { class: 'weather-widget__now' }, icon, temp, el('div', { class: 'weather-widget__details' }, label, range));
   const message = el('p', { class: 'weather-widget__message' });
+  // What the Apple theme shows instead of `message`: an empty reading, never setup
+  // instructions (those go to the console).
+  const bar = (kind) => el('span', { class: `weather-widget__bar weather-widget__bar--${kind}` });
+  const placeholder = el(
+    'div',
+    { class: 'weather-widget__placeholder', role: 'img', 'aria-label': 'No forecast yet' },
+    el('div', { class: 'weather-widget__placeholder-now' }, el('p', { class: 'weather-widget__temp', text: '—°' }), el('div', { class: 'weather-widget__placeholder-lines' }, bar('label'), bar('range'))),
+    el('div', { class: 'weather-widget__placeholder-days' }, Array.from({ length: DAYS_SHOWN }, () => bar('day'))),
+  );
+  let logged = null;
   const node = el(
     'article',
     { class: 'weather-widget', 'aria-label': meta.name },
@@ -30,6 +40,7 @@ export function createWidget({ services }) {
     now,
     days,
     message,
+    placeholder,
   );
 
   function renderDays(forecast) {
@@ -57,6 +68,9 @@ export function createWidget({ services }) {
     now.hidden = !hasForecast;
     days.hidden = !hasForecast;
     message.hidden = hasForecast;
+    node.classList.toggle('weather-widget--empty', !hasForecast);
+    if (error && error !== logged) console.warn(`Weather: ${error}`);
+    logged = error;
     if (!hasForecast) {
       status.textContent = '';
       message.textContent = loading ? 'Checking the sky…' : error || 'No forecast right now.';

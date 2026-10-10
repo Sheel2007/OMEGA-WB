@@ -1,7 +1,8 @@
 // The wallpaper is the sky outside: colours follow the real sun, and the
 // widgets switch to their dark look once it sets. Light and Dark hold the sky
 // still; Blocks follows the sun too, with its own flat, banded colours, a
-// square sun and moon, and a day/night card palette.
+// square sun and moon, and a day/night card palette. Apple has a fixed
+// wallpaper of its own (apple-wallpaper.js) with a few faint stars over it.
 import { mixHex } from './color.js';
 import { seededRandom } from './random.js';
 
@@ -11,13 +12,16 @@ const RAD = Math.PI / 180;
 const DARK_BELOW = 2.75;
 const REPAINT_MS = 60 * 1000;
 
-export const THEME_MODES = ['auto', 'light', 'dark', 'blocks'];
+export const THEME_MODES = ['auto', 'light', 'dark', 'blocks', 'apple'];
 
 // Where the sun "sits" for the themes that don't follow the real one.
 const FIXED_SUN = {
   light: { elevation: 45, hourAngle: 28, noonElevation: 60 },
   dark: { elevation: -18, hourAngle: 150, noonElevation: 60 },
+  apple: { elevation: -18, hourAngle: 150, noonElevation: 60 },
 };
+// How bright the Apple wallpaper's stars are (0 to 1): there, but quiet.
+const APPLE_STARS = 0.45;
 
 // Themes whose sky follows the real sun (and so repaints once a minute).
 const FOLLOWS_SUN = new Set(['auto', 'blocks']);
@@ -117,6 +121,7 @@ export function skyAt(elevation) {
 
 export function skyFor(mode, elevation) {
   if (mode === 'blocks') return blocksSky(elevation);
+  if (mode === 'apple') return { ...skyAt(FIXED_SUN.apple.elevation), glowAlpha: 0, stars: APPLE_STARS, theme: 'apple' };
   if (FIXED_SUN[mode]) return skyAt(FIXED_SUN[mode].elevation);
   return skyAt(elevation);
 }

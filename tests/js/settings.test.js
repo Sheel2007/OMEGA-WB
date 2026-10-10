@@ -224,3 +224,41 @@ test('get() hands out copies, so callers cannot change settings behind its back'
   copy.pages[0].push('notes');
   assert.deepEqual(settings.getPages(), [['shopping', 'weather']]);
 });
+
+test('the Apple theme keeps its own arrangement, and switching back leaves the board as it was', () => {
+  const storage = saved({ version: 6, theme: 'auto', pages: [['shopping', 'weather', 'notes'], ['games']], scenery: true });
+  const settings = createSettingsService(options(storage));
+  const board = settings.getPages();
+  assert.equal(settings.getLayout().id, 'board');
+
+  settings.setTheme('apple');
+  assert.equal(settings.getLayout().id, 'apple');
+  // Shopping (large) fills the right half beside the clock, Notes goes under the
+  // clock, and Weather (medium) no longer fits, so it starts page 2.
+  assert.deepEqual(board, [['shopping', 'notes', 'weather'], ['games']]);
+  assert.deepEqual(settings.getPages(), [['shopping', 'notes'], ['weather', 'games']]);
+  settings.moveWidget('games', { page: 0, index: 0 });
+  const apple = settings.getPages();
+
+  settings.setTheme('dark');
+  assert.deepEqual(settings.getPages(), board, 'the board layout is untouched');
+  settings.setTheme('apple');
+  assert.deepEqual(settings.getPages(), apple, 'and Apple remembers its own');
+
+  const again = createSettingsService(options(storage));
+  assert.deepEqual(again.getPages(), apple, 'both are saved');
+});
+
+test('adding and removing a widget changes every layout; moving only the one on screen', () => {
+  const storage = saved({ version: 6, theme: 'apple', pages: [['shopping', 'weather']], applePages: [['weather'], ['shopping']], scenery: true });
+  const settings = createSettingsService(options(storage));
+  assert.deepEqual(settings.getPages(), [['weather'], ['shopping']]);
+  settings.addWidget('notes');
+  settings.removeWidget('weather');
+  settings.setTheme('light');
+  assert.deepEqual(settings.getWidgets().sort(), ['notes', 'shopping']);
+
+  // Saved Apple pages that disagree with the board about which widgets are on are rebuilt.
+  const stale = createSettingsService(options(saved({ version: 6, theme: 'apple', pages: [['shopping', 'weather']], applePages: [['notes']], scenery: true })));
+  assert.deepEqual(stale.getWidgets().sort(), ['shopping', 'weather']);
+});

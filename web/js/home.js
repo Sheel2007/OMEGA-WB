@@ -2,7 +2,7 @@
 // widget-layout.js worked out, moves widgets between pages without rebuilding
 // them, and fully tears down the ones that were removed.
 import { el, reducedMotion } from './ui.js';
-import { paginate, SPANS } from './widget-layout.js';
+import { arrange } from './widget-layout.js';
 
 const APPEAR_MS = 280;
 
@@ -10,11 +10,13 @@ export function gridArea({ col, row, w, h }) {
   return `${row} / ${col} / span ${h} / span ${w}`;
 }
 
-export function createWidgetHost({ track, apps, context, pager }) {
+// getLayout() is the grid for the current theme (LAYOUTS in widget-layout.js);
+// onRender() is called once widgets are where they'll be shown.
+export function createWidgetHost({ track, apps, context, pager, getLayout, onRender }) {
   const mounted = new Map();
   const firstPage = track.firstElementChild;
   const clock = firstPage.querySelector('.clock');
-  const spanOf = (id) => SPANS[apps.find((a) => a.id === id).widgetSize];
+  const sizeOf = (id) => apps.find((a) => a.id === id).widgetSize;
   let firstRender = true;
 
   function pageElement(index) {
@@ -49,7 +51,11 @@ export function createWidgetHost({ track, apps, context, pager }) {
       mounted.delete(id);
     }
 
-    const { placements } = paginate(pages, spanOf);
+    const layout = getLayout();
+    const { placements } = arrange(pages, sizeOf, layout);
+    track.style.setProperty('--grid-cols', layout.grid.cols);
+    track.style.setProperty('--grid-rows', layout.grid.rows);
+    clock.style.gridArea = gridArea(layout.clock);
     const added = [];
     pages.forEach((ids, p) => {
       const pageEl = pageElement(p);
@@ -69,6 +75,7 @@ export function createWidgetHost({ track, apps, context, pager }) {
     });
     while (track.children.length > Math.max(1, pages.length)) track.lastElementChild.remove();
     pager.setCount(pages.length);
+    onRender?.();
 
     if (!firstRender && !reducedMotion.matches) {
       added.forEach((node) =>

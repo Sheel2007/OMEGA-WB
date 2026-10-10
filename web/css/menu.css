@@ -178,7 +178,8 @@
 
 .theme-picker {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 0.7rem;
   margin-bottom: 1.3rem;
 }
@@ -225,6 +226,14 @@
   border-radius: 0;
   border-color: #1d1d1d;
   background: linear-gradient(180deg, #3f70d8 0 55%, #5fa83a 55% 70%, #8a5a2b 70% 100%);
+}
+
+.theme-picker__swatch--apple {
+  background:
+    radial-gradient(70% 70% at 22% 22%, #6a3fd0, transparent),
+    radial-gradient(70% 70% at 82% 30%, #3d55d6, transparent),
+    radial-gradient(60% 60% at 60% 92%, #8a3aa8, transparent),
+    #0c0a26;
 }
 
 .theme-picker__label {

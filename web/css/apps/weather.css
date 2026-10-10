@@ -112,6 +112,11 @@
   color: var(--text-2);
 }
 
+/* Only the Apple theme shows the placeholder (apple.css). */
+.weather-widget__placeholder {
+  display: none;
+}
+
 @media (max-width: 900px), (max-height: 560px) {
   .weather-widget__days {
     margin-top: 1rem;

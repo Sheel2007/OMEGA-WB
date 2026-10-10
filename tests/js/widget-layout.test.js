@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import {
   CLOCK_AREA,
   GRID,
+  LAYOUTS,
   SPANS,
+  arrange,
   dropIndex,
+  layoutFor,
   insertWidget,
   moveWidget,
   packPage,
@@ -113,4 +116,51 @@ test('dropIndex finds where a dragged widget would land', () => {
   assert.equal(dropIndex(rects, { x: 300, y: 300 }), 3);
   assert.equal(dropIndex(rects, { x: 50, y: 50 }, { hole: rects[0] }), null, 'inside its own slot: stay put');
   assert.equal(dropIndex(rects, { x: 500, y: 150 }, { axis: 'y' }), 2);
+});
+
+test('every theme but Apple uses the board layout', () => {
+  for (const theme of ['auto', 'light', 'dark', 'blocks']) assert.equal(layoutFor(theme), LAYOUTS.board);
+  assert.equal(layoutFor('apple'), LAYOUTS.apple);
+  assert.deepEqual(arrange([['calendar', 'shopping', 'weather', 'notes', 'games']], (id) => SIZE_OF[id]).pages, [
+    ['calendar', 'shopping', 'weather', 'notes'],
+    ['games'],
+  ]);
+});
+
+test('the Apple layout uses iOS widget units: small 1 × 1, medium 2 × 1, large 2 × 2', () => {
+  const { grid, spans, clock } = LAYOUTS.apple;
+  assert.deepEqual(grid, { cols: 4, rows: 2 });
+  assert.deepEqual(spans, { medium: { w: 1, h: 1 }, wide: { w: 2, h: 1 }, tall: { w: 2, h: 2 } });
+  assert.deepEqual(clock, { col: 1, row: 1, w: 2, h: 1 }, 'the clock takes one medium slot');
+
+  // The board's own seven widgets fit on two pages.
+  const sizes = { calendar: 'medium', weather: 'wide', notes: 'medium', games: 'medium', lights: 'wide', cup: 'medium', grocery: 'tall' };
+  const { pages, placements } = arrange([Object.keys(sizes)], (id) => sizes[id], LAYOUTS.apple);
+  assert.deepEqual(pages, [['calendar', 'notes', 'weather', 'games'], ['lights', 'grocery', 'cup']]);
+  assert.deepEqual(placements.get('weather'), { page: 0, col: 1, row: 2, w: 2, h: 1 });
+  assert.deepEqual(placements.get('grocery'), { page: 1, col: 3, row: 1, w: 2, h: 2 });
+});
+
+test('every sequence of widget sizes up to 7 long lays out cleanly in Apple units', () => {
+  const { grid, spans, clock } = LAYOUTS.apple;
+  const sizes = Object.keys(spans);
+  const build = (prefix) => {
+    if (prefix.length) {
+      const ids = prefix.map((size, i) => `${size}-${i}`);
+      const sizeOf = (id) => id.split('-')[0];
+      const { pages, placements } = arrange([ids], sizeOf, LAYOUTS.apple);
+      assert.deepEqual([...pages.flat()].sort(), [...ids].sort());
+      pages.forEach((page, p) => {
+        const boxes = page.map((id) => placements.get(id));
+        boxes.forEach((box, i) => {
+          assert.ok(box.col + box.w - 1 <= grid.cols && box.row + box.h - 1 <= grid.rows, 'inside the grid');
+          if (p === 0) assert.ok(!overlaps(box, clock), 'clear of the clock');
+          boxes.slice(i + 1).forEach((other) => assert.ok(!overlaps(box, other), 'no overlap'));
+        });
+      });
+      assert.deepEqual(arrange(pages, sizeOf, LAYOUTS.apple).pages, pages, 'stable');
+    }
+    if (prefix.length < 7) sizes.forEach((size) => build([...prefix, size]));
+  };
+  build([]);
 });

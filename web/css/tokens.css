@@ -368,6 +368,104 @@ html {
   --store-lidl: #7cb4ff;
 }
 
+/* Apple (shown as "Glass"): an iPadOS-style dark theme. Glass cards over a soft
+   purple-and-blue wallpaper (apple-wallpaper.js, apple.css), Inter throughout, no
+   drop shadows. Text and accents are checked against the brightest glass in
+   apple-wallpaper.test.js. */
+:root[data-theme="apple"] {
+  color-scheme: dark;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-title: var(--font-body);
+  --display-stretch: 100%;
+
+  --radius-card: 1.4rem;
+  --radius-panel: 1.1rem;
+  --radius-control: 0.8rem;
+  --radius-icon: 22.5%;
+  --card-border: 0.5px solid rgb(255 255 255 / 0.12);
+
+  --text: #ffffff;
+  --text-2: #cbc9db;
+  --text-3: #b0aec6;
+  --text-quiet: rgb(255 255 255 / 0.55);
+  --line: #8e8ca8;
+  --card: #1d1b36;
+  --surface: rgb(255 255 255 / 0.08);
+  --fill: rgb(255 255 255 / 0.08);
+  --fill-strong: rgb(255 255 255 / 0.15);
+  --hairline: rgb(255 255 255 / 0.12);
+  --accent: #0a6cd8;
+  --accent-pressed: #0959b3;
+  --on-accent: #ffffff;
+  --accent-text: #6cb8ff;
+  --check: #30b85a;
+  --danger: #ff8a80;
+  --app-bg: #0b0a1f;
+  --dock: rgb(255 255 255 / 0.08);
+  --shadow: none;
+  --shadow-sm: none;
+  --focus: #6cb8ff;
+  --inverse-bg: #f2f2f7;
+  --inverse-text: #0b0a1f;
+  --inverse-accent: #0a6cd8;
+  --sky-text: #ffffff;
+  --sky-text-quiet: rgb(255 255 255 / 0.7);
+
+  /* The glass (apple.css). The copy of the wallpaper behind it is --apple-backdrop. */
+  --glass-frost: rgb(255 255 255 / 0.08);
+  --glass-border: 0.5px solid rgb(255 255 255 / 0.12);
+
+  /* Each widget's label and + button. */
+  --accent-calendar: #ff9a90;
+  --accent-weather: #64d2ff;
+  --accent-notes: #ffd60a;
+  --accent-games: #c7a6ff;
+  --accent-lights: #ffb340;
+  --accent-roommate-games: #5ee0c4;
+  --accent-grocery: #ff8cba;
+
+  --note-text: #17140a;
+  --note-yellow: #d8c46a;
+  --note-pink: #dba9bb;
+  --note-blue: #a6c3e6;
+  --note-green: #a9d5b3;
+
+  --event-blue: #7cb4ff;
+  --event-purple: #b79cff;
+  --event-teal: #53cfc6;
+  --event-pink: #ff9cc4;
+  --event-orange: #f5b06a;
+  --event-green: #6fd996;
+
+  --wx-moon: #f3d36b;
+  --wx-cloud: #3d3a6e;
+  --wx-cloud-edge: #b9b6da;
+  --wx-rain: #7ab6ff;
+  --wx-snow: #d4e6ff;
+
+  --lamp-on: #ffd65c;
+  --lamp-on-text: #2a2412;
+  --lamp-on-glyph: #b86e00;
+  --lamp-on-dot: #fff4cc;
+  --lamp-off: rgb(255 255 255 / 0.1);
+  --lamp-off-glyph: #cbc9db;
+  --lamp-off-dot: #26234a;
+
+  /* Grocery's own glass inside the app sits on the solid app background. */
+  --glass: rgb(255 255 255 / 0.07);
+  --glass-strong: #26234a;
+  --glass-fill: rgb(255 255 255 / 0.08);
+  --glass-edge: rgb(255 255 255 / 0.14);
+  --glass-line: rgb(255 255 255 / 0.12);
+  --glass-sheen: none;
+  --glass-shadow: none;
+  --grocery-accent: #ff8cba;
+  --grocery-accent-pressed: #ffb3cf;
+  --store-traderjoes: #ff8a80;
+  --store-lidl: #8ab4ff;
+}
+
 @media (max-width: 900px), (max-height: 560px) {
   :root {
     --status-h: calc(0.75rem + env(safe-area-inset-top));

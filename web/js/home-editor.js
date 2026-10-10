@@ -6,7 +6,7 @@
 // its slot; the other widgets reflow around the placeholder as a live preview.
 // Nothing is saved until the drop.
 import { animateLayout, el, haptic, icons } from './ui.js';
-import { dropIndex, insertWidget, paginate, removeWidget, SPANS } from './widget-layout.js';
+import { arrange, dropIndex, insertWidget, removeWidget } from './widget-layout.js';
 
 // A pointer this close to the pager's side edge flips to the next page after a pause.
 const EDGE_REM = 4;
@@ -23,7 +23,8 @@ const WIDGETS_SELECTOR = '.home-page > .widget, .home-page > .home-slot';
 export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWidget, onAddWidgetRequest, onChange }) {
   const lifetime = new AbortController();
   const compact = matchMedia(COMPACT);
-  const spanOf = (id) => SPANS[apps.find((a) => a.id === id).widgetSize];
+  const sizeOf = (id) => apps.find((a) => a.id === id).widgetSize;
+  const layOut = (pages) => arrange(pages, sizeOf, settings.getLayout()).pages;
   const dragLayer = el('div', { class: 'home__drag-layer', 'aria-hidden': 'true' });
   const editBar = el(
     'div',
@@ -122,7 +123,7 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
 
   function preview(target) {
     drag.target = target;
-    const pages = paginate(insertWidget(drag.base, drag.id, target), spanOf).pages;
+    const pages = layOut(insertWidget(drag.base, drag.id, target));
     animateLayout(home, () => host.render(pages, { ghost: { id: drag.id, element: drag.slot } }), { selector: WIDGETS_SELECTOR });
     decorate();
     drag.rects = rectsOnPage(pager.current);
@@ -149,7 +150,7 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
   function flipPage(direction) {
     const next = pager.current + direction;
     if (next < 0) return;
-    const pages = paginate(insertWidget(drag.base, drag.id, drag.target), spanOf).pages;
+    const pages = layOut(insertWidget(drag.base, drag.id, drag.target));
     if (next >= pages.length) {
       // Past the last page: open a new, empty page to drop onto (unless the
       // widget is already alone on the last page, which would just be the same).

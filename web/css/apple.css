@@ -1,0 +1,381 @@
+/* The Apple theme (shown as "Glass" in the menu): iPadOS-style home screen.
+   Everything here is scoped to [data-theme="apple"]; the other themes never see it.
+
+   Glass without backdrop-filter. A live blur(30px) over every card and the dock
+   re-blurs each frame something under it moves (a page sliding), which is more
+   than the Pi 4's GPU can keep up with. Each glass surface instead paints a copy
+   of the wallpaper made the way the blur and saturate(180%) would make it
+   (--apple-backdrop, from apple-wallpaper.js), lined up with what's behind it by
+   glass.js, then the frosting on top. ?glass=live swaps in the real filter to
+   compare on the Pi. */
+
+/* Inter, bundled (web/fonts/inter, SIL Open Font License). Three cuts cover every
+   weight the board asks for: regular below 500, semibold up to 849, and the
+   display cut's extra bold (the clock only, at 900). Each face is drawn as-is
+   across its range, so nothing is synthesised and no other weights appear. */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 1 499;
+  font-display: swap;
+  src: url("../fonts/inter/Inter-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500 849;
+  font-display: swap;
+  src: url("../fonts/inter/Inter-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 850 1000;
+  font-display: swap;
+  src: url("../fonts/inter/InterDisplay-ExtraBold.woff2") format("woff2");
+}
+
+:root[data-theme="apple"] body {
+  background: #0c0a26;
+  /* Single-storey a, rounder quotes and commas. */
+  font-feature-settings: "cv11", "ss03";
+}
+
+:root[data-theme="apple"] :is(h1, h2, h3, .empty-state__title) {
+  letter-spacing: -0.02em;
+}
+
+/* Wallpaper. The sky's stars stay (sky.js keeps them faint); its glow doesn't. */
+
+:root[data-theme="apple"] .sky {
+  background: var(--apple-wallpaper);
+}
+
+:root[data-theme="apple"] .sky__glow {
+  display: none;
+}
+
+/* Glass: widgets, the dock and the page dots. */
+
+:root[data-theme="apple"] :is(.widget, .dock, .page-dots) {
+  isolation: isolate;
+  border: var(--glass-border);
+  background: var(--glass-frost);
+  box-shadow: none;
+  corner-shape: squircle;
+}
+
+:root[data-theme="apple"] :is(.widget, .dock, .page-dots)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  corner-shape: inherit;
+  pointer-events: none;
+  background: linear-gradient(var(--glass-frost), var(--glass-frost)), var(--apple-backdrop);
+  /* Every layer is the size of the window, shifted so the part behind this card shows. */
+  background-size: 100vw 100vh;
+  background-position: calc(-1 * var(--glass-x, 0px)) calc(-1 * var(--glass-y, 0px));
+}
+
+:root[data-theme="apple"][data-glass="live"] :is(.widget, .dock, .page-dots) {
+  backdrop-filter: blur(30px) saturate(180%);
+}
+
+:root[data-theme="apple"][data-glass="live"] :is(.widget, .dock, .page-dots)::before {
+  display: none;
+}
+
+/* Pages: iOS widget units (LAYOUTS.apple in widget-layout.js), 20px apart. */
+
+:root[data-theme="apple"] .home-page {
+  gap: 1rem;
+  transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
+}
+
+/* Switching pages: the one leaving fades and shrinks a little as it slides out, and
+   the one arriving grows back to full size. Only opacity and transform change. */
+:root[data-theme="apple"] .pager__track--paged > .home-page[inert] {
+  opacity: 0.3;
+  transform: scale(0.94);
+}
+
+/* Widget card */
+
+:root[data-theme="apple"] .widget {
+  padding: 0.8rem;
+  border-radius: 1.4rem;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Pressing the card (not a button inside it) gives it a springy squeeze. */
+:root[data-theme="apple"] .widget:has(> .widget__link:active) {
+  transform: scale(0.96);
+}
+
+/* A dragged widget follows the finger exactly. */
+:root[data-theme="apple"] .widget--lifted {
+  transition: none;
+}
+
+:root[data-theme="apple"] .widget[data-widget="calendar"] { --widget-accent: var(--accent-calendar); }
+:root[data-theme="apple"] .widget[data-widget="weather"] { --widget-accent: var(--accent-weather); }
+:root[data-theme="apple"] .widget[data-widget="notes"] { --widget-accent: var(--accent-notes); }
+:root[data-theme="apple"] .widget[data-widget="games"] { --widget-accent: var(--accent-games); }
+:root[data-theme="apple"] .widget[data-widget="lights"] { --widget-accent: var(--accent-lights); }
+:root[data-theme="apple"] .widget[data-widget="roommate-games"] { --widget-accent: var(--accent-roommate-games); }
+:root[data-theme="apple"] .widget[data-widget="grocery"] { --widget-accent: var(--accent-grocery); }
+
+/* Header: just the widget's name, small, in its accent colour. No icon tile and no
+   subtitle. */
+
+:root[data-theme="apple"] .widget-head {
+  gap: 0.6rem;
+  min-height: 1.3rem;
+  margin-bottom: 0.6rem;
+}
+
+:root[data-theme="apple"] :is(.widget-head__icon, .widget-head__meta) {
+  display: none;
+}
+
+:root[data-theme="apple"] .widget-head__title {
+  font-family: var(--font-body);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: normal;
+  color: var(--widget-accent, var(--text));
+}
+
+/* Add buttons: a 32px tinted circle with an accent "+", in the card's top-right
+   corner. The button itself is the full 60px touch target around it. */
+
+:root[data-theme="apple"] .widget-head__action,
+:root[data-theme="apple"] .widget-head__action:active {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--hit);
+  height: var(--hit);
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--widget-accent, var(--text));
+}
+
+:root[data-theme="apple"] .widget-head__action::before {
+  content: "";
+  grid-area: 1 / 1;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--widget-accent, var(--text)) 18%, transparent);
+}
+
+:root[data-theme="apple"] .widget-head__action:active::before {
+  background: color-mix(in srgb, var(--widget-accent, var(--text)) 32%, transparent);
+}
+
+:root[data-theme="apple"] .widget-head__action svg {
+  grid-area: 1 / 1;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Lights' × while pairing (or + when pairing can't start) is neutral. */
+:root[data-theme="apple"] .widget-head__action.lights-widget__stop {
+  color: var(--text-2);
+}
+
+:root[data-theme="apple"] .widget-head__action.lights-widget__stop::before {
+  background: var(--fill-strong);
+}
+
+/* While editing, the remove button takes the top-left corner the name sits in. */
+:root[data-theme="apple"] .home--editing .widget-head {
+  padding-left: 2.6rem;
+}
+
+/* Empty states: one short, quiet, centred line. */
+
+:root[data-theme="apple"] :is(.notes-widget__empty, .calendar-widget__empty, .cup-widget__empty, .grocery-widget__empty, .lights-widget__message:not(.lights-widget__pairing)) {
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.4rem 1.3rem;
+  text-align: center;
+}
+
+:root[data-theme="apple"] :is(.notes-widget__empty-title, .calendar-widget__empty-title, .cup-widget__empty-title, .grocery-widget__empty-title, .lights-widget__message:not(.lights-widget__pairing) .lights-widget__message-title) {
+  font-family: var(--font-body);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--text-quiet);
+}
+
+:root[data-theme="apple"] :is(.notes-widget__empty-text, .calendar-widget__empty-text, .cup-widget__empty-text, .grocery-widget__empty-text, .grocery-widget__empty-art, .lights-widget__message:not(.lights-widget__pairing) .lights-widget__message-text) {
+  display: none;
+}
+
+/* Weather with no forecast: an empty reading instead of a message. */
+
+:root[data-theme="apple"] .weather-widget--empty .weather-widget__message {
+  display: none;
+}
+
+:root[data-theme="apple"] .weather-widget--empty .weather-widget__placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+:root[data-theme="apple"] .weather-widget__placeholder-now {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+}
+
+:root[data-theme="apple"] .weather-widget__placeholder .weather-widget__temp {
+  color: var(--text-quiet);
+  /* Lifts the dash to the middle of the digits, where a temperature would be. */
+  font-feature-settings: "cv11", "ss03", "case";
+}
+
+:root[data-theme="apple"] .weather-widget__placeholder-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+:root[data-theme="apple"] .weather-widget__placeholder-days {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.6rem;
+  margin-top: auto;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--hairline);
+}
+
+/* Still bars, not a shimmer: nothing on the board loops. */
+:root[data-theme="apple"] .weather-widget__bar {
+  display: block;
+  height: 1rem;
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+}
+
+:root[data-theme="apple"] .weather-widget__bar--label {
+  width: 10rem;
+}
+
+:root[data-theme="apple"] .weather-widget__bar--range {
+  width: 6.5rem;
+}
+
+:root[data-theme="apple"] .weather-widget__bar--day {
+  height: 4.6rem;
+  border-radius: var(--radius-control);
+}
+
+/* Clock: the date small above it, the time in the heavy display cut, no AM/PM. */
+
+:root[data-theme="apple"] .clock {
+  align-self: center;
+  padding: 0 0 0 0.4rem;
+  text-shadow: none;
+}
+
+:root[data-theme="apple"] .clock__date {
+  margin: 0 0 0.4rem 0.15rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--sky-text-quiet);
+  text-shadow: none;
+}
+
+:root[data-theme="apple"] .clock__time {
+  margin: 0 0 0 -0.05em;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 100%;
+  /* "12:45" with the tracking below just fits the clock's two units. */
+  font-size: 13.5rem;
+  line-height: 0.9;
+  /* A touch looser than -0.04em so the heavy digits never touch. */
+  letter-spacing: -0.035em;
+}
+
+:root[data-theme="apple"] .clock__period {
+  display: none;
+}
+
+/* Dock: the same glass, rounder, flat icons with more room between them. */
+
+:root[data-theme="apple"] .dock {
+  gap: 1.8rem;
+  padding: 1rem 1.4rem;
+  border-radius: 1.6rem;
+}
+
+:root[data-theme="apple"] .dock__app {
+  width: 4.2rem;
+  height: 4.2rem;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root[data-theme="apple"] .dock__app:active {
+  transform: scale(0.96);
+}
+
+:root[data-theme="apple"] .app-icon {
+  box-shadow: none;
+  corner-shape: squircle;
+}
+
+:root[data-theme="apple"] .page-dots__dot[aria-current="true"]::before {
+  background: #ffffff;
+}
+
+:root[data-theme="apple"] .page-dots__dot::before {
+  background: rgb(255 255 255 / 0.4);
+}
+
+/* The menu button sits on the wallpaper like the other glass. */
+:root[data-theme="apple"] .board-menu__toggle {
+  border: var(--glass-border);
+  background: var(--fill-strong);
+}
+
+:root[data-theme="apple"] .board-menu--open .board-menu__toggle {
+  background: var(--inverse-bg);
+}
+
+/* Phones */
+@media (max-width: 900px), (max-height: 560px) {
+  :root[data-theme="apple"] .clock__date {
+    font-size: 1.1rem;
+  }
+
+  :root[data-theme="apple"] .clock__time {
+    font-size: min(19vw, 6.5rem);
+  }
+
+  :root[data-theme="apple"] .app-grid__app {
+    border: var(--glass-border);
+    background: var(--glass-frost);
+    box-shadow: none;
+    corner-shape: squircle;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  :root[data-theme="apple"] .app-grid__app:active {
+    transform: scale(0.96);
+  }
+}

@@ -1,15 +1,21 @@
 // SettingsService: this screen's own choices (theme, which widgets are on which
 // home page, moving scenery, and who's using a phone's grocery scanner), kept in
 // localStorage. Each phone and the board can set these differently.
+//
+// The Apple theme has its own grid (see LAYOUTS in widget-layout.js), so it keeps
+// its own arrangement of the same widgets in `applePages`: trying it out and
+// switching back leaves the board's pages exactly as they were. Adding or removing
+// a widget changes both; moving one only changes the layout on screen.
 import { THEME_MODES } from '../sky.js';
-import { insertWidget, moveWidget, paginate, removeWidget, SPANS } from '../widget-layout.js';
+import { arrange, insertWidget, LAYOUTS, layoutFor, moveWidget, removeWidget } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
 const SCHEMA_VERSION = 6;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
 // versions 4, 5 and 6 pick up the ones named in `widgetsSince` (Lights, the
-// Roommate Cup, then Grocery) and nothing else.
+// Roommate Cup, then Grocery) and nothing else. `applePages` arrived within
+// version 6; a screen without it gets one worked out from its board pages.
 const UPGRADABLE = [1, 2, 3, 4, 5];
 const MAX_ASKER_LENGTH = 30;
 const RENAMED_THEMES = { retro: 'blocks' };
@@ -24,11 +30,13 @@ function browserStorage() {
 
 export function createSettingsService({ storage = browserStorage(), widgetSizes, defaultWidgets, widgetsSince = {} }) {
   const known = (id) => Object.hasOwn(widgetSizes, id);
-  const spanOf = (id) => SPANS[widgetSizes[id]];
-  const layout = (pages) => paginate(pages, spanOf).pages;
+  const sizeOf = (id) => widgetSizes[id];
+  const layout = (pages, grid = LAYOUTS.board) => arrange(pages, sizeOf, grid).pages;
   const listeners = new Set();
+  // Where each layout's pages live in the saved settings.
+  const FIELD = { board: 'pages', apple: 'applePages' };
 
-  const defaults = () => ({ theme: 'auto', pages: layout([defaultWidgets.filter(known)]), scenery: true, asker: null });
+  const defaults = () => ({ theme: 'auto', pages: layout([defaultWidgets.filter(known)]), applePages: null, scenery: true, asker: null });
 
   // Drops anything unknown, malformed or repeated (across all pages), keeping the
   // order it was saved in. Laying it out comes after, so an upgrade can slot a new
@@ -41,9 +49,18 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
       .map((ids) => ids.filter((id) => typeof id === 'string' && known(id) && !seen.has(id) && seen.add(id)));
   }
 
-  function validPages(raw) {
+  function validPages(raw, grid) {
     const pages = cleanPages(raw);
-    return pages && layout(pages);
+    return pages && layout(pages, grid);
+  }
+
+  const sameWidgets = (a, b) => JSON.stringify([...a.flat()].sort()) === JSON.stringify([...b.flat()].sort());
+
+  // The pages for `theme`'s layout, working them out from the board's if this
+  // screen hasn't used that layout yet.
+  function pagesFor(state, theme) {
+    const grid = layoutFor(theme);
+    return state[FIELD[grid.id]] ?? layout(state.pages, grid);
   }
 
   function validAsker(name) {
@@ -83,10 +100,14 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
       const version = saved?.version;
       if (version !== SCHEMA_VERSION && !UPGRADABLE.includes(version)) return defaults();
       const raw = version === 1 ? [saved.widgets] : saved.pages;
-      const pages = (version === SCHEMA_VERSION ? validPages(raw) : cleanPages(raw)) ?? defaults().pages;
+      const cleaned = (version === SCHEMA_VERSION ? validPages(raw) : cleanPages(raw)) ?? defaults().pages;
+      const pages = version === SCHEMA_VERSION ? cleaned : layout(withNewWidgets(cleaned, version));
+      const apple = version === SCHEMA_VERSION ? validPages(saved.applePages, LAYOUTS.apple) : null;
       return {
         theme: validTheme(saved.theme),
-        pages: version === SCHEMA_VERSION ? pages : layout(withNewWidgets(pages, version)),
+        pages,
+        // Thrown away (and worked out again) if it's lost track of which widgets are on.
+        applePages: apple && sameWidgets(apple, pages) ? apple : null,
         scenery: typeof saved.scenery === 'boolean' ? saved.scenery : true,
         asker: validAsker(saved.asker),
       };
@@ -105,11 +126,14 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
     }
   }
 
+  const active = () => pagesFor(current, current.theme);
+
   function get() {
+    const pages = active();
     return {
       theme: current.theme,
-      pages: current.pages.map((ids) => [...ids]),
-      widgets: current.pages.flat(),
+      pages: pages.map((ids) => [...ids]),
+      widgets: pages.flat(),
       scenery: current.scenery,
       asker: current.asker,
     };
@@ -124,19 +148,36 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
     listeners.forEach((fn) => fn(snapshot));
   }
 
-  const pageOf = (id) => current.pages.findIndex((ids) => ids.includes(id));
+  const pageOf = (id) => active().findIndex((ids) => ids.includes(id));
+
+  // `active` becomes the on-screen layout's pages; `others(pages, grid)` is applied
+  // to every other layout this screen has pages for.
+  function updatePages(nextActive, others) {
+    const grid = layoutFor(current.theme);
+    const changes = {};
+    for (const [id, field] of Object.entries(FIELD)) {
+      if (id === grid.id) changes[field] = nextActive;
+      else if (current[field]) changes[field] = layout(others(current[field]), LAYOUTS[id]);
+    }
+    update(changes);
+  }
 
   return {
     get,
     getTheme: () => current.theme,
     getPages: () => get().pages,
-    getWidgets: () => current.pages.flat(),
+    getWidgets: () => active().flat(),
+    // The grid the home screen is laid out on for the current theme.
+    getLayout: () => layoutFor(current.theme),
     getScenery: () => current.scenery,
     // Who adds things to the grocery list from this screen, or null to ask each time.
     getAsker: () => current.asker,
 
     setTheme(theme) {
-      if (THEME_MODES.includes(theme)) update({ theme });
+      if (!THEME_MODES.includes(theme)) return;
+      const field = FIELD[layoutFor(theme).id];
+      // Keep the layout we're leaving, and start the new one if it's the first time.
+      update({ theme, [field]: pagesFor(current, theme) });
     },
 
     setScenery(on) {
@@ -151,35 +192,39 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
     // page at the end). Returns the page it ended up on, or null if it couldn't be added.
     addWidget(id, { page } = {}) {
       if (!known(id) || pageOf(id) !== -1) return null;
-      const tryPage = (p) => layout(insertWidget(current.pages, id, { page: p }));
-      let pages = null;
+      const grid = layoutFor(current.theme);
+      const pages = active();
+      const tryPage = (p) => layout(insertWidget(pages, id, { page: p }), grid);
+      let next = null;
       if (page != null) {
-        pages = tryPage(page);
+        next = tryPage(page);
       } else {
-        for (let p = 0; p <= current.pages.length && !pages; p++) {
+        for (let p = 0; p <= pages.length && !next; p++) {
           const attempt = tryPage(p);
-          if (attempt[p]?.includes(id)) pages = attempt;
+          if (attempt[p]?.includes(id)) next = attempt;
         }
       }
-      update({ pages });
+      // Other layouts get it at the end.
+      updatePages(next, (other) => insertWidget(other, id));
       return pageOf(id);
     },
 
     // Returns where it was, for Undo.
     removeWidget(id) {
-      const { pages, from } = removeWidget(current.pages, id);
-      if (from) update({ pages: layout(pages) });
+      const { pages, from } = removeWidget(active(), id);
+      if (from) updatePages(layout(pages, layoutFor(current.theme)), (other) => removeWidget(other, id).pages);
       return from;
     },
 
     restoreWidget(id, from) {
       if (!known(id) || pageOf(id) !== -1) return;
-      update({ pages: layout(insertWidget(current.pages, id, from)) });
+      updatePages(layout(insertWidget(active(), id, from), layoutFor(current.theme)), (other) => insertWidget(other, id));
     },
 
     moveWidget(id, target) {
       if (pageOf(id) === -1) return;
-      update({ pages: layout(moveWidget(current.pages, id, target)) });
+      const grid = layoutFor(current.theme);
+      update({ [FIELD[grid.id]]: layout(moveWidget(active(), id, target), grid) });
     },
 
     subscribe(fn) {

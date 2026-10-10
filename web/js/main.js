@@ -19,6 +19,7 @@ import { createLiveConnection } from './services/live.js';
 import { createNotesService } from './services/notes.js';
 import { createRoommateGamesService } from './services/roommate-games.js';
 import { createSettingsService } from './services/settings.js';
+import { createSpotifyService } from './services/spotify.js';
 import { createWeatherService } from './services/weather.js';
 import { createBlocksScene } from './scene/blocks-scene.js';
 import { dayPhase, guessLocation, parseTimeOverride, startSky } from './sky.js';
@@ -45,7 +46,7 @@ const now = () => fixedTime ?? new Date();
 // Services: the only code that talks to the server or to storage.
 
 const live = createLiveConnection({
-  streams: ['notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery'],
+  streams: ['notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify'],
   onServerRestart: () => location.reload(),
 });
 const services = {
@@ -54,6 +55,7 @@ const services = {
   lights: createLightsService({ live }),
   roommateGames: createRoommateGamesService({ live }),
   grocery: createGroceryService({ live }),
+  spotify: createSpotifyService({ live }),
   weather: createWeatherService(),
   games: createGamesStore(),
   settings: createSettingsService({

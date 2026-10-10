@@ -20,6 +20,7 @@ from board.lights import Lights, settings_from as lights_settings_from
 from board.notes import NotesBoard
 from board.notify import Notifier, settings_from as notify_settings_from
 from board.products import ProductLookup
+from board.spotify import NowPlaying, SpotifyAccount
 from board.store_products import StoreProducts
 from board.roommate_games import RoommateGames
 from board.server import ROOT, BoardServer, lan_address, phone_address
@@ -53,6 +54,13 @@ def google_from(config, data_folder):
         client.get("client_secret"),
         os.path.join(data_folder, "google.json"),
     )
+
+
+def spotify_from(config, data_folder, feed):
+    """What's playing on Spotify, from the app's client ID in config.json plus any saved sign-in."""
+    client = config.get("spotify") if isinstance(config.get("spotify"), dict) else {}
+    account = SpotifyAccount(client.get("client_id"), os.path.join(data_folder, "spotify.json"))
+    return NowPlaying(account, feed=feed)
 
 
 def currency_from(config):
@@ -130,6 +138,7 @@ def main():
         zone=zone,
         feed=feed,
     )
+    spotify = spotify_from(config, args.data, feed)
     server = BoardServer(
         (args.host, port),
         notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
@@ -146,6 +155,7 @@ def main():
         store_products=store_products,
         product_images=ProductImages(os.path.join(args.data, "grocery-images"), products),
         photos=photos,
+        spotify=spotify,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
     )
@@ -154,6 +164,7 @@ def main():
     lights.start()
     roommate_games.start()
     store_products.start()
+    spotify.start()
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -171,6 +182,7 @@ def main():
         lights.stop()
         roommate_games.stop()
         store_products.stop()
+        spotify.stop()
         server.server_close()
 
 

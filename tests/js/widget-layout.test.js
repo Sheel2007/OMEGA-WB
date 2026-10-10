@@ -11,6 +11,7 @@ import {
   arrange,
   cellFromPoint,
   findWidget,
+  firstSpot,
   fromOrder,
   layoutFor,
   nearestSize,
@@ -94,7 +95,8 @@ test('every sequence of widget sizes up to 7 long lays out cleanly', () => {
     if (prefix.length < 7) SIZES.forEach((size) => build([...prefix, size]));
   };
   build([]);
-  assert.equal(cases, 3279);
+  // 4 + 4² + … + 4⁷ (mini, small, medium, large).
+  assert.equal(cases, 21844);
 });
 
 test('packPage places the longest prefix that fits and returns the rest', () => {
@@ -115,7 +117,7 @@ test('every theme but Apple uses the board layout', () => {
 
 test('the Apple layout uses iOS widget units: small 1 × 1, medium 2 × 1, large 2 × 2', () => {
   assert.deepEqual(apple.grid, { cols: 4, rows: 2 });
-  assert.deepEqual(apple.spans, { small: { w: 1, h: 1 }, medium: { w: 2, h: 1 }, large: { w: 2, h: 2 } });
+  assert.deepEqual(apple.spans, { mini: { w: 1, h: 1 }, small: { w: 1, h: 1 }, medium: { w: 2, h: 1 }, large: { w: 2, h: 2 } }, 'mini is a small square');
   assert.deepEqual(apple.clock, { col: 1, row: 1, w: 2, h: 1 }, 'the clock takes one medium slot');
 
   // The board's own seven widgets fit on two pages.
@@ -254,6 +256,19 @@ test('removeWidget says where the widget was, so placeWidget can put it back', (
   assert.deepEqual(removeWidget(pages, 'nope'), { pages, from: null });
 });
 
+test('a mini widget fills the one column the clock, a small and a medium leave on page 1', () => {
+  assert.deepEqual(SPANS.mini, { w: 1, h: 2 });
+  const sizes = { calendar: 'small', weather: 'medium', spotify: 'mini', notes: 'small', games: 'small', lights: 'medium' };
+  const pages = fromOrder([Object.keys(sizes)], (id) => sizes[id], board);
+  assert.equal(pages.length, 1, 'all six on page 1');
+  assert.deepEqual(pages[0].find((item) => item.id === 'spotify'), { id: 'spotify', size: 'mini', col: 12, row: 1 });
+  // Dropped next to the clock on a board with that column free, it stays there.
+  const moved = placeWidget(pages, { id: 'spotify', size: 'mini' }, { page: 0, col: 5, row: 1 }, board);
+  assert.deepEqual(moved[0].find((item) => item.id === 'spotify'), { id: 'spotify', size: 'mini', col: 5, row: 1 });
+  // Nothing else fits the column it left.
+  assert.equal(firstSpot(pages[0].filter((item) => item.id !== 'spotify'), 0, 'small', board), null);
+});
+
 test('cellFromPoint snaps a corner to the nearest cell', () => {
   // 12 columns of 100px with 20px gaps, 4 rows of 200px with 20px gaps.
   const grid = { left: 50, top: 100, width: 1420, height: 860, colGap: 20, rowGap: 20, cols: 12, rows: 4 };
@@ -268,6 +283,9 @@ test('nearestSize picks the size closest to the span dragged out', () => {
   assert.equal(nearestSize(SIZES, SPANS, { w: 6, h: 4 }, 'small'), 'large');
   assert.equal(nearestSize(['small', 'large'], SPANS, { w: 4, h: 2 }, 'small'), 'small', 'only sizes it comes in');
   assert.equal(nearestSize(SIZES, apple.spans, { w: 2, h: 2 }, 'small'), 'large');
+  assert.equal(nearestSize(SIZES, SPANS, { w: 1, h: 2 }, 'small'), 'mini');
+  assert.equal(nearestSize(SIZES, SPANS, { w: 2, h: 2 }, 'mini'), 'mini', 'halfway keeps the size it is');
+  assert.equal(nearestSize(SIZES, apple.spans, { w: 1, h: 1 }, 'small'), 'small', 'the same square on Glass stays small');
 });
 
 test('any run of drags, resizes, adds and removes keeps every layout valid', () => {

@@ -1,0 +1,278 @@
+/* Spotify widget: a round cover with the song under it. Mini (one column by two
+   rows, the strip beside the clock) is just that; small adds the header, medium
+   puts the words beside the cover, and large adds the album and a playhead under a
+   big cover. The cover is sized from its slot with container units, so it's always
+   the biggest circle that fits whatever size the widget is. */
+
+.spotify-widget__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-height: 0;
+}
+
+.spotify-widget__cover-slot {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+.spotify-widget__cover {
+  position: relative;
+  width: min(100cqw, 100cqh);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--fill-strong);
+  box-shadow: 0 0 0 1px var(--hairline);
+  transition: opacity 0.3s var(--ease-out);
+}
+
+.spotify-widget--paused .spotify-widget__cover {
+  opacity: 0.55;
+}
+
+.spotify-widget__placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+
+.spotify-widget__placeholder svg {
+  width: 46%;
+  height: 46%;
+}
+
+.spotify-widget__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.spotify-widget__text {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.spotify-widget__title,
+.spotify-widget__artist,
+.spotify-widget__album {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.spotify-widget__title {
+  font-size: var(--fs-item);
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.spotify-widget__artist {
+  margin-top: 0.15rem;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-2);
+}
+
+.spotify-widget__album {
+  margin-top: 0.15rem;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--text-2);
+}
+
+.spotify-widget__hint {
+  margin: 0.3rem 0 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.spotify-widget__connect {
+  position: relative;
+  z-index: 2;
+  min-width: var(--hit);
+  min-height: var(--hit);
+  margin-top: 0.8rem;
+  padding: 0 1.4rem;
+  border-radius: var(--radius-pill);
+  border: var(--control-border);
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.spotify-widget__connect:active {
+  background: var(--accent-pressed);
+}
+
+.spotify-widget__connect:disabled {
+  opacity: 0.6;
+}
+
+/* Playhead: moved by the widget's 1s timer, only ever with transform. */
+.spotify-widget__playhead {
+  align-self: stretch;
+  margin-top: 1rem;
+}
+
+.spotify-widget__bar {
+  display: block;
+  height: 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--fill-strong);
+  overflow: hidden;
+}
+
+.spotify-widget__fill {
+  display: block;
+  height: 100%;
+  background: var(--widget-accent, var(--accent));
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.spotify-widget__times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4rem;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="blocks"] .spotify-widget__cover {
+  box-shadow: 0 0 0 0.2rem var(--line);
+}
+
+[data-theme="blocks"] :is(.spotify-widget__bar, .spotify-widget__connect) {
+  border-radius: 0;
+}
+
+/* Mini: about 130px wide. The cover fills the width, the song wraps under it
+   (20px, the smallest type on the board), and the pair sits in the middle. */
+
+.widget--mini.spotify-widget {
+  padding: 1rem 0.7rem;
+}
+
+.widget--mini .widget-head,
+.widget--mini :is(.spotify-widget__album, .spotify-widget__hint, .spotify-widget__playhead) {
+  display: none;
+}
+
+.widget--mini .spotify-widget__body {
+  justify-content: center;
+  gap: 0.8rem;
+}
+
+.widget--mini .spotify-widget__cover-slot {
+  flex: none;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.widget--mini .spotify-widget__title {
+  -webkit-line-clamp: 4;
+  font-size: var(--fs-caption);
+  line-height: 1.2;
+}
+
+.widget--mini .spotify-widget__artist {
+  -webkit-line-clamp: 3;
+  margin-top: 0.3rem;
+  font-size: var(--fs-caption);
+}
+
+.widget--mini .spotify-widget__connect {
+  align-self: stretch;
+  padding: 0;
+  font-size: var(--fs-caption);
+}
+
+/* Small: the header, the cover and one line each for the song and who it's by. */
+
+.widget--small :is(.spotify-widget__album, .spotify-widget__playhead) {
+  display: none;
+}
+
+/* Medium: the cover on the left, the words beside it. */
+
+.widget--medium .spotify-widget__body {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 1.4rem;
+}
+
+.widget--medium .spotify-widget__cover-slot {
+  flex: 0 0 44%;
+}
+
+.widget--medium .spotify-widget__text {
+  flex: 1;
+  justify-content: center;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.widget--medium .spotify-widget__title {
+  -webkit-line-clamp: 2;
+  font-size: var(--fs-title);
+}
+
+/* Large: a big cover, then the song, the artist, the album and the playhead. */
+
+.widget--large .spotify-widget__body {
+  gap: 1.4rem;
+}
+
+.widget--large .spotify-widget__title {
+  -webkit-line-clamp: 2;
+  font-size: 2.2rem;
+  line-height: 1.15;
+}
+
+.widget--large .spotify-widget__artist {
+  margin-top: 0.4rem;
+  font-size: var(--fs-item);
+}
+
+.widget--large .spotify-widget__playhead {
+  margin-top: 1.4rem;
+}
+
+/* Glass: mini is a small square there (LAYOUTS.apple), so it's laid out like
+   small but without the header. */
+
+:root[data-theme="apple"] .widget--mini .spotify-widget__cover-slot {
+  flex: 1 1 0;
+  width: auto;
+  aspect-ratio: auto;
+}
+
+:root[data-theme="apple"] .widget--mini .spotify-widget__title,
+:root[data-theme="apple"] .widget--mini .spotify-widget__artist {
+  -webkit-line-clamp: 1;
+}

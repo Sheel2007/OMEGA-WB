@@ -22,7 +22,7 @@ const PEEK_REM = 3;
 const SETTLE_MS = 220;
 const COMPACT = '(max-width: 900px), (max-height: 560px)';
 const WIDGETS_SELECTOR = '.home-page > .widget, .home-page > .home-slot';
-const SIZE_LABELS = { small: 'Small', medium: 'Medium', large: 'Large' };
+const SIZE_LABELS = { mini: 'Mini', small: 'Small', medium: 'Medium', large: 'Large' };
 
 // onChange(editing) is called when edit mode starts or ends.
 export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWidget, onAddWidgetRequest, onChange }) {

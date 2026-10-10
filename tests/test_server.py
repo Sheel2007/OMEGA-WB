@@ -5,6 +5,7 @@ import tempfile
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from board.calendar import CalendarSources, CalendarStore
@@ -15,11 +16,13 @@ from board.store_products import StoreProducts
 from board.lights import Lights, settings_from
 from board.notes import NotesBoard
 from board.roommate_games import RoommateGames
-from board.server import BoardServer, phone_address
+from board.server import BoardHandler, BoardServer, phone_address
+from board.spotify import NowPlaying, SpotifyAccount
 from board.store import ChangeFeed
 from board.products import ProductsUnavailable
 from board.weather import WeatherUnavailable
 from tests.test_lights import BEDROOM, DEVICES, FakeClient
+from tests.test_spotify import FakeSpotify
 
 
 class FakeWeather:
@@ -104,6 +107,8 @@ class ServerTest(unittest.TestCase):
         cls.lights.handle_connect()
         cls.lights.handle_message("zigbee2mqtt/bridge/state", b'{"state":"online"}')
         cls.lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
+        cls.spotify_api = FakeSpotify()
+        cls.spotify = NowPlaying(SpotifyAccount("client-1", transport=cls.spotify_api))
         cls.server = BoardServer(
             ("127.0.0.1", 0),
             notes=NotesBoard(os.path.join(cls.tmp.name, "data", "notes.json"), feed=feed),
@@ -121,6 +126,7 @@ class ServerTest(unittest.TestCase):
             product_images=ProductImages(os.path.join(cls.tmp.name, "data", "grocery-images"), cls.products,
                                          fetch=lambda url: JPEG),
             photos=cls.photos,
+            spotify=cls.spotify,
             web_dir=web,
             location={"latitude": 1.5, "longitude": 2},
         )
@@ -239,11 +245,11 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 7)
+            events = self._read_events(stream, 8)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
-                             {"notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery"})
+                             {"notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/notes/add", {"text": "live note"})
@@ -440,6 +446,34 @@ class ServerTest(unittest.TestCase):
         _status, _headers, raw = self.request("/api/calendar/google/done?error=%3Cscript%3Ealert(1)%3C/script%3E")
         self.assertNotIn(b"<script>", raw)
         self.assertIn(b"&lt;script&gt;", raw)
+
+    def test_spotify_signs_in_on_the_board_and_comes_back_where_it_started(self):
+        status, body = self.post("/api/spotify/link", {"back": "http://localhost:%d/?kiosk=1" % self.server.server_address[1]})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["redirect"], "http://127.0.0.1:%d/api/spotify/done" % self.server.server_address[1])
+        state = urllib.parse.parse_qs(urllib.parse.urlsplit(body["url"]).query)["state"][0]
+        status, _headers, raw = self.request("/api/spotify/done?code=c&state=%s" % urllib.parse.quote(state))
+        self.assertIn(b"Spotify connected", raw)
+        self.assertIn(b"/?kiosk=1", raw)
+        status, _headers, raw = self.request("/api/spotify")
+        self.assertEqual(json.loads(raw)["account"], "Sam")
+        status, body = self.post("/api/spotify/unlink", {})
+        self.assertEqual((status, body["linked"]), (200, False))
+
+    def test_spotify_only_returns_to_the_board_itself(self):
+        port = self.server.server_address[1]
+        page = BoardHandler._loopback_page
+        self.assertEqual(page("http://127.0.0.1:%d/#/app/x" % port, port), "http://127.0.0.1:%d/#/app/x" % port)
+        self.assertEqual(page("http://evil.example:%d/" % port, port), "/")
+        self.assertEqual(page("http://localhost:1/", port), "/")
+        self.assertEqual(page("javascript:alert(1)", port), "/")
+        self.assertEqual(page(None, port), "/")
+
+    def test_spotify_covers_are_only_ones_the_board_has_shown(self):
+        status, _headers, _raw = self.request("/api/spotify/art?id=nope")
+        self.assertEqual(status, 400)
+        status, _headers, _raw = self.request("/api/spotify/art?id=" + "c" * 40)
+        self.assertEqual(status, 404)
 
     def test_weather_forecast(self):
         status, _, raw = self.request("/api/weather")

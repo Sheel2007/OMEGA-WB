@@ -19,6 +19,7 @@ from .grocery_images import MAX_PHOTO_BYTES
 from .kiosk import is_local_address
 from .lights import LightsUnavailable
 from .products import ProductsUnavailable, fold, query_text
+from .spotify import NowPlaying, SpotifyAccount, SpotifyError
 from .store import NotFound, ValidationError
 from .weather import WeatherUnavailable
 
@@ -42,6 +43,10 @@ QR_TARGETS = {"google-calendar": "https://calendar.google.com/calendar/u/0/r/eve
 # Where Google sends the browser back to after someone signs in, and the word that
 # means "keep this event on the board rather than on a Google calendar".
 GOOGLE_REDIRECT_PATH = "/api/calendar/google/done"
+# The same for Spotify. Register http://127.0.0.1:<port> plus this in the Spotify app.
+SPOTIFY_REDIRECT_PATH = "/api/spotify/done"
+# Names the board's own browser can be at, which a Spotify sign-in may return to.
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 BOARD_CALENDAR = "board"
 # One QR code per app, drawn once; the handful of apps that ask for one.
 MAX_QR_CACHE = 8
@@ -99,14 +104,16 @@ class BoardServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, *, notes, calendar, calendar_sources, google, feed, weather, kiosk,
-                 lights, roommate_games, grocery, products, store_products, product_images, photos, web_dir=WEB_DIR,
-                 location=None, public_url=None):
+                 lights, roommate_games, grocery, products, store_products, product_images, photos, spotify=None,
+                 web_dir=WEB_DIR, location=None, public_url=None):
         self.grocery = grocery
         self.products = products
         self.store_products = store_products
         self.product_images = product_images
         self.photos = photos
         self.lights = lights
+        # Left out, the widget just says Spotify isn't set up.
+        self.spotify = spotify or NowPlaying(SpotifyAccount())
         self.roommate_games = roommate_games
         self.notes = notes
         self.calendar = calendar
@@ -129,7 +136,7 @@ class BoardServer(ThreadingHTTPServer):
         """Stores whose state is pushed over /api/events, by event name."""
         return {"notes": self.notes, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
-                "roommate-games": self.roommate_games, "grocery": self.grocery}
+                "roommate-games": self.roommate_games, "grocery": self.grocery, "spotify": self.spotify}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -174,6 +181,7 @@ class BoardServer(ThreadingHTTPServer):
         self.lights.stop()
         self.roommate_games.stop()
         self.store_products.stop()
+        self.spotify.stop()
         super().shutdown()
 
 
@@ -210,6 +218,10 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/grocery/suggest": "grocery_suggest",
         "/api/grocery/image": "grocery_image",
         "/api/grocery/photo": "grocery_photo",
+        "/api/spotify": "spotify_state",
+        # Where Spotify sends people back to after they sign in.
+        "/api/spotify/done": "spotify_done",
+        "/api/spotify/art": "spotify_art",
     }
     # Bodies that aren't JSON: a photo taken on a phone.
     UPLOAD_ROUTES = {
@@ -254,6 +266,8 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/grocery/remove": "grocery_remove",
         "/api/grocery/restore": "grocery_restore",
         "/api/grocery/clear-checked": "grocery_clear_checked",
+        "/api/spotify/link": "spotify_link",
+        "/api/spotify/unlink": "spotify_unlink",
         "/api/kiosk/exit": "kiosk_exit",
     }
 
@@ -289,7 +303,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
             return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
         except NotFound as err:
             return self._send_error(HTTPStatus.NOT_FOUND, str(err))
-        except GoogleError as err:
+        except (GoogleError, SpotifyError) as err:
             return self._send_error(HTTPStatus.BAD_GATEWAY, str(err))
         except LightsUnavailable as err:
             return self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, str(err))
@@ -441,6 +455,32 @@ class BoardHandler(SimpleHTTPRequestHandler):
         except ValueError as err:
             return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
         self._send_json(HTTPStatus.OK, {"photo": name})
+
+    def spotify_state(self):
+        self._send_json(HTTPStatus.OK, self.server.spotify.snapshot())
+
+    def spotify_done(self):
+        """Where Spotify sends the browser back to once someone has signed in."""
+        query = parse_qs(urlsplit(self.path).query)
+        spotify = self.server.spotify
+        back = spotify.return_address()
+        refused = query.get("error", [None])[0]
+        if refused:
+            return self._send_result_page("Spotify didn’t connect", "Spotify said: %s" % refused, back=back)
+        try:
+            spotify.finish_link(query.get("code", [None])[0], query.get("state", [None])[0])
+        except SpotifyError as err:
+            return self._send_result_page("Spotify didn’t connect", str(err), back=back)
+        self._send_result_page("Spotify connected", "Taking you back to the board…", back=back)
+
+    def spotify_art(self):
+        """The cover of something the board has shown playing, from the Pi's copy."""
+        image_id = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+        try:
+            image = self.server.spotify.art(image_id)
+        except ValueError as err:
+            return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
+        self._send_image(image)
 
     def events(self):
         """One stream for every screen: the state of each store now, then again whenever it changes."""
@@ -615,6 +655,18 @@ class BoardHandler(SimpleHTTPRequestHandler):
     def grocery_clear_checked(self, body):
         return self.server.grocery.clear_checked()
 
+    def spotify_link(self, body):
+        """Starts the Spotify sign-in. Only from the board itself: the redirect comes back to it."""
+        self._board_only("Connect Spotify from the board's own screen.")
+        port = self.server.server_address[1]
+        redirect = "http://127.0.0.1:%d%s" % (port, SPOTIFY_REDIRECT_PATH)
+        return {**self.server.spotify.begin_link(redirect, self._loopback_page(body.get("back"), port)),
+                "redirect": redirect}
+
+    def spotify_unlink(self, body):
+        self._board_only("Disconnect Spotify from the board's own screen.")
+        return self.server.spotify.unlink()
+
     def kiosk_exit(self, body):
         self._board_only("Only the board's own screen can exit kiosk mode.")
         running = self.server.kiosk.is_running()
@@ -632,6 +684,22 @@ class BoardHandler(SimpleHTTPRequestHandler):
         # A plain form on some other web page can't send JSON, so this can't be triggered cross-site.
         if self.headers.get_content_type() != "application/json":
             raise RequestError(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Send this as JSON.")
+
+    @staticmethod
+    def _loopback_page(address, port):
+        """`address` if it's a page of this board on the Pi itself, else the home screen.
+
+        The kiosk opens the board at localhost, and Spotify returns to 127.0.0.1; going
+        back to the address it started from keeps its saved layout and ?kiosk=1.
+        """
+        if not isinstance(address, str) or len(address) > 2000:
+            return "/"
+        try:
+            parts = urlsplit(address)
+            same = parts.scheme == "http" and parts.hostname in LOOPBACK_HOSTS and parts.port == port
+        except ValueError:
+            return "/"
+        return address if same else "/"
 
     def _read_json(self):
         try:
@@ -673,17 +741,18 @@ class BoardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _send_result_page(self, title, message):
-        """A plain page for the browser Google just sent back, which then returns to the board."""
+    def _send_result_page(self, title, message, back="/#/app/calendar"):
+        """A plain page for the browser Google or Spotify just sent back, which then returns to the board."""
+        back = html.escape(back)
         body = (
             '<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta http-equiv="refresh" content="3;url=/#/app/calendar"><title>%s</title>'
+            '<meta http-equiv="refresh" content="3;url=%s"><title>%s</title>'
             '<style>body{font:500 20px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;'
             'min-height:100vh;background:#edf1f8;color:#0f1d3f;text-align:center;padding:2rem}'
             'a{color:#17703c}</style></head><body><div><h1>%s</h1><p>%s</p>'
-            '<p><a href="/#/app/calendar">Back to the board</a></p></div></body></html>'
-        ) % (html.escape(title), html.escape(title), html.escape(message))
+            '<p><a href="%s">Back to the board</a></p></div></body></html>'
+        ) % (back, html.escape(title), html.escape(title), html.escape(message), back)
         raw = body.encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")

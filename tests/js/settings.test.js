@@ -51,7 +51,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(ids(again.getPages()), [['notes', 'weather']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 7);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 8);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -167,6 +167,26 @@ test('a version 5 screen picks up Grocery once, and remembers who scans on it', 
   assert.equal(settings.getAsker(), 'Sam');
   settings.setAsker('x'.repeat(31));
   assert.equal(settings.getAsker(), null);
+});
+
+test('a version 7 screen picks up Spotify once, in the first free spot, leaving the rest where they were', () => {
+  const sizes = { calendar: 'small', weather: 'medium', notes: 'small', spotify: 'mini' };
+  const widgets = Object.fromEntries(Object.entries(sizes).map(([id, size]) => [id, { size, sizes: ['mini', 'small', 'medium', 'large'] }]));
+  const board = [[at('weather', 'medium', 9, 1), at('calendar', 'small', 6, 1), at('notes', 'small', 1, 3)]];
+  const storage = saved({ version: 7, theme: 'auto', pages: board, applePages: [[at('calendar', 'small', 3, 1), at('weather', 'medium', 1, 2), at('notes', 'small', 4, 1)]], scenery: true });
+  const make = () => createSettingsService({ storage, widgets, defaultWidgets: ['calendar', 'weather', 'spotify', 'notes'], widgetsSince: { spotify: 8 } });
+
+  const settings = make();
+  const pages = settings.getPages();
+  assert.deepEqual(pages[0].find((item) => item.id === 'spotify'), at('spotify', 'mini', 5, 1), 'the column beside the clock');
+  assert.deepEqual(pages[0].filter((item) => item.id !== 'spotify'), [at('calendar', 'small', 6, 1), at('weather', 'medium', 9, 1), at('notes', 'small', 1, 3)]);
+  settings.setTheme('apple');
+  assert.ok(settings.getWidgets().includes('spotify'), 'on the Glass layout too');
+  assert.deepEqual(settings.getPages()[0].find((item) => item.id === 'calendar'), at('calendar', 'small', 3, 1), 'which keeps its arrangement');
+
+  settings.setTheme('auto');
+  settings.removeWidget('spotify');
+  assert.equal(make().getWidgets().includes('spotify'), false, 'taken off stays off');
 });
 
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {

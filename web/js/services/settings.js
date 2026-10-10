@@ -22,14 +22,17 @@ import {
 } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
 // versions 4, 5 and 6 pick up the ones named in `widgetsSince` (Lights, the
 // Roommate Cup, then Grocery) and nothing else. Up to 6 a page was a list of ids
 // laid out in order; version 7 gives each widget its own place and size, so older
-// pages are laid out once, in their order, at each widget's default size.
-const UPGRADABLE = [1, 2, 3, 4, 5, 6];
+// pages are laid out once, in their order, at each widget's default size. From
+// version 7 on, a widget named in `widgetsSince` (Spotify, in 8) goes in the first
+// free spot that fits it, leaving everything else where it was.
+const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7];
+const FIRST_PLACED_VERSION = 7;
 const MAX_ASKER_LENGTH = 30;
 const RENAMED_THEMES = { retro: 'blocks' };
 
@@ -113,6 +116,17 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
     return next;
   }
 
+  // The same for screens saved with places (version 7 on): each new widget goes in
+  // the first free spot that fits it, on the first page with room.
+  function withNewPlacements(pages, layout, version) {
+    let next = pages;
+    for (const id of defaultWidgets) {
+      if (!known(id) || findWidget(next, id) || (widgetsSince[id] ?? 0) <= version) continue;
+      next = addWidget(next, { id, size: defaultSize(id) }, layout).pages;
+    }
+    return next;
+  }
+
   function load() {
     try {
       const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? 'null');
@@ -120,9 +134,13 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
       if (version !== SCHEMA_VERSION && !UPGRADABLE.includes(version)) return defaults();
       let pages;
       let apple = null;
-      if (version === SCHEMA_VERSION) {
+      if (version >= FIRST_PLACED_VERSION) {
         pages = normalize(saved.pages, LAYOUTS.board, specOf) ?? defaults().pages;
         apple = normalize(saved.applePages, LAYOUTS.apple, specOf);
+        if (version < SCHEMA_VERSION) {
+          pages = withNewPlacements(pages, LAYOUTS.board, version);
+          apple = apple && withNewPlacements(apple, LAYOUTS.apple, version);
+        }
       } else {
         const raw = version === 1 ? [saved.widgets] : saved.pages;
         pages = fromOrder(withNewWidgets(cleanPages(raw) ?? [defaultWidgets.filter(known)], version), defaultSize, LAYOUTS.board);

@@ -10,11 +10,13 @@
 // The Apple theme lays pages out in iOS widget units instead (LAYOUTS.apple): a
 // 4 × 2 grid of near-square cells, with the clock in one medium slot.
 //
-// Widgets come in three sizes (SIZES); each app says which it supports in meta.js.
+// Widgets come in four sizes (SIZES); each app says which it supports in meta.js.
+// Mini is one column by two rows: the strip a 12-column page has left over beside
+// the clock and three- and four-column widgets, which nothing else fits in.
 
-export const SIZES = ['small', 'medium', 'large'];
+export const SIZES = ['mini', 'small', 'medium', 'large'];
 export const GRID = { cols: 12, rows: 4 };
-export const SPANS = { small: { w: 3, h: 2 }, medium: { w: 4, h: 2 }, large: { w: 5, h: 4 } };
+export const SPANS = { mini: { w: 1, h: 2 }, small: { w: 3, h: 2 }, medium: { w: 4, h: 2 }, large: { w: 5, h: 4 } };
 // The clock only needs room for the time and the date under it; the rest of the
 // top row is left for widgets, so the five the board ships with share page 1.
 export const CLOCK_AREA = { col: 1, row: 1, w: 4, h: 2 };
@@ -24,7 +26,8 @@ export const LAYOUTS = {
   apple: {
     id: 'apple',
     grid: { cols: 4, rows: 2 },
-    spans: { small: { w: 1, h: 1 }, medium: { w: 2, h: 1 }, large: { w: 2, h: 2 } },
+    // iOS has nothing narrower than its small widget, so mini is a small square here.
+    spans: { mini: { w: 1, h: 1 }, small: { w: 1, h: 1 }, medium: { w: 2, h: 1 }, large: { w: 2, h: 2 } },
     clock: { col: 1, row: 1, w: 2, h: 1 },
   },
 };

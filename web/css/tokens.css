@@ -63,6 +63,7 @@ html {
   --icon-lights: linear-gradient(160deg, #4b5cb8 0%, #26306e 100%);
   --icon-roommate-games: linear-gradient(160deg, #25b8a2 0%, #0f7f73 55%, #0b625a 100%);
   --icon-grocery: linear-gradient(155deg, #ff8fb4 0%, #f2477f 52%, #c8235e 100%);
+  --icon-spotify: linear-gradient(155deg, #3fe07a 0%, #1db954 50%, #138a3e 100%);
 
   /* Roommate Cup medals: the same in every theme, each with its own dark text (7:1 or better). */
   --medal-gold: #f4c534;
@@ -275,6 +276,7 @@ html {
   --icon-calendar: #6d4df6;
   --icon-lights: #3a4590;
   --icon-roommate-games: #0f7a76;
+  --icon-spotify: #178a43;
 
   --event-blue: #2f5fd6;
   --event-purple: #6a33c8;
@@ -439,6 +441,7 @@ html {
   --accent-lights: #ffb340;
   --accent-roommate-games: #5ee0c4;
   --accent-grocery: #ff8cba;
+  --accent-spotify: #4fdc84;
 
   --note-text: #17140a;
   --note-yellow: #d8c46a;

@@ -5,7 +5,7 @@ looks like an iPad home screen: a big clock, widgets, and every app a swipe up a
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has seven widgets:
+It has eight widgets:
 
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
   Google Calendars. Anyone can add an event on the board or from their phone and
@@ -24,6 +24,10 @@ It has seven widgets:
 - **Grocery.** What to pick up at Lidl and Trader Joe's: scan a product's barcode
   or QR code with your phone, or search for it, and it goes on the list with its
   price, how many, and who's asking. The widget shows the total, split by store.
+- **Spotify.** What's playing on the household's Spotify account: the cover in a
+  circle with the song's name under it. It starts as a slim one-column widget that
+  fits the gap beside the clock, and grows to show the artist, album and how far
+  through the song it is.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
@@ -305,6 +309,39 @@ The sign-in is saved in `data/google.json`, readable only by the user the server
 runs as. **Disconnect Google** in the app removes it; you can also revoke the
 board from your [Google account's app list](https://myaccount.google.com/permissions).
 
+### Spotify
+
+The Spotify widget shows what one Spotify account is playing (on any device:
+a phone, a speaker, a laptop). It only reads; it never controls playback.
+
+1. Go to the [Spotify developer dashboard](https://developer.spotify.com/dashboard),
+   create an app, tick **Web API**, and add this **Redirect URI** (with your port
+   if it isn't 8080):
+
+   ```
+   http://127.0.0.1:8080/api/spotify/done
+   ```
+
+2. Copy the app's **Client ID** into `config.json` (no secret needed):
+
+   ```json
+   { "spotify": { "client_id": "your client id" } }
+   ```
+
+3. Restart the server and tap **Connect** on the Spotify widget *on the board
+   itself*. Sign in, say yes, and Spotify sends you back to the board.
+
+Like Google, connecting has to happen on the board's own screen, because Spotify
+only sends you back to `http://127.0.0.1`. While the app is in Spotify's
+development mode, add the account under **User Management** in the dashboard.
+
+The board asks Spotify what's playing every 5 seconds while something plays and
+every 15 seconds otherwise, and covers are fetched by the Pi and kept in memory.
+The sign-in is saved in `data/spotify.json`, readable only by the user the
+server runs as. To disconnect or switch accounts, remove the app from your
+[Spotify account's apps](https://www.spotify.com/account/apps/); the widget
+then offers **Connect** again.
+
 #### Without an account: read-only subscriptions
 
 If you only want to *see* a calendar, use its **secret address in iCal format**
@@ -461,10 +498,10 @@ tests/                  unit tests (Python unittest + node --test)
 Make a folder `web/js/apps/<id>/` like `notes/`:
 
 - `meta.js` exports `id`, `name`, `description`, `widgetSize` (the size it starts
-  at), `widgetSizes` (every size it can be resized to: `small`, `medium`,
-  `large`), `iconBackground` and `iconGlyph`. The widget has to look right at each
-  size it lists; style them from `.widget--small`, `.widget--medium` and
-  `.widget--large` (see CLAUDE.md).
+  at), `widgetSizes` (every size it can be resized to: `mini`, `small`,
+  `medium`, `large`), `iconBackground` and `iconGlyph`. The widget has to look
+  right at each size it lists; style them from `.widget--mini`, `.widget--small`,
+  `.widget--medium` and `.widget--large` (see CLAUDE.md).
 - `widget.js` exports `createWidget(context)`, which returns `{ node, destroy }`.
   `destroy()` must undo every subscription, timer and observer the widget made.
 - `app.js` (optional) exports `mount(root, context)` for a full-screen app.

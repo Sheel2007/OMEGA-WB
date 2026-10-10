@@ -39,7 +39,7 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, onRen
     return widget;
   }
 
-  // Each widget says how big it is with widget--small, widget--medium or widget--large.
+  // Each widget says how big it is with widget--mini, widget--small, widget--medium or widget--large.
   function setSize(node, size) {
     for (const other of SIZES) node.classList.toggle(`widget--${other}`, other === size);
     node.dataset.size = size;

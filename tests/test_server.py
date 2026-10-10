@@ -9,12 +9,16 @@ import urllib.request
 
 from board.calendar import CalendarSources, CalendarStore
 from board.google import GoogleAccount
+from board.grocery import GroceryList
+from board.grocery_images import Photos, ProductImages
+from board.store_products import StoreProducts
 from board.lights import Lights, settings_from
 from board.notes import NotesBoard
 from board.roommate_games import RoommateGames
 from board.server import BoardServer, phone_address
 from board.shopping import ShoppingList
 from board.store import ChangeFeed
+from board.products import ProductsUnavailable
 from board.weather import WeatherUnavailable
 from tests.test_lights import BEDROOM, DEVICES, FakeClient
 
@@ -27,6 +31,37 @@ class FakeWeather:
         if self.error:
             raise WeatherUnavailable(self.error)
         return {"unit": "F", "current": {"temperature": 70, "code": 0, "is_day": True}, "daily": [], "stale": False}
+
+
+class FakeProducts:
+    def __init__(self):
+        self.down = False
+        self.looked_up = []
+
+    def _check(self):
+        if self.down:
+            raise ProductsUnavailable("Can't reach the product database right now.")
+
+    def lookup(self, code):
+        if code != "00016285" and len(code) not in (12, 13):
+            raise ValueError("That isn't a barcode.")
+        self._check()
+        self.looked_up.append(code)
+        return {"code": code, "name": "Marinara Sauce", "brand": "Trader Joe's", "size": "25 oz",
+                "store": "traderjoes", "price": 299, "found": True, "source": "online"}
+
+    def image_url(self, code):
+        return "https://images.openfoodfacts.org/images/products/%s/front_en.200.jpg" % code
+
+    def search(self, query, store=None):
+        self._check()
+        return [{"code": "00090769", "name": "Organic marinara sauce", "brand": "Trader Joe's", "size": None,
+                 "store": "traderjoes", "price": None, "source": "online"},
+                {"code": "00016285", "name": "Marinara Sauce", "brand": "Trader Joe's", "size": None,
+                 "store": "traderjoes", "price": None, "source": "online"}]
+
+
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 60
 
 
 class FakeKiosk:
@@ -58,6 +93,13 @@ class ServerTest(unittest.TestCase):
         cls.sources = CalendarSources(account=cls.google, feed=feed)
         cls.weather = FakeWeather()
         cls.kiosk = FakeKiosk()
+        cls.products = FakeProducts()
+        cls.store_products = StoreProducts(fetch=lambda url: {"page_count": 1, "hits": [
+            {"code": "00016285", "product_name": "Marinara Sauce", "brands": "Trader Joe's"}]}, pause=0)
+        cls.store_products.refresh()
+        cls.photos = Photos(os.path.join(cls.tmp.name, "data", "grocery-photos"), in_use=lambda: cls.grocery.photos_in_use())
+        cls.grocery = GroceryList(os.path.join(cls.tmp.name, "data", "grocery.json"), photo_exists=cls.photos.exists,
+                                  feed=feed)
         cls.lights = Lights(os.path.join(cls.tmp.name, "data", "lights.json"), mqtt=settings_from(True), feed=feed,
                             client_factory=FakeClient)
         cls.lights.handle_connect()
@@ -75,6 +117,12 @@ class ServerTest(unittest.TestCase):
             kiosk=cls.kiosk,
             lights=cls.lights,
             roommate_games=RoommateGames(os.path.join(cls.tmp.name, "data", "roommate-games.json"), feed=feed),
+            grocery=cls.grocery,
+            products=cls.products,
+            store_products=cls.store_products,
+            product_images=ProductImages(os.path.join(cls.tmp.name, "data", "grocery-images"), cls.products,
+                                         fetch=lambda url: JPEG),
+            photos=cls.photos,
             web_dir=web,
             location={"latitude": 1.5, "longitude": 2},
         )
@@ -220,11 +268,11 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 7)
+            events = self._read_events(stream, 8)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
-                             {"shopping", "notes", "calendar", "calendar-sources", "lights", "roommate-games"})
+                             {"shopping", "notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/shopping/add", {"name": "live update"})
@@ -285,6 +333,93 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(status, 404)
         status, body = self.post("/api/roommate-games/schedule", {"day": 9})
         self.assertEqual(status, 400)
+
+    def test_grocery_add_update_check_and_clear(self):
+        status, body = self.post("/api/grocery/add", {"name": "Marinara Sauce", "code": "00016285", "store": "traderjoes",
+                                                       "price": 299, "by": "Sam", "qty": 2})
+        self.assertEqual(status, 200)
+        item = body["item"]
+        self.assertEqual((item["price"], item["qty"], item["by"]), (299, 2, "Sam"))
+        status, body = self.post("/api/grocery/update", {"id": item["id"], "price": 349})
+        self.assertEqual(body["item"]["price"], 349)
+        status, body = self.post("/api/grocery/check", {"id": item["id"], "done": True})
+        self.assertTrue(body["item"]["done"])
+        status, body = self.post("/api/grocery/clear-checked", {})
+        self.assertEqual(body["removed"], [item["id"]])
+        status, body = self.post("/api/grocery/restore", {"ids": [item["id"]]})
+        self.assertEqual(body["restored"], [item["id"]])
+        status, body = self.post("/api/grocery/remove", {"id": item["id"]})
+        self.assertEqual(status, 200)
+        status, body = self.post("/api/grocery/add", {"name": "Eggs", "price": 1.5})
+        self.assertEqual(status, 400)
+
+    def test_grocery_lookup_uses_what_the_board_remembers_before_going_online(self):
+        self.post("/api/grocery/add", {"name": "Our usual bread", "code": "4056489011293", "price": 189})
+        status, _, raw = self.request("/api/grocery/lookup?code=4056489011293")
+        self.assertEqual(status, 200)
+        product = json.loads(raw)["product"]
+        self.assertEqual((product["name"], product["price"], product["source"]), ("Our usual bread", 189, "board"))
+        self.assertNotIn("4056489011293", self.products.looked_up)
+
+        status, _, raw = self.request("/api/grocery/lookup?code=036000291452")
+        self.assertEqual(json.loads(raw)["product"]["source"], "online")
+        status, _, raw = self.request("/api/grocery/lookup?code=123")
+        self.assertEqual(status, 400)
+        self.products.down = True
+        try:
+            status, _, raw = self.request("/api/grocery/lookup?code=036000291452")
+            self.assertEqual(status, 503)
+        finally:
+            self.products.down = False
+
+    def test_grocery_search_puts_remembered_things_first_and_works_offline(self):
+        self.post("/api/grocery/add", {"name": "Marinara Sauce", "code": "00016285", "store": "traderjoes"})
+        status, _, raw = self.request("/api/grocery/search?q=marinara&store=traderjoes")
+        body = json.loads(raw)
+        self.assertEqual([p["code"] for p in body["known"]], ["00016285"])
+        self.assertEqual([p["code"] for p in body["online"]], ["00090769"])
+        self.assertFalse(body["offline"])
+        self.products.down = True
+        try:
+            body = json.loads(self.request("/api/grocery/search?q=marinara")[2])
+            self.assertTrue(body["offline"])
+            self.assertEqual(len(body["known"]), 1)
+        finally:
+            self.products.down = False
+        status, _, _ = self.request("/api/grocery/search?q=x&store=aldi")
+        self.assertEqual(status, 400)
+
+    def test_grocery_suggest_and_product_pictures(self):
+        status, _, raw = self.request("/api/grocery/suggest?q=marin")
+        body = json.loads(raw)
+        self.assertEqual((body["online"][0]["name"], body["ready"]), ("Marinara Sauce", True))
+        status, headers, raw = self.request("/api/grocery/image?code=00016285")
+        self.assertEqual((status, headers["Content-Type"], raw), (200, "image/jpeg", JPEG))
+        self.assertIn("max-age", headers["Cache-Control"])
+        status, _, _ = self.request("/api/grocery/image?code=nope")
+        self.assertEqual(status, 400)
+
+    def test_grocery_photos_upload_and_belong_to_items(self):
+        req = urllib.request.Request(self.base + "/api/grocery/photo", data=JPEG, method="POST",
+                                     headers={"Content-Type": "image/jpeg"})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            photo = json.loads(res.read())["photo"]
+        status, body = self.post("/api/grocery/add", {"name": "Homemade jam", "photo": photo})
+        self.assertEqual((status, body["item"]["photo"]), (200, photo))
+        status, headers, raw = self.request("/api/grocery/photo?name=" + photo)
+        self.assertEqual((status, raw), (200, JPEG))
+        status, body = self.post("/api/grocery/add", {"name": "Toast", "photo": "0123456789abcdef.jpg"})
+        self.assertEqual(status, 400)
+        status, _, _ = self.request("/api/grocery/photo?name=../secret.txt")
+        self.assertEqual(status, 404)
+        bad = urllib.request.Request(self.base + "/api/grocery/photo", data=b"not a picture", method="POST",
+                                     headers={"Content-Type": "image/jpeg"})
+        try:
+            urllib.request.urlopen(bad, timeout=5)
+            self.fail("a non-picture was accepted")
+        except urllib.error.HTTPError as err:
+            self.assertEqual(err.code, 400)
+            err.close()
 
     def test_notes_validation_is_400(self):
         status, body = self.post("/api/notes/add", {"text": " "})

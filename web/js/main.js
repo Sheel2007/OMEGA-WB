@@ -10,6 +10,7 @@ import { createBoardMenu } from './menu.js';
 import { exitKiosk, fetchInfo } from './services/board.js';
 import { createCalendarService } from './services/calendar.js';
 import { createGamesStore } from './services/games.js';
+import { createGroceryService } from './services/grocery.js';
 import { createLightsService } from './services/lights.js';
 import { createLiveConnection } from './services/live.js';
 import { createNotesService } from './services/notes.js';
@@ -39,7 +40,7 @@ const now = () => fixedTime ?? new Date();
 // Services: the only code that talks to the server or to storage.
 
 const live = createLiveConnection({
-  streams: ['shopping', 'notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games'],
+  streams: ['shopping', 'notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery'],
   onServerRestart: () => location.reload(),
 });
 const services = {
@@ -48,6 +49,7 @@ const services = {
   calendar: createCalendarService({ live }),
   lights: createLightsService({ live }),
   roommateGames: createRoommateGamesService({ live }),
+  grocery: createGroceryService({ live }),
   weather: createWeatherService(),
   games: createGamesStore(),
   settings: createSettingsService({
@@ -292,6 +294,7 @@ services.notes.refresh();
 services.calendar.refresh();
 services.lights.refresh();
 services.roommateGames.refresh();
+services.grocery.refresh();
 
 if (kiosk) {
   initKiosk({

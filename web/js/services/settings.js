@@ -1,16 +1,17 @@
 // SettingsService: this screen's own choices (theme, which widgets are on which
-// home page, moving scenery), kept in localStorage. Each phone and the board can
-// set these differently.
+// home page, moving scenery, and who's using a phone's grocery scanner), kept in
+// localStorage. Each phone and the board can set these differently.
 import { THEME_MODES } from '../sky.js';
 import { insertWidget, moveWidget, paginate, removeWidget, SPANS } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
-// versions 4 and 5 pick up the ones named in `widgetsSince` (Lights, then the
-// Roommate Cup) and nothing else.
-const UPGRADABLE = [1, 2, 3, 4];
+// versions 4, 5 and 6 pick up the ones named in `widgetsSince` (Lights, the
+// Roommate Cup, then Grocery) and nothing else.
+const UPGRADABLE = [1, 2, 3, 4, 5];
+const MAX_ASKER_LENGTH = 30;
 const RENAMED_THEMES = { retro: 'blocks' };
 
 function browserStorage() {
@@ -27,7 +28,7 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
   const layout = (pages) => paginate(pages, spanOf).pages;
   const listeners = new Set();
 
-  const defaults = () => ({ theme: 'auto', pages: layout([defaultWidgets.filter(known)]), scenery: true });
+  const defaults = () => ({ theme: 'auto', pages: layout([defaultWidgets.filter(known)]), scenery: true, asker: null });
 
   // Drops anything unknown, malformed or repeated (across all pages), keeping the
   // order it was saved in. Laying it out comes after, so an upgrade can slot a new
@@ -43,6 +44,12 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
   function validPages(raw) {
     const pages = cleanPages(raw);
     return pages && layout(pages);
+  }
+
+  function validAsker(name) {
+    if (typeof name !== 'string') return null;
+    const clean = name.trim().replace(/\s+/g, ' ');
+    return clean && clean.length <= MAX_ASKER_LENGTH ? clean : null;
   }
 
   function validTheme(theme) {
@@ -81,6 +88,7 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
         theme: validTheme(saved.theme),
         pages: version === SCHEMA_VERSION ? pages : layout(withNewWidgets(pages, version)),
         scenery: typeof saved.scenery === 'boolean' ? saved.scenery : true,
+        asker: validAsker(saved.asker),
       };
     } catch {
       return defaults();
@@ -103,6 +111,7 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
       pages: current.pages.map((ids) => [...ids]),
       widgets: current.pages.flat(),
       scenery: current.scenery,
+      asker: current.asker,
     };
   }
 
@@ -123,6 +132,8 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
     getPages: () => get().pages,
     getWidgets: () => current.pages.flat(),
     getScenery: () => current.scenery,
+    // Who adds things to the grocery list from this screen, or null to ask each time.
+    getAsker: () => current.asker,
 
     setTheme(theme) {
       if (THEME_MODES.includes(theme)) update({ theme });
@@ -130,6 +141,10 @@ export function createSettingsService({ storage = browserStorage(), widgetSizes,
 
     setScenery(on) {
       update({ scenery: Boolean(on) });
+    },
+
+    setAsker(name) {
+      update({ asker: validAsker(name) });
     },
 
     // Goes on `page` if given; otherwise on the first page with room for it (or a new

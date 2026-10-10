@@ -38,6 +38,9 @@
     }
   },
 
+  "_grocery": "Optional. The currency grocery prices are in, and the country whose Trader Joe's and Lidl products the search predicts from (USD and united-states unless you say otherwise).",
+  "grocery": { "currency": "USD", "country": "united-states" },
+
   "_calendars": "Read-only, and needs no account: each calendar's 'Secret address in iCal format'. Use these instead of (or as well as) the Google account above.",
   "calendars": [
     { "name": "Holidays", "url": "https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics", "color": "orange" }

@@ -119,7 +119,7 @@ export const STAPLES = [
   'Paper towels', 'Dish soap', 'Butter', 'Rice', 'Pasta', 'Onions',
 ];
 
-const COMMON = [
+export const COMMON = [
   'Apples', 'Avocados', 'Bacon', 'Bagels', 'Bananas', 'Basil', 'Beer', 'Bell peppers', 'Black beans',
   'Blueberries', 'Bread', 'Broccoli', 'Butter', 'Carrots', 'Cereal', 'Cheddar', 'Chicken breast', 'Chickpeas',
   'Chips', 'Chocolate', 'Cilantro', 'Coffee', 'Cream cheese', 'Cucumbers', 'Dish soap', 'Eggs', 'Flour',

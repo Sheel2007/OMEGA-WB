@@ -63,6 +63,7 @@ html {
   --icon-calendar: linear-gradient(155deg, #a99bff 0%, #6d4df6 52%, #5132d4 100%);
   --icon-lights: linear-gradient(160deg, #4b5cb8 0%, #26306e 100%);
   --icon-roommate-games: linear-gradient(160deg, #25b8a2 0%, #0f7f73 55%, #0b625a 100%);
+  --icon-grocery: linear-gradient(155deg, #ff8fb4 0%, #f2477f 52%, #c8235e 100%);
 
   /* Roommate Cup medals: the same in every theme, each with its own dark text (7:1 or better). */
   --medal-gold: #f4c534;
@@ -133,6 +134,21 @@ html {
   --lamp-off: var(--fill-strong);
   --lamp-off-glyph: #5b6580;
   --lamp-off-dot: #ffffff;
+
+  /* Grocery's glass. No backdrop blur (too much for the Pi's GPU): a translucent
+     fill, a bright top edge and a soft sheen give the frosted look instead. Kept
+     opaque enough that --text-3 stays above 4.5:1 over the brightest sky. */
+  --glass: rgb(255 255 255 / 0.72);
+  --glass-strong: rgb(255 255 255 / 0.86);
+  --glass-fill: rgb(255 255 255 / 0.55);
+  --glass-edge: rgb(255 255 255 / 0.9);
+  --glass-line: rgb(15 29 63 / 0.1);
+  --glass-sheen: linear-gradient(165deg, rgb(255 255 255 / 0.6) 0%, rgb(255 255 255 / 0.12) 38%, rgb(255 255 255 / 0) 60%);
+  --glass-shadow: 0 0.1rem 0.25rem rgb(16 32 72 / 0.06), 0 1.2rem 3rem rgb(16 32 72 / 0.16);
+  --grocery-accent: #c8235e;
+  --grocery-accent-pressed: #a51b4c;
+  --store-traderjoes: #b3261e;
+  --store-lidl: #1f5fbf;
 }
 
 :root[data-theme="dark"] {
@@ -185,6 +201,18 @@ html {
   --lamp-off: rgb(255 255 255 / 0.1);
   --lamp-off-glyph: #c4c9dd;
   --lamp-off-dot: #232a52;
+
+  --glass: rgb(22 28 60 / 0.78);
+  --glass-strong: rgb(28 34 70 / 0.9);
+  --glass-fill: rgb(255 255 255 / 0.08);
+  --glass-edge: rgb(255 255 255 / 0.2);
+  --glass-line: rgb(255 255 255 / 0.12);
+  --glass-sheen: linear-gradient(165deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.03) 40%, rgb(255 255 255 / 0) 60%);
+  --glass-shadow: 0 0.1rem 0.3rem rgb(0 0 0 / 0.22), 0 1.2rem 3rem rgb(0 0 0 / 0.36);
+  --grocery-accent: #ff8fb8;
+  --grocery-accent-pressed: #ffb3cf;
+  --store-traderjoes: #ff8a80;
+  --store-lidl: #8ab4ff;
 }
 
 /* Blocks: an original blocky world (no game's real art or names). Flat colours,
@@ -269,6 +297,20 @@ html {
   --lamp-off: rgb(29 29 29 / 0.12);
   --lamp-off-glyph: #3a3a3a;
   --lamp-off-dot: #ece6d6;
+
+  /* Blocks has no glass: solid paper and stone, like every other card. */
+  --glass: var(--surface);
+  --glass-strong: var(--card);
+  --glass-fill: var(--fill);
+  --glass-edge: transparent;
+  --glass-line: var(--hairline);
+  --glass-sheen: none;
+  --glass-shadow: var(--shadow);
+  --grocery-accent: #a3204f;
+  --grocery-accent-pressed: #861a41;
+  --store-traderjoes: #a32617;
+  --store-lidl: #2f5fd6;
+  --icon-grocery: #c8235e;
 }
 
 :root[data-theme="blocks"][data-night="true"] {
@@ -321,6 +363,11 @@ html {
   --lamp-off: rgb(255 255 255 / 0.1);
   --lamp-off-glyph: #cfd1d8;
   --lamp-off-dot: #3a3e4a;
+
+  --grocery-accent: #ff9cc4;
+  --grocery-accent-pressed: #ffc0da;
+  --store-traderjoes: #ff9a91;
+  --store-lidl: #7cb4ff;
 }
 
 @media (max-width: 900px), (max-height: 560px) {

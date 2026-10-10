@@ -13,10 +13,14 @@ import sys
 
 from board.calendar import CalendarChoices, CalendarSources, CalendarStore, local_zone, sources_from
 from board.google import GoogleAccount
+from board.grocery import GroceryList
+from board.grocery_images import Photos, ProductImages
 from board.kiosk import Kiosk
 from board.lights import Lights, settings_from as lights_settings_from
 from board.notes import NotesBoard
 from board.notify import Notifier, settings_from as notify_settings_from
+from board.products import ProductLookup
+from board.store_products import StoreProducts
 from board.roommate_games import RoommateGames
 from board.server import ROOT, BoardServer, lan_address, phone_address
 from board.shopping import ShoppingList
@@ -50,6 +54,27 @@ def google_from(config, data_folder):
         client.get("client_secret"),
         os.path.join(data_folder, "google.json"),
     )
+
+
+def currency_from(config):
+    """The currency grocery prices are in: a three-letter code such as USD or EUR."""
+    grocery = config.get("grocery") if isinstance(config.get("grocery"), dict) else {}
+    currency = grocery.get("currency", "USD")
+    if isinstance(currency, str) and len(currency) == 3 and currency.isalpha():
+        return currency.upper()
+    logging.warning("Ignoring grocery currency %r in config.json; using USD.", currency)
+    return "USD"
+
+
+def store_products_from(config, data_folder):
+    """The two stores' product list, for the country in config.json (the US unless it says otherwise)."""
+    grocery = config.get("grocery") if isinstance(config.get("grocery"), dict) else {}
+    path = os.path.join(data_folder, "grocery-products.json")
+    try:
+        return StoreProducts(path, country=grocery.get("country", "united-states"))
+    except ValueError as err:
+        logging.warning("%s Using united-states.", err)
+        return StoreProducts(path)
 
 
 def weather_from(config, location):
@@ -90,6 +115,13 @@ def main():
         zone=zone,
         feed=feed,
     )
+    currency = currency_from(config)
+    store_products = store_products_from(config, args.data)
+    products = ProductLookup(currency, catalog=store_products)
+    # Each needs the other: the list checks photos exist, and pruning keeps the ones it uses.
+    photos = Photos(os.path.join(args.data, "grocery-photos"), in_use=lambda: grocery.photos_in_use())
+    grocery = GroceryList(os.path.join(args.data, "grocery.json"), currency=currency, photo_exists=photos.exists,
+                          feed=feed)
     notify = notify_settings_from(config.get("roommate_games"))
     roommate_games = RoommateGames(
         os.path.join(args.data, "roommate-games.json"),
@@ -110,6 +142,11 @@ def main():
         kiosk=Kiosk(),
         lights=lights,
         roommate_games=roommate_games,
+        grocery=grocery,
+        products=products,
+        store_products=store_products,
+        product_images=ProductImages(os.path.join(args.data, "grocery-images"), products),
+        photos=photos,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
     )
@@ -117,6 +154,7 @@ def main():
     sources.start()
     lights.start()
     roommate_games.start()
+    store_products.start()
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -133,6 +171,7 @@ def main():
         server.wake_streams()
         lights.stop()
         roommate_games.stop()
+        store_products.stop()
         server.server_close()
 
 

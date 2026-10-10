@@ -20,7 +20,7 @@ const saved = (value) => memoryStorage({ [STORAGE_KEY]: JSON.stringify(value) })
 
 test('starts from defaults when nothing is saved', () => {
   const settings = createSettingsService(options(memoryStorage()));
-  assert.deepEqual(settings.get(), { theme: 'auto', pages: [['shopping', 'weather']], widgets: ['shopping', 'weather'], scenery: true });
+  assert.deepEqual(settings.get(), { theme: 'auto', pages: [['shopping', 'weather']], widgets: ['shopping', 'weather'], scenery: true, asker: null });
 });
 
 test('saves changes and reads them back on the next load', () => {
@@ -35,7 +35,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(again.getPages(), [['notes', 'weather']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 5);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 6);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -137,6 +137,22 @@ test('a version 4 screen picks up the Roommate Cup once, and keeps Lights off if
   assert.deepEqual(reloaded.getPages(), [['shopping'], ['games']], 'taken off stays off');
 });
 
+test('a version 5 screen picks up Grocery once, and remembers who scans on it', () => {
+  const sizes = { shopping: 'tall', games: 'medium', 'roommate-games': 'medium', grocery: 'tall' };
+  const settings = createSettingsService({
+    storage: saved({ version: 5, theme: 'auto', pages: [['shopping'], ['games', 'roommate-games']], scenery: true }),
+    widgetSizes: sizes,
+    defaultWidgets: ['shopping', 'games', 'roommate-games', 'grocery'],
+    widgetsSince: { 'roommate-games': 5, grocery: 6 },
+  });
+  assert.deepEqual(settings.getPages(), [['shopping'], ['games', 'roommate-games', 'grocery']]);
+  assert.equal(settings.getAsker(), null);
+  settings.setAsker('  Sam  ');
+  assert.equal(settings.getAsker(), 'Sam');
+  settings.setAsker('x'.repeat(31));
+  assert.equal(settings.getAsker(), null);
+});
+
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {
   const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather'], ['games']], scenery: true })));
   assert.equal(settings.addWidget('notes', { page: 1 }), 1);
@@ -173,7 +189,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   const tampered = createSettingsService(
     options(saved({ version: 3, theme: 'dark', pages: [['notes', 'bogus', 'notes'], ['notes', 7, 'games'], 'x'], scenery: 'yes' })),
   );
-  assert.deepEqual(tampered.get(), { theme: 'dark', pages: [['notes'], ['games']], widgets: ['notes', 'games'], scenery: true });
+  assert.deepEqual(tampered.get(), { theme: 'dark', pages: [['notes'], ['games']], widgets: ['notes', 'games'], scenery: true, asker: null });
 });
 
 test('keeps working in memory when storage is unavailable', () => {

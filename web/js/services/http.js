@@ -26,6 +26,11 @@ export function postJson(path, body) {
   );
 }
 
+// A file (such as a photo) as the whole request body.
+export function postBlob(path, blob) {
+  return request(path, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob }, "That didn't upload. Try again.");
+}
+
 // crypto.randomUUID needs HTTPS; phones reach the board over plain HTTP.
 export function newId() {
   const bytes = crypto.getRandomValues(new Uint8Array(6));

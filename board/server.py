@@ -14,8 +14,11 @@ from urllib.parse import parse_qs, urlsplit
 
 from . import qr
 from .google import GoogleError
+from .grocery import STORES
+from .grocery_images import MAX_PHOTO_BYTES
 from .kiosk import is_local_address
 from .lights import LightsUnavailable
+from .products import ProductsUnavailable, fold, query_text
 from .store import NotFound, ValidationError
 from .weather import WeatherUnavailable
 
@@ -24,6 +27,9 @@ log = logging.getLogger(__name__)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB_DIR = os.path.join(ROOT, "web")
 MAX_BODY_BYTES = 16 * 1024
+# Pictures don't change, so screens may keep them; one with no picture is asked about again later.
+IMAGE_CACHE_SECONDS = 7 * 24 * 60 * 60
+NO_IMAGE_CACHE_SECONDS = 60 * 60
 # Keeps idle event streams alive through routers and lets dead ones get noticed.
 EVENT_PING_SECONDS = 15
 # Lets the "Exit to desktop" response reach the browser before the browser closes.
@@ -93,8 +99,14 @@ class BoardServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, *, shopping, notes, calendar, calendar_sources, google, feed, weather, kiosk,
-                 lights, roommate_games, web_dir=WEB_DIR, location=None, public_url=None):
+                 lights, roommate_games, grocery, products, store_products, product_images, photos, web_dir=WEB_DIR,
+                 location=None, public_url=None):
         self.shopping = shopping
+        self.grocery = grocery
+        self.products = products
+        self.store_products = store_products
+        self.product_images = product_images
+        self.photos = photos
         self.lights = lights
         self.roommate_games = roommate_games
         self.notes = notes
@@ -118,7 +130,7 @@ class BoardServer(ThreadingHTTPServer):
         """Stores whose state is pushed over /api/events, by event name."""
         return {"shopping": self.shopping, "notes": self.notes, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
-                "roommate-games": self.roommate_games}
+                "roommate-games": self.roommate_games, "grocery": self.grocery}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -162,6 +174,7 @@ class BoardServer(ThreadingHTTPServer):
         self.calendar_sources.stop()
         self.lights.stop()
         self.roommate_games.stop()
+        self.store_products.stop()
         super().shutdown()
 
 
@@ -194,6 +207,16 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/weather": "weather_forecast",
         "/api/lights": "lights_state",
         "/api/roommate-games": "roommate_games_state",
+        "/api/grocery": "grocery_state",
+        "/api/grocery/lookup": "grocery_lookup",
+        "/api/grocery/search": "grocery_search",
+        "/api/grocery/suggest": "grocery_suggest",
+        "/api/grocery/image": "grocery_image",
+        "/api/grocery/photo": "grocery_photo",
+    }
+    # Bodies that aren't JSON: a photo taken on a phone.
+    UPLOAD_ROUTES = {
+        "/api/grocery/photo": "grocery_photo_upload",
     }
     POST_ROUTES = {
         "/api/shopping/add": "shopping_add",
@@ -232,6 +255,12 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/roommate-games/draw": "roommate_draw",
         "/api/roommate-games/record": "roommate_record",
         "/api/roommate-games/notify": "roommate_notify",
+        "/api/grocery/add": "grocery_add",
+        "/api/grocery/update": "grocery_update",
+        "/api/grocery/check": "grocery_check",
+        "/api/grocery/remove": "grocery_remove",
+        "/api/grocery/restore": "grocery_restore",
+        "/api/grocery/clear-checked": "grocery_clear_checked",
         "/api/kiosk/exit": "kiosk_exit",
     }
 
@@ -253,6 +282,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         self._is_api = True
+        upload = self.UPLOAD_ROUTES.get(urlsplit(self.path).path)
+        if upload is not None:
+            return getattr(self, upload)()
         handler = self.POST_ROUTES.get(urlsplit(self.path).path)
         if handler is None:
             return self._send_error(HTTPStatus.NOT_FOUND, "Not found.")
@@ -336,6 +368,89 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def roommate_games_state(self):
         self._send_json(HTTPStatus.OK, self.server.roommate_games.snapshot())
+
+    def grocery_state(self):
+        self._send_json(HTTPStatus.OK, self.server.grocery.snapshot())
+
+    def grocery_lookup(self):
+        """A scanned barcode: what the board remembers about it, otherwise what's online."""
+        code = parse_qs(urlsplit(self.path).query).get("code", [""])[0]
+        known = self.server.grocery.known(code)
+        if known is not None:
+            return self._send_json(HTTPStatus.OK, {"product": known})
+        try:
+            product = self.server.products.lookup(code)
+        except ValueError as err:
+            return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
+        except ProductsUnavailable as err:
+            return self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, str(err))
+        self._send_json(HTTPStatus.OK, {"product": product})
+
+    def grocery_search(self):
+        """Things the household has bought before first, then products online.
+
+        If the product database can't be reached, the remembered ones still come
+        back, with `offline` set so the app can say why there aren't more.
+        """
+        query = parse_qs(urlsplit(self.path).query)
+        text = query.get("q", [""])[0]
+        store = query.get("store", [None])[0] or None
+        if store is not None and store not in STORES:
+            return self._send_error(HTTPStatus.BAD_REQUEST, "The store must be Trader Joe's or Lidl.")
+        known = self.server.grocery.search_known(text, store)
+        try:
+            online = self.server.products.search(text, store)
+            offline = False
+        except ProductsUnavailable:
+            online, offline = [], True
+        codes = {p["code"] for p in known if p["code"]}
+        self._send_json(HTTPStatus.OK, {
+            "known": known,
+            "online": [p for p in online if p["code"] not in codes],
+            "offline": offline,
+        })
+
+    def grocery_suggest(self):
+        """Trader Joe's and Lidl products that could be what's being typed, from the Pi's own list.
+
+        `ready` is false until that list has been downloaded the first time.
+        """
+        query = parse_qs(urlsplit(self.path).query)
+        store = query.get("store", [None])[0] or None
+        if store is not None and store not in STORES:
+            return self._send_error(HTTPStatus.BAD_REQUEST, "The store must be Trader Joe's or Lidl.")
+        words = fold(query_text(query.get("q", [""])[0])).replace("'", " ").split()
+        found = self.server.store_products.suggest(words, store)
+        self._send_json(HTTPStatus.OK, {"online": found, "ready": len(self.server.store_products) > 0})
+
+    def grocery_image(self):
+        """A product's picture, by barcode, from the Pi's copy of Open Food Facts' photo."""
+        code = parse_qs(urlsplit(self.path).query).get("code", [""])[0]
+        try:
+            image = self.server.product_images.get(code)
+        except ValueError as err:
+            return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
+        self._send_image(image)
+
+    def grocery_photo(self):
+        name = parse_qs(urlsplit(self.path).query).get("name", [""])[0]
+        self._send_image(self.server.photos.read(name))
+
+    def grocery_photo_upload(self):
+        """A photo of something, taken on a phone. Answers with the name to give the item."""
+        if self.headers.get_content_type() not in ("image/jpeg", "image/png", "image/webp"):
+            return self._send_error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "Send the photo as a JPEG, PNG or WebP picture.")
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return self._send_error(HTTPStatus.BAD_REQUEST, "Invalid Content-Length.")
+        if length > MAX_PHOTO_BYTES:
+            return self._send_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "That photo is too big.")
+        try:
+            name = self.server.photos.save(self.rfile.read(length))
+        except ValueError as err:
+            return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
+        self._send_json(HTTPStatus.OK, {"photo": name})
 
     def events(self):
         """One stream for every screen: the state of each store now, then again whenever it changes."""
@@ -504,6 +619,24 @@ class BoardHandler(SimpleHTTPRequestHandler):
     def roommate_notify(self, body):
         return self.server.roommate_games.notify(body.get("week"))
 
+    def grocery_add(self, body):
+        return self.server.grocery.add(body, item_id=body.get("id"))
+
+    def grocery_update(self, body):
+        return self.server.grocery.update(body.get("id"), body)
+
+    def grocery_check(self, body):
+        return self.server.grocery.check(body.get("id"), body.get("done", True))
+
+    def grocery_remove(self, body):
+        return self.server.grocery.remove(body.get("id"))
+
+    def grocery_restore(self, body):
+        return self.server.grocery.restore(body.get("ids"))
+
+    def grocery_clear_checked(self, body):
+        return self.server.grocery.clear_checked()
+
     def kiosk_exit(self, body):
         self._board_only("Only the board's own screen can exit kiosk mode.")
         running = self.server.kiosk.is_running()
@@ -546,6 +679,21 @@ class BoardHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_image(self, image):
+        if image is None:
+            self.send_response(HTTPStatus.NOT_FOUND)
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "max-age=%d" % NO_IMAGE_CACHE_SECONDS)
+            self.end_headers()
+            return
+        data, content_type = image
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "max-age=%d" % IMAGE_CACHE_SECONDS)
+        self.end_headers()
+        self.wfile.write(data)
 
     def _send_result_page(self, title, message):
         """A plain page for the browser Google just sent back, which then returns to the board."""

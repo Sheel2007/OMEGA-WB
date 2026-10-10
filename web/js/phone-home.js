@@ -9,6 +9,8 @@ import { countLabel as notesCount } from './apps/notes/format.js';
 import { leaderLabel } from './apps/roommate-games/format.js';
 import { countLabel as shoppingCount, toBuyOf } from './apps/shopping/settle.js';
 import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
+import { summaryLabel as grocerySummary } from './apps/grocery/format.js';
+import { svg as grocerySvg } from './apps/grocery/views.js';
 import { describeWeather } from './apps/weather/conditions.js';
 import { weatherIcon } from './apps/weather/icons.js';
 import { appIcon, el } from './ui.js';
@@ -33,6 +35,9 @@ const SUBTITLES = {
 
   'roommate-games': ({ roommateGames }) => (set) =>
     roommateGames.subscribe((state) => set(leaderLabel(state.players) || 'Sign up to play')),
+
+  grocery: ({ grocery }) => (set) =>
+    grocery.subscribe((state) => set(grocerySummary(state.items, state.currency))),
 
   games: () => (set) => {
     set('Pick a game');
@@ -85,8 +90,22 @@ export function createPhoneHome({ apps, openApp, services }) {
     else subtitle.textContent = app.description;
   }
 
+  // The phone is the grocery scanner: one tap from the home screen to the camera.
+  const scan = apps.some((app) => app.id === 'grocery')
+    ? el(
+        'button',
+        {
+          class: 'phone-scan',
+          type: 'button',
+          onclick: (event) => openApp('grocery', { origin: event.currentTarget, intent: 'scan' }),
+        },
+        el('span', { class: 'phone-scan__icon', html: grocerySvg.scan }),
+        el('span', { class: 'phone-scan__label', text: 'Scan' }),
+      )
+    : null;
+
   return {
-    node: el('div', { class: 'phone-home' }, weather, grid),
+    node: el('div', { class: 'phone-home' }, weather, scan, grid),
     destroy() {
       stops.forEach((stop) => stop?.());
       stops.length = 0;

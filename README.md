@@ -23,6 +23,9 @@ It has seven widgets:
 - **Roommate Cup.** Roommate Games, the weekly competition at home. It keeps the
   catalog of games, picks each week's games, texts or emails everyone, and keeps
   score. The widget is a small scoreboard.
+- **Grocery.** What to pick up at Lidl and Trader Joe's: scan a product's barcode
+  or QR code with your phone, or search for it, and it goes on the list with its
+  price, how many, and who's asking. The widget shows the total, split by store.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
@@ -154,6 +157,32 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     got their points.
   - Taking a roommate off removes their email and phone from the Pi straight away
     (**Undo** brings them back until the board restarts). Their past results stay.
+- **Grocery:** on your phone, tap **Scan** (on the home screen or in the app) and
+  point the camera at a barcode or QR code. Trader Joe's own products have 8-digit
+  barcodes, Lidl's 13-digit ones, and newer packaging has a QR code; all of them
+  work. The board looks the product up in [Open Food Facts](https://world.openfoodfacts.org)
+  (free, no account) for its name and, when someone has reported one, a recent
+  price from [Open Prices](https://prices.openfoodfacts.org). Check the price,
+  how many, the store and **Who's asking?**, then **Add**; the scanner is ready
+  for the next one. Your phone remembers who you are.
+  - No barcode, or it isn't found? Start typing in the search bar and it predicts
+    what you mean as you go ("marin" offers Marinara Sauce): things you've bought
+    before first, then Trader Joe's and Lidl products, then everyday groceries.
+    Tap one to add it, or press **Search** for everything online (pick **All**,
+    **Trader Joe's** or **Lidl** to narrow it), or **Add "…" as typed**. Typing
+    the barcode's digits works too.
+  - Every item has a picture: the product's photo from Open Food Facts (kept on
+    the Pi), or, if there isn't one, tap the camera on the item and take your own;
+    it's remembered for next time. Until then it shows an illustration.
+  - Tap an item to change its price, quantity, store or who asked, or to remove it.
+    Tick it off as it goes in the cart; **Clear** empties the cart.
+  - The panel on the right adds it up: the total, per store, and per person, so
+    splitting the bill is easy. Anything scanned once is remembered on the Pi with
+    its last price, so next time it fills itself in, even offline.
+  - **Live scanning needs HTTPS.** Phone browsers only let a page use the camera
+    when it's on `https://` (Tailscale can give the Pi an address like that; see
+    `hostname`). On plain `http://` on the home Wi-Fi, **Scan** takes a photo
+    instead and reads the code from it.
 - **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
   still picture, turn off **Moving scenery** in the menu.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
@@ -308,6 +337,18 @@ Only if your broker is somewhere else, tell the board in `config.json`
 { "lights": { "mqtt_host": "localhost", "mqtt_port": 1883, "base_topic": "zigbee2mqtt", "username": "", "password": "" } }
 ```
 
+### Grocery: currency and country
+
+Prices are in US dollars unless you say otherwise (prices found online are only
+used when they're in this currency). The search predicts from the Trader Joe's and
+Lidl products sold in `country` (the United States unless you say otherwise),
+which the Pi downloads from Open Food Facts once a week (about 5,000 names, under
+1 MB, in `data/grocery-products.json`):
+
+```json
+{ "grocery": { "currency": "EUR", "country": "germany" } }
+```
+
 ### Roommate Cup: email and texts
 
 Optional: without them the Cup still works, and nothing is sent. Add either or
@@ -368,7 +409,9 @@ run.py                  start the server
 board/                  server: JSON stores, HTTP API + live updates, weather,
                         Google Calendar (OAuth + API), iCalendar parsing, QR codes,
                         lights (Zigbee2MQTT over a built-in MQTT client) and their schedules,
-                        the Roommate Cup and its emails and texts (notify.py)
+                        the Roommate Cup and its emails and texts (notify.py),
+                        the grocery list, its product lookups (products.py), the stores'
+                        product list for predictions and the pictures (grocery_images.py)
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks themes

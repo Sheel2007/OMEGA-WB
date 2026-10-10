@@ -13,6 +13,7 @@ import { createGamesStore } from './services/games.js';
 import { createLightsService } from './services/lights.js';
 import { createLiveConnection } from './services/live.js';
 import { createNotesService } from './services/notes.js';
+import { createRoommateGamesService } from './services/roommate-games.js';
 import { createSettingsService } from './services/settings.js';
 import { createShoppingService } from './services/shopping.js';
 import { createWeatherService } from './services/weather.js';
@@ -37,12 +38,16 @@ const now = () => fixedTime ?? new Date();
 
 // Services: the only code that talks to the server or to storage.
 
-const live = createLiveConnection({ streams: ['shopping', 'notes', 'calendar', 'calendar-sources', 'lights'], onServerRestart: () => location.reload() });
+const live = createLiveConnection({
+  streams: ['shopping', 'notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games'],
+  onServerRestart: () => location.reload(),
+});
 const services = {
   shopping: createShoppingService({ live }),
   notes: createNotesService({ live }),
   calendar: createCalendarService({ live }),
   lights: createLightsService({ live }),
+  roommateGames: createRoommateGamesService({ live }),
   weather: createWeatherService(),
   games: createGamesStore(),
   settings: createSettingsService({
@@ -286,6 +291,7 @@ services.shopping.refresh();
 services.notes.refresh();
 services.calendar.refresh();
 services.lights.refresh();
+services.roommateGames.refresh();
 
 if (kiosk) {
   initKiosk({

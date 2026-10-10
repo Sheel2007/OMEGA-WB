@@ -16,12 +16,16 @@ from board.google import GoogleAccount
 from board.kiosk import Kiosk
 from board.lights import Lights, settings_from as lights_settings_from
 from board.notes import NotesBoard
+from board.notify import Notifier, settings_from as notify_settings_from
+from board.roommate_games import RoommateGames
 from board.server import ROOT, BoardServer, lan_address, phone_address
 from board.shopping import ShoppingList
 from board.store import ChangeFeed
 from board.weather import WeatherService
 
 DEFAULT_PORT = 8080
+# The app the texts and emails link to, opening its results sheet.
+ROOMMATE_GAMES_LINK = "roommate-games"
 
 
 def load_config(path):
@@ -86,6 +90,14 @@ def main():
         zone=zone,
         feed=feed,
     )
+    notify = notify_settings_from(config.get("roommate_games"))
+    roommate_games = RoommateGames(
+        os.path.join(args.data, "roommate-games.json"),
+        notifier=Notifier(notify["email"], notify["sms"]),
+        country_code=notify["country_code"],
+        zone=zone,
+        feed=feed,
+    )
     server = BoardServer(
         (args.host, port),
         shopping=ShoppingList(os.path.join(args.data, "shopping.json"), feed=feed),
@@ -97,11 +109,14 @@ def main():
         weather=weather_from(config, location),
         kiosk=Kiosk(),
         lights=lights,
+        roommate_games=roommate_games,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
     )
+    roommate_games.set_link(lambda: server.phone_url(ROOMMATE_GAMES_LINK) + "/record")
     sources.start()
     lights.start()
+    roommate_games.start()
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -117,6 +132,7 @@ def main():
     finally:
         server.wake_streams()
         lights.stop()
+        roommate_games.stop()
         server.server_close()
 
 

@@ -62,6 +62,13 @@ html {
   --icon-games: linear-gradient(155deg, #ff8a6b 0%, #e5483a 100%);
   --icon-calendar: linear-gradient(155deg, #a99bff 0%, #6d4df6 52%, #5132d4 100%);
   --icon-lights: linear-gradient(160deg, #4b5cb8 0%, #26306e 100%);
+  --icon-roommate-games: linear-gradient(160deg, #25b8a2 0%, #0f7f73 55%, #0b625a 100%);
+
+  /* Roommate Cup medals: the same in every theme, each with its own dark text (7:1 or better). */
+  --medal-gold: #f4c534;
+  --medal-silver: #ccd3de;
+  --medal-bronze: #e0a36e;
+  --medal-text: #2a2412;
 }
 
 /* Light (also the default) */
@@ -232,6 +239,7 @@ html {
   --icon-games: #c8392b;
   --icon-calendar: #6d4df6;
   --icon-lights: #3a4590;
+  --icon-roommate-games: #0f7a76;
 
   --event-blue: #2f5fd6;
   --event-purple: #6a33c8;

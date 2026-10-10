@@ -5,7 +5,7 @@ looks like an iPad home screen: a big clock, widgets, and a dock of apps. The
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has six widgets:
+It has seven widgets:
 
 - **Shopping list.** Anyone can add to it on the board's touchscreen or from
   their phone (scan the QR code in the app). Changes show up everywhere instantly.
@@ -20,6 +20,9 @@ It has six widgets:
 - **Lights.** The ceiling lights, through [Zigbee2MQTT](https://www.zigbee2mqtt.io)
   (set up as in [zigbee_ceiling](https://github.com/NLBoa/zigbee_ceiling)): tap a
   light to switch it, and set times for lights to go on and off by themselves.
+- **Roommate Cup.** Roommate Games, the weekly competition at home. It keeps the
+  catalog of games, picks each week's games, texts or emails everyone, and keeps
+  score. The widget is a small scoreboard.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
@@ -130,6 +133,27 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 
   Until it's named, a light goes by its Zigbee2MQTT name (`bedroom_light` shows
   as **Bedroom**), and a new switch is "Light" plus the end of its address.
+- **Roommate Cup:** open it and tap **Roommates** to sign everyone up: a name and
+  an email, a phone number, or both. There are no passwords, and screens only ever
+  show part of each address and number.
+  - **Games** is the catalog. A **General** game is one everyone's about as good
+    at. A **Specialized** game is one that one roommate is clearly better at, and
+    it stays tied to them. About 3 in every 4 games picked are General.
+  - **Game Night** sets the day and time, when the games go out that day (8 AM to
+    3 PM), and how many games a night (1 to 3). It runs every week until you pause it.
+  - On game day, at that time, the board picks the games and sends each roommate an
+    email and/or a text with a link that opens the results on their phone. **Pick
+    Now** or **Pick Again** picks early or redraws the games nobody has played yet.
+    **Send to Everyone** sends them again (at most every 10 minutes).
+  - **Record Result:** tap everyone in the order they finished (leave out anyone
+    who didn't play), and **Tied** to share the place above. Anyone can do it on the
+    board or from the link on their phone.
+  - **Points:** one for every roommate you finish ahead of. In a Specialized game,
+    everyone who finishes ahead of its specialist gets **+1**. The top scorer of a
+    finished game night gets a crown. Tap someone in the standings to see how they
+    got their points.
+  - Taking a roommate off removes their email and phone from the Pi straight away
+    (**Undo** brings them back until the board restarts). Their past results stay.
 - **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
   still picture, turn off **Moving scenery** in the menu.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
@@ -284,6 +308,35 @@ Only if your broker is somewhere else, tell the board in `config.json`
 { "lights": { "mqtt_host": "localhost", "mqtt_port": 1883, "base_topic": "zigbee2mqtt", "username": "", "password": "" } }
 ```
 
+### Roommate Cup: email and texts
+
+Optional: without them the Cup still works, and nothing is sent. Add either or
+both to `config.json`:
+
+```json
+{
+  "roommate_games": {
+    "country_code": "1",
+    "email": { "host": "smtp.gmail.com", "port": 587, "username": "board@gmail.com",
+               "password": "app password", "from": "Home Board <board@gmail.com>" },
+    "sms": { "account_sid": "AC…", "auth_token": "…", "from": "+15550001111" }
+  }
+}
+```
+
+- **Email** works with any SMTP account. For Gmail, turn on 2-Step Verification
+  and make an [App Password](https://myaccount.google.com/apppasswords); port 587
+  uses STARTTLS and 465 uses SSL.
+- **Texts** go through [Twilio](https://www.twilio.com): the Account SID, Auth
+  Token and a Twilio phone number from its console. (Carriers' email-to-text
+  gateways are unreliable and some have shut down, so the board doesn't use them.)
+- `country_code` is added to numbers typed without one, so `(555) 123-4567`
+  becomes `+15551234567`.
+- Set `hostname` (see "Reaching the board when you're out") so the link in the
+  message works away from home. Otherwise it only works on the home Wi-Fi.
+
+The board's log says when a send fails, and the app shows it under the games.
+
 ## Updating
 
 ```bash
@@ -314,7 +367,8 @@ Project layout:
 run.py                  start the server
 board/                  server: JSON stores, HTTP API + live updates, weather,
                         Google Calendar (OAuth + API), iCalendar parsing, QR codes,
-                        lights (Zigbee2MQTT over a built-in MQTT client) and their schedules
+                        lights (Zigbee2MQTT over a built-in MQTT client) and their schedules,
+                        the Roommate Cup and its emails and texts (notify.py)
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks themes

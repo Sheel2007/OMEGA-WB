@@ -6,6 +6,7 @@
 // is made once, when the board starts.
 import { statusLabel as lightsStatus } from './apps/lights/format.js';
 import { countLabel as notesCount } from './apps/notes/format.js';
+import { leaderLabel } from './apps/roommate-games/format.js';
 import { countLabel as shoppingCount, toBuyOf } from './apps/shopping/settle.js';
 import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
 import { describeWeather } from './apps/weather/conditions.js';
@@ -29,6 +30,9 @@ const SUBTITLES = {
     set(lightsStatus(lights.getState()));
     return lights.subscribe((state) => set(lightsStatus(state)));
   },
+
+  'roommate-games': ({ roommateGames }) => (set) =>
+    roommateGames.subscribe((state) => set(leaderLabel(state.players) || 'Sign up to play')),
 
   games: () => (set) => {
     set('Pick a game');

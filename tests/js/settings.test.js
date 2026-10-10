@@ -35,7 +35,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(again.getPages(), [['notes', 'weather']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 4);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 5);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -115,6 +115,26 @@ test('a version 4 screen that took Lights off keeps it off', () => {
     widgetsSince: { lights: 4 },
   });
   assert.deepEqual(settings.getPages(), [['shopping']]);
+});
+
+test('a version 4 screen picks up the Roommate Cup once, and keeps Lights off if it took it off', () => {
+  const sizes = { shopping: 'tall', lights: 'wide', games: 'medium', 'roommate-games': 'medium' };
+  const settings = createSettingsService({
+    storage: saved({ version: 4, theme: 'auto', pages: [['shopping'], ['games']], scenery: true }),
+    widgetSizes: sizes,
+    defaultWidgets: ['shopping', 'games', 'lights', 'roommate-games'],
+    widgetsSince: { lights: 4, 'roommate-games': 5 },
+  });
+  assert.deepEqual(settings.getPages(), [['shopping'], ['games', 'roommate-games']]);
+  settings.removeWidget('roommate-games');
+  const storage = memoryStorage({ [STORAGE_KEY]: JSON.stringify({ version: 5, theme: 'auto', pages: settings.getPages(), scenery: true }) });
+  const reloaded = createSettingsService({
+    storage,
+    widgetSizes: sizes,
+    defaultWidgets: ['shopping', 'games', 'lights', 'roommate-games'],
+    widgetsSince: { lights: 4, 'roommate-games': 5 },
+  });
+  assert.deepEqual(reloaded.getPages(), [['shopping'], ['games']], 'taken off stays off');
 });
 
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {

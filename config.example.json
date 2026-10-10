@@ -21,6 +21,23 @@
     "base_topic": "zigbee2mqtt"
   },
 
+  "_roommate_games": "Optional. How the Roommate Cup sends each game night's games. 'email' is any SMTP account (for Gmail, turn on 2-Step Verification and use an App Password). 'sms' is a Twilio account: its Account SID, Auth Token and a Twilio phone number. Set up either, both, or neither. Phone numbers typed without a country code get country_code. Set 'hostname' above so the link in the message works away from home.",
+  "roommate_games": {
+    "country_code": "1",
+    "email": {
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "username": "your.board@gmail.com",
+      "password": "your app password",
+      "from": "Home Board <your.board@gmail.com>"
+    },
+    "sms": {
+      "account_sid": "AC00000000000000000000000000000000",
+      "auth_token": "your auth token",
+      "from": "+15550001111"
+    }
+  },
+
   "_calendars": "Read-only, and needs no account: each calendar's 'Secret address in iCal format'. Use these instead of (or as well as) the Google account above.",
   "calendars": [
     { "name": "Holidays", "url": "https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics", "color": "orange" }

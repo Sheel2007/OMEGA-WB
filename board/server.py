@@ -93,9 +93,10 @@ class BoardServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, *, shopping, notes, calendar, calendar_sources, google, feed, weather, kiosk,
-                 lights, web_dir=WEB_DIR, location=None, public_url=None):
+                 lights, roommate_games, web_dir=WEB_DIR, location=None, public_url=None):
         self.shopping = shopping
         self.lights = lights
+        self.roommate_games = roommate_games
         self.notes = notes
         self.calendar = calendar
         self.calendar_sources = calendar_sources
@@ -116,7 +117,8 @@ class BoardServer(ThreadingHTTPServer):
     def live_stores(self):
         """Stores whose state is pushed over /api/events, by event name."""
         return {"shopping": self.shopping, "notes": self.notes, "calendar": self.calendar,
-                "calendar-sources": self.calendar_sources, "lights": self.lights}
+                "calendar-sources": self.calendar_sources, "lights": self.lights,
+                "roommate-games": self.roommate_games}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -159,6 +161,7 @@ class BoardServer(ThreadingHTTPServer):
         self.wake_streams()
         self.calendar_sources.stop()
         self.lights.stop()
+        self.roommate_games.stop()
         super().shutdown()
 
 
@@ -190,6 +193,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/calendar/google/done": "google_done",
         "/api/weather": "weather_forecast",
         "/api/lights": "lights_state",
+        "/api/roommate-games": "roommate_games_state",
     }
     POST_ROUTES = {
         "/api/shopping/add": "shopping_add",
@@ -216,6 +220,18 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/lights/schedules/update": "lights_schedule_update",
         "/api/lights/schedules/remove": "lights_schedule_remove",
         "/api/lights/schedules/restore": "lights_schedule_restore",
+        "/api/roommate-games/players/add": "roommate_player_add",
+        "/api/roommate-games/players/update": "roommate_player_update",
+        "/api/roommate-games/players/remove": "roommate_player_remove",
+        "/api/roommate-games/players/restore": "roommate_player_restore",
+        "/api/roommate-games/games/add": "roommate_game_add",
+        "/api/roommate-games/games/update": "roommate_game_update",
+        "/api/roommate-games/games/remove": "roommate_game_remove",
+        "/api/roommate-games/games/restore": "roommate_game_restore",
+        "/api/roommate-games/schedule": "roommate_schedule",
+        "/api/roommate-games/draw": "roommate_draw",
+        "/api/roommate-games/record": "roommate_record",
+        "/api/roommate-games/notify": "roommate_notify",
         "/api/kiosk/exit": "kiosk_exit",
     }
 
@@ -317,6 +333,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def lights_state(self):
         self._send_json(HTTPStatus.OK, self.server.lights.snapshot())
+
+    def roommate_games_state(self):
+        self._send_json(HTTPStatus.OK, self.server.roommate_games.snapshot())
 
     def events(self):
         """One stream for every screen: the state of each store now, then again whenever it changes."""
@@ -448,6 +467,42 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def lights_schedule_restore(self, body):
         return self.server.lights.restore_schedules(body.get("ids"))
+
+    def roommate_player_add(self, body):
+        return self.server.roommate_games.add_player(body, player_id=body.get("id"))
+
+    def roommate_player_update(self, body):
+        return self.server.roommate_games.update_player(body.get("id"), body)
+
+    def roommate_player_remove(self, body):
+        return self.server.roommate_games.remove_player(body.get("id"))
+
+    def roommate_player_restore(self, body):
+        return self.server.roommate_games.restore_players(body.get("ids"))
+
+    def roommate_game_add(self, body):
+        return self.server.roommate_games.add_game(body, game_id=body.get("id"))
+
+    def roommate_game_update(self, body):
+        return self.server.roommate_games.update_game(body.get("id"), body)
+
+    def roommate_game_remove(self, body):
+        return self.server.roommate_games.remove_game(body.get("id"))
+
+    def roommate_game_restore(self, body):
+        return self.server.roommate_games.restore_games(body.get("ids"))
+
+    def roommate_schedule(self, body):
+        return self.server.roommate_games.set_schedule(body)
+
+    def roommate_draw(self, body):
+        return self.server.roommate_games.draw(body.get("again", False))
+
+    def roommate_record(self, body):
+        return self.server.roommate_games.record(body.get("week"), body.get("pick"), body.get("order"))
+
+    def roommate_notify(self, body):
+        return self.server.roommate_games.notify(body.get("week"))
 
     def kiosk_exit(self, body):
         self._board_only("Only the board's own screen can exit kiosk mode.")

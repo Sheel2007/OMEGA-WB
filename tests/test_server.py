@@ -11,6 +11,7 @@ from board.calendar import CalendarSources, CalendarStore
 from board.google import GoogleAccount
 from board.lights import Lights, settings_from
 from board.notes import NotesBoard
+from board.roommate_games import RoommateGames
 from board.server import BoardServer, phone_address
 from board.shopping import ShoppingList
 from board.store import ChangeFeed
@@ -73,6 +74,7 @@ class ServerTest(unittest.TestCase):
             weather=cls.weather,
             kiosk=cls.kiosk,
             lights=cls.lights,
+            roommate_games=RoommateGames(os.path.join(cls.tmp.name, "data", "roommate-games.json"), feed=feed),
             web_dir=web,
             location={"latitude": 1.5, "longitude": 2},
         )
@@ -218,10 +220,11 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 6)
+            events = self._read_events(stream, 7)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
-            self.assertEqual({name for name, _ in events[1:]}, {"shopping", "notes", "calendar", "calendar-sources", "lights"})
+            self.assertEqual({name for name, _ in events[1:]},
+                             {"shopping", "notes", "calendar", "calendar-sources", "lights", "roommate-games"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/shopping/add", {"name": "live update"})
@@ -254,6 +257,34 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(body["restored"], [note_id])
         status, _, raw = self.request("/api/notes")
         self.assertIn(note_id, [n["id"] for n in json.loads(raw)["notes"]])
+
+    def test_roommate_games_sign_up_catalog_draw_and_record(self):
+        status, body = self.post("/api/roommate-games/players/add", {"name": "Sam", "email": "sam@example.com"})
+        self.assertEqual(status, 200)
+        sam = body["player"]["id"]
+        self.assertEqual(body["player"]["email"], "s•••@example.com")
+        alex = self.post("/api/roommate-games/players/add", {"name": "Alex", "phone": "555 123 4567"})[1]["player"]["id"]
+        status, body = self.post("/api/roommate-games/games/add", {"name": "Chess", "kind": "specialized", "specialist": sam})
+        self.assertEqual(status, 200)
+        status, body = self.post("/api/roommate-games/draw", {})
+        self.assertEqual(status, 200)
+        week = body["state"]["weeks"][-1]
+        status, body = self.post("/api/roommate-games/record",
+                                 {"week": week["id"], "pick": week["picks"][0]["id"], "order": [[alex], [sam]]})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["state"]["players"][0]["name"], "Alex")
+        self.assertEqual(body["state"]["players"][0]["points"], 2)
+        status, _, raw = self.request("/api/roommate-games")
+        self.assertNotIn("sam@example.com", raw.decode())
+
+    def test_roommate_games_mistakes_are_400_and_sending_needs_setting_up(self):
+        status, body = self.post("/api/roommate-games/players/add", {"name": "Jo"})
+        self.assertEqual(status, 400)
+        self.assertIn("email or a phone", body["error"]["message"])
+        status, body = self.post("/api/roommate-games/players/remove", {"id": "nobody"})
+        self.assertEqual(status, 404)
+        status, body = self.post("/api/roommate-games/schedule", {"day": 9})
+        self.assertEqual(status, 400)
 
     def test_notes_validation_is_400(self):
         status, body = self.post("/api/notes/add", {"text": " "})

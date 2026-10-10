@@ -5,11 +5,12 @@ import { THEME_MODES } from '../sky.js';
 import { insertWidget, moveWidget, paginate, removeWidget, SPANS } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
-// version 4 picks up the ones named in `widgetsSince` (Lights) and nothing else.
-const UPGRADABLE = [1, 2, 3];
+// versions 4 and 5 pick up the ones named in `widgetsSince` (Lights, then the
+// Roommate Cup) and nothing else.
+const UPGRADABLE = [1, 2, 3, 4];
 const RENAMED_THEMES = { retro: 'blocks' };
 
 function browserStorage() {

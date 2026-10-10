@@ -55,6 +55,16 @@ export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true,
     el('span', { class: 'board-menu__item-label', text: 'Moving scenery' }),
     el('span', { class: 'board-menu__switch', 'aria-hidden': 'true' }),
   );
+  // The board's dock of app icons. Without it, apps open from their widgets.
+  const dockButton = widgetsEditable
+    ? el(
+        'button',
+        { class: 'board-menu__item', type: 'button', role: 'switch', onclick: () => settings.setDock(!settings.getDock()) },
+        el('span', { class: 'board-menu__item-icon', html: icons.dock }),
+        el('span', { class: 'board-menu__item-label', text: 'Show dock' }),
+        el('span', { class: 'board-menu__switch', 'aria-hidden': 'true' }),
+      )
+    : null;
   const exitLabel = el('span', { class: 'board-menu__item-label', text: 'Exit to desktop' });
   const exitButton = kiosk
     ? el(
@@ -70,6 +80,7 @@ export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true,
     el('h2', { class: 'board-menu__heading', id: 'board-menu-theme', text: 'Theme' }),
     el('div', { class: 'theme-picker', role: 'radiogroup', 'aria-labelledby': 'board-menu-theme' }, themeButtons),
     sceneryButton,
+    dockButton,
     widgetsEditable
       ? el(
           'button',
@@ -147,10 +158,11 @@ export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true,
 
   const node = el('div', { class: 'board-menu' }, scrim, toggle, panel);
 
-  function renderSettings({ theme, widgets, scenery }) {
+  function renderSettings({ theme, widgets, scenery, dock }) {
     themeButtons.forEach((button) => button.setAttribute('aria-checked', String(button.dataset.mode === theme)));
     sceneryButton.hidden = theme !== 'blocks';
     sceneryButton.setAttribute('aria-checked', String(scenery));
+    dockButton?.setAttribute('aria-checked', String(dock));
     pickerRows.forEach(({ app, button }) => {
       const added = widgets.includes(app.id);
       button.textContent = added ? 'Remove' : 'Add';

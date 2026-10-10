@@ -190,10 +190,14 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   look different from the board.
 - **Arranging the home screen:** press and hold a widget (or pick **Edit home
   screen** in the menu). Then drag any widget wherever you want it; the others
-  move out of the way, and holding it at the side of the screen flips to the next
-  page. Drag the round handle in a widget's bottom-right corner to make it small,
-  medium or large, or tap the handle to step through the sizes. Tap **Done** when
-  you're finished.
+  move out of the way. To move it to another page, push it against the side of
+  the screen: the pages peek over, and after a moment it's carried across. To
+  resize, pull the curved bracket in a widget's bottom-right corner: it stretches
+  with your finger and snaps to small, medium or large when you let go. Tap
+  **Done** when you're finished.
+- **Show dock** in the menu hides the row of app icons along the bottom (each
+  screen remembers its own choice). The widgets get the extra room, and each app
+  still opens from its widget.
 - In kiosk mode, the board goes back to the home screen after 90 seconds
   untouched, and it reloads itself once a night at 4am to stay fresh.
 

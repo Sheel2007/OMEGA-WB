@@ -174,6 +174,11 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     pages,
     goTo,
     setCount,
+    // Slides the pages `px` towards the next one (-1 left, 1 right) or back (0),
+    // so a widget held at the edge shows where it's about to go.
+    peek(direction, px = 0) {
+      apply({ animate: true, offset: direction ? -direction * px : 0 });
+    },
     // While a widget is being dragged, the pager ignores new presses.
     setLocked(on) {
       locked = on;

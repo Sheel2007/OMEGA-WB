@@ -1,6 +1,6 @@
 // SettingsService: this screen's own choices (theme, where each widget is on the
-// home pages and how big it is, moving scenery, and who's using a phone's grocery
-// scanner), kept in localStorage. Each phone and the board can set these differently.
+// home pages and how big it is, moving scenery, whether the dock shows, and who's
+// using a phone's grocery scanner), kept in localStorage. Each phone and the board can set these differently.
 //
 // Pages are lists of placements { id, size, col, row } (see widget-layout.js).
 // The Apple theme has its own grid, so it keeps its own arrangement of the same
@@ -56,6 +56,7 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
     pages: fromOrder([defaultWidgets.filter(known)], defaultSize, LAYOUTS.board),
     applePages: null,
     scenery: true,
+    dock: true,
     asker: null,
   });
 
@@ -133,6 +134,7 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
         // Thrown away (and worked out again) if it's lost track of which widgets are on.
         applePages: apple && sameWidgets(apple, pages) ? apple : null,
         scenery: typeof saved.scenery === 'boolean' ? saved.scenery : true,
+        dock: typeof saved.dock === 'boolean' ? saved.dock : true,
         asker: validAsker(saved.asker),
       };
     } catch {
@@ -159,6 +161,7 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
       pages: pages.map((items) => items.map((item) => ({ ...item }))),
       widgets: widgetOrder(pages),
       scenery: current.scenery,
+      dock: current.dock,
       asker: current.asker,
     };
   }
@@ -198,6 +201,8 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
     // The grid the home screen is laid out on for the current theme.
     getLayout: () => layoutFor(current.theme),
     getScenery: () => current.scenery,
+    // Whether the board shows the dock of app icons along the bottom.
+    getDock: () => current.dock,
     // Who adds things to the grocery list from this screen, or null to ask each time.
     getAsker: () => current.asker,
 
@@ -210,6 +215,10 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
 
     setScenery(on) {
       update({ scenery: Boolean(on) });
+    },
+
+    setDock(on) {
+      update({ dock: Boolean(on) });
     },
 
     setAsker(name) {

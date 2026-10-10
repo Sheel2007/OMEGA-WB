@@ -214,7 +214,14 @@ const phoneHome = compact.matches
   ? createPhoneHome({ apps: APPS, openApp: (id, options) => appHost.openApp(id, options), services })
   : null;
 if (phoneHome) home.insertBefore(phoneHome.node, home.querySelector('.page-dots'));
-else widgets.render(services.settings.getPages());
+
+// The dock can be hidden from the menu; the pages then take its room.
+function showDock(on) {
+  dock.hidden = !on;
+  home.classList.toggle('home--no-dock', !on);
+}
+showDock(services.settings.getDock());
+if (!phoneHome) widgets.render(services.settings.getPages());
 
 function addWidget(id) {
   const app = APPS.find((a) => a.id === id);
@@ -257,6 +264,7 @@ const editor = createHomeEditor({
   },
 });
 services.settings.subscribe((settings) => {
+  showDock(settings.dock);
   if (phoneHome) return;
   widgets.render(settings.pages);
   editor.refresh();

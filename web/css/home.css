@@ -18,6 +18,15 @@
   grid-template-rows: minmax(0, 1fr) auto auto;
 }
 
+/* Dock hidden from the menu: the pages take its room. */
+.home--no-dock {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.home--no-dock.home--paged {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
 .is-app-open .home {
   transform: scale(0.94);
   opacity: 0;
@@ -331,28 +340,78 @@
   color: #ffffff;
 }
 
-/* Resize handle: bottom-right corner, drag it or tap it. A 60px target. */
+/* Resize handle: a corner to pull, like an iPhone's, drawn as a thick bracket in
+   the widget's bottom-right corner. The whole 60px corner is the touch target. */
 .widget__resize {
   position: absolute;
-  right: 0.6rem;
-  bottom: 0.6rem;
+  right: 0;
+  bottom: 0;
   z-index: 3;
   display: grid;
-  place-items: center;
+  place-items: end;
   width: var(--hit);
   height: var(--hit);
-  border-radius: var(--radius-pill);
-  border: var(--control-border);
-  background: var(--inverse-bg);
-  color: var(--inverse-text);
-  box-shadow: var(--shadow-sm);
+  padding: 0.55rem;
+  color: var(--text);
   cursor: nwse-resize;
   touch-action: none;
 }
 
-.widget__resize svg {
-  width: 1.4rem;
-  height: 1.4rem;
+.widget__resize::before {
+  content: "";
+  width: 1.7rem;
+  height: 1.7rem;
+  border-right: 0.36rem solid currentColor;
+  border-bottom: 0.36rem solid currentColor;
+  border-bottom-right-radius: 1.2rem;
+}
+
+[data-theme="blocks"] .widget__resize::before {
+  border-bottom-right-radius: 0;
+}
+
+/* While stretching: the slot shows the size it will snap to. */
+.home-slot.home-slot--resize {
+  border-style: solid;
+  border-color: var(--focus);
+}
+
+/* Glowing edges while a widget is held: push it there to carry it to that page. */
+.pager-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  color: var(--sky-text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease-out);
+}
+
+.pager-edge svg {
+  width: 2.2rem;
+  height: 2.2rem;
+}
+
+.pager-edge--left {
+  left: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sky-text) 22%, transparent), transparent);
+}
+
+.pager-edge--right {
+  right: 0;
+  background: linear-gradient(270deg, color-mix(in srgb, var(--sky-text) 22%, transparent), transparent);
+}
+
+.pager-edge--shown {
+  opacity: 0.45;
+}
+
+.pager-edge--armed {
+  opacity: 1;
 }
 
 /* The size it's becoming, shown only while the handle is held. */

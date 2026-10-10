@@ -35,6 +35,7 @@ test('starts from defaults when nothing is saved', () => {
     pages: [[at('shopping', 'large', 5, 1), at('weather', 'medium', 1, 3)]],
     widgets: ['shopping', 'weather'],
     scenery: true,
+    dock: true,
     asker: null,
   });
 });
@@ -237,6 +238,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
     pages: [[at('notes', 'small', 5, 1)], [at('games', 'small', 1, 1)]],
     widgets: ['notes', 'games'],
     scenery: true,
+    dock: true,
     asker: null,
   });
 });
@@ -330,4 +332,14 @@ test('a version 6 screen keeps its order, laid out once with each widget at its 
   assert.deepEqual(settings.getPages(), [[at('weather', 'medium', 5, 1), at('notes', 'small', 9, 1)], [at('games', 'small', 1, 1)]]);
   settings.setTheme('apple');
   assert.deepEqual(ids(settings.getPages()), [['weather', 'notes'], ['games']], 'an old Apple arrangement is worked out again');
+});
+
+test('each screen can hide the dock, and remembers it', () => {
+  const storage = memoryStorage();
+  const settings = createSettingsService(options(storage));
+  assert.equal(settings.getDock(), true, 'shown unless turned off');
+  settings.setDock(false);
+  assert.equal(createSettingsService(options(storage)).getDock(), false);
+  const odd = createSettingsService(options(saved({ version: 7, theme: 'auto', pages: [], dock: 'no', scenery: true })));
+  assert.equal(odd.getDock(), true, 'anything but true or false means shown');
 });

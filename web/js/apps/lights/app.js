@@ -1,6 +1,7 @@
 // Lights: the full-screen app. The lights as big buttons on the left, the schedules
-// that switch them on the right, and a sheet for adding or changing a schedule or for
-// a light's own settings (swapping On and Off).
+// that switch them on the right (with "When it gets dark" above them), and a sheet
+// for adding or changing a schedule, for the dark setting, or for a light's own
+// settings (swapping On and Off).
 import { createKeyboard } from '../../keyboard.js';
 import { animateLayout, el, icons, reconcile, toast } from '../../ui.js';
 import {
@@ -9,6 +10,11 @@ import {
   lowBatteryLabel,
   clockLabel,
   clockParts,
+  DARK_LEVELS,
+  DARK_LUX,
+  DARK_UNTIL,
+  darkLevelLabel,
+  darkSummary,
   durationLabel,
   DAY_LETTERS,
   DAY_NAMES,
@@ -22,7 +28,9 @@ import {
   statusLabel,
   stepHour,
   stepMinute,
+  sunLevelLabel,
   toTime,
+  untilLabel,
   watchEnd,
 } from './format.js';
 import { name } from './meta.js';
@@ -48,6 +56,8 @@ const STATUS_REFRESH_MS = 60 * 1000;
 // The pairing countdown, which only ticks while pairing is open.
 const COUNTDOWN_MS = 1000;
 
+const moonIcon =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
 const chevronUp =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 15l6.5-6.5 6.5 6.5"/></svg>';
 const chevronDown =
@@ -84,6 +94,25 @@ export function mount(root, { services, kiosk }) {
   // The schedules
 
   const next = el('p', { class: 'lights-app__next' });
+  const darkSummaryText = el('span', { class: 'schedule-row__summary' });
+  const darkEdit = el(
+    'button',
+    { class: 'schedule-row__edit', type: 'button', onclick: () => openDark() },
+    el('span', { class: 'dark-row__title' }, el('span', { class: 'dark-row__icon', html: moonIcon }), 'When it gets dark'),
+    darkSummaryText,
+  );
+  const darkToggle = el(
+    'button',
+    {
+      class: 'lights-switch',
+      type: 'button',
+      role: 'switch',
+      'aria-label': 'Turn lights on when it gets dark',
+      onclick: () => setDarkEnabled(darkToggle.getAttribute('aria-checked') !== 'true'),
+    },
+    el('span', { class: 'lights-switch__track' }),
+  );
+  const darkRow = el('div', { class: 'schedule-row dark-row' }, darkEdit, darkToggle);
   const list = el('ul', { class: 'schedule-list', 'aria-label': 'Schedules' });
   const listEmpty = el(
     'div',
@@ -121,6 +150,7 @@ export function mount(root, { services, kiosk }) {
           onclick: () => openSchedule(),
         }),
       ),
+      darkRow,
       list,
       listEmpty,
     ),
@@ -167,6 +197,19 @@ export function mount(root, { services, kiosk }) {
 
   function setEnabled(id, enabled) {
     lights.updateSchedule(id, { enabled }).catch((err) => toast(err.message));
+  }
+
+  function setDarkEnabled(enabled) {
+    lights.setDark({ enabled }).catch((err) => toast(err.message));
+  }
+
+  function renderDark(state) {
+    const { dark } = state;
+    const words = darkSummary(dark, state.lights, state.sensors);
+    darkSummaryText.textContent = words;
+    darkRow.classList.toggle('schedule-row--off', !dark.enabled);
+    darkEdit.setAttribute('aria-label', `Edit When it gets dark: ${words}`);
+    darkToggle.setAttribute('aria-checked', String(dark.enabled));
   }
 
   function showNext(state) {
@@ -219,6 +262,7 @@ export function mount(root, { services, kiosk }) {
     meta.textContent = [statusLabel(state), state.connected && lowBatteryLabel(state.lights)].filter(Boolean).join(' · ');
     showNext(state);
     showNotice(state);
+    renderDark(state);
     const apply = () => {
       reconcile(
         grid,
@@ -307,6 +351,7 @@ export function mount(root, { services, kiosk }) {
     const turnOn = segment('Turn on', () => set({ on: true }));
     const turnOff = segment('Turn off', () => set({ on: false }));
     const lightChips = el('div', { class: 'chip-row' });
+    const pickLight = (lightId) => set({ lights: pickedLights(draft.lights, lightId) });
     const dayPills = DAY_LETTERS.map((letter, day) =>
       el('button', { class: 'day-pill', type: 'button', text: letter, 'aria-label': DAY_NAMES[day], onclick: () => toggleDay(day) }),
     );
@@ -348,13 +393,6 @@ export function mount(root, { services, kiosk }) {
       set({ days: draft.days.includes(day) ? draft.days.filter((d) => d !== day) : [...draft.days, day].sort() });
     }
 
-    // "All lights" is no list at all, so a light paired later is included too.
-    function pickLight(lightId) {
-      if (!lightId) return set({ lights: [] });
-      const picked = draft.lights.includes(lightId) ? draft.lights.filter((i) => i !== lightId) : [...draft.lights, lightId];
-      set({ lights: picked });
-    }
-
     function paint() {
       const { hour, minute, period } = clockParts(draft.time);
       hourValue.textContent = hour;
@@ -363,21 +401,7 @@ export function mount(root, { services, kiosk }) {
       pm.setAttribute('aria-pressed', String(period === 'PM'));
       turnOn.setAttribute('aria-pressed', String(draft.on));
       turnOff.setAttribute('aria-pressed', String(!draft.on));
-      const choices = [{ id: '', name: 'All lights' }, ...lights.getLights()];
-      // Lights a schedule names but the board no longer has stay pickable, so they can be taken off.
-      for (const lightId of draft.lights) {
-        if (!choices.some((c) => c.id === lightId)) choices.push({ id: lightId, name: 'Unpaired light' });
-      }
-      reconcile(
-        lightChips,
-        choices,
-        (choice) => choice.id || 'all',
-        (choice) => el('button', { class: 'chip chip--choice', type: 'button', onclick: () => pickLight(choice.id) }),
-        (chip, choice) => {
-          chip.textContent = choice.name;
-          chip.setAttribute('aria-pressed', String(choice.id ? draft.lights.includes(choice.id) : draft.lights.length === 0));
-        },
-      );
+      lightPicker(lightChips, lights.getLights(), draft.lights, pickLight);
       dayPills.forEach((pill, day) => pill.setAttribute('aria-pressed', String(draft.days.includes(day))));
       // Only a Turn off schedule watches for lights switched back on.
       again.hidden = draft.on;
@@ -429,6 +453,109 @@ export function mount(root, { services, kiosk }) {
       cancel: true,
       // Another screen may delete it, or pair a light, while this one is open.
       refresh: () => (existing && !lights.getSchedules().some((s) => s.id === existing.id) ? closeSheet() : paint()),
+    });
+    paint();
+  }
+
+  // "When it gets dark": how dark, which lights, until when, and (with a light sensor
+  // paired) whether the sun or the sensor tells. Saving it switches it on.
+
+  function openDark() {
+    const now = lights.getDark();
+    const draft = { lights: [...now.lights], level: now.level, until: now.until, sensor: now.sensor };
+
+    const sourceChips = el('div', { class: 'chip-row' });
+    const sourceHint = el('p', { class: 'schedule-editor__hint' });
+    const source = group('Tell it’s dark by', sourceChips, sourceHint);
+    const levelChips = el('div', { class: 'chip-row' });
+    const levelHint = el('p', { class: 'schedule-editor__hint' });
+    const lightChips = el('div', { class: 'chip-row' });
+    const untilChips = el('div', { class: 'chip-row' });
+    const missing = el('p', {
+      class: 'dark-editor__missing',
+      text: 'To tell when it’s dark, the board needs its latitude and longitude in config.json on the Pi, or a paired light sensor.',
+    });
+
+    const content = el(
+      'div',
+      { class: 'schedule-editor' },
+      el('p', {
+        class: 'schedule-editor__hint',
+        text: 'Turns the lights on once a day, the first time it gets dark. Switch them off again and they stay off.',
+      }),
+      missing,
+      source,
+      group('How dark', levelChips, levelHint),
+      group('Lights', lightChips),
+      group(
+        'Not after',
+        untilChips,
+        el('p', { class: 'schedule-editor__hint', text: 'Only from noon until then, so nobody gets woken up.' }),
+      ),
+    );
+
+    function set(changes) {
+      Object.assign(draft, changes);
+      paint();
+    }
+
+    function paint() {
+      const state = lights.getState();
+      const dark = { ...state.dark, ...draft };
+      const sensors = state.sensors;
+      const sensor = sensors.find((s) => s.id === draft.sensor);
+      const bySensor = Boolean(draft.sensor);
+      missing.hidden = Boolean(dark.sunTimes) || sensors.length > 0;
+      // Only worth asking once there's a sensor to pick (or one picked that has gone).
+      source.hidden = !sensors.length && !draft.sensor;
+      const sourceChoices = [{ id: 'sun', name: 'The sun' }, ...sensors];
+      if (draft.sensor && !sensor) sourceChoices.push({ id: draft.sensor, name: 'Removed sensor' });
+      choiceChips(sourceChips, sourceChoices.map((c) => c.id), {
+        label: (id) => sourceChoices.find((c) => c.id === id).name,
+        pressed: (id) => id === (draft.sensor ?? 'sun'),
+        pick: (id) => set({ sensor: id === 'sun' ? null : id }),
+      });
+      if (!bySensor) sourceHint.textContent = dark.sunTimes ? 'Works out sunset where the board is.' : 'The board doesn’t know where it is yet.';
+      else if (!sensor) sourceHint.textContent = 'That sensor isn’t paired any more. Pick another, or the sun.';
+      else if (!sensor.reporting) sourceHint.textContent = `No reading from ${sensor.name} yet. ${dark.sunTimes ? 'The sun decides until it reports.' : ''}`.trim();
+      else sourceHint.textContent = `Watches the light level ${sensor.name} reports.`;
+      choiceChips(levelChips, DARK_LEVELS, {
+        label: (level) => darkLevelLabel(level, bySensor),
+        title: (level) => (bySensor ? `${darkLevelLabel(level, true)}: under ${DARK_LUX[level]} lux` : sunLevelLabel(level, dark)),
+        pressed: (level) => draft.level === level,
+        pick: (level) => set({ level }),
+      });
+      levelHint.textContent = bySensor
+        ? `When ${sensor?.name ?? 'the sensor'} reads under ${DARK_LUX[draft.level]} lux for a few minutes.`
+        : dark.sunTimes
+          ? `Today: ${sunLevelLabel(draft.level, dark)}`
+          : '';
+      lightPicker(lightChips, state.lights, draft.lights, (lightId) => set({ lights: pickedLights(draft.lights, lightId) }));
+      choiceChips(untilChips, DARK_UNTIL, {
+        label: untilLabel,
+        pressed: (until) => draft.until === until,
+        pick: (until) => set({ until }),
+      });
+    }
+
+    async function save() {
+      const own = sheet;
+      own.primaryButton.disabled = true;
+      try {
+        await lights.setDark({ ...draft, enabled: true });
+        if (sheet === own) closeSheet();
+      } catch (err) {
+        toast(err.message);
+        own.primaryButton.disabled = false;
+      }
+    }
+
+    openSheet({
+      title: 'When It Gets Dark',
+      content,
+      primary: { label: 'Save', onClick: save },
+      cancel: true,
+      refresh: paint,
     });
     paint();
   }
@@ -565,6 +692,31 @@ export function mount(root, { services, kiosk }) {
       closeSheet();
     },
   };
+}
+
+// Which lights: "All lights" or any of them. Lights the setting names but the board
+// no longer has stay pickable, so they can be taken off.
+function lightPicker(parent, known, picked, pick) {
+  const choices = [{ id: '', name: 'All lights' }, ...known];
+  for (const lightId of picked) {
+    if (!choices.some((c) => c.id === lightId)) choices.push({ id: lightId, name: 'Unpaired light' });
+  }
+  reconcile(
+    parent,
+    choices,
+    (choice) => choice.id || 'all',
+    (choice) => el('button', { class: 'chip chip--choice', type: 'button', onclick: () => pick(choice.id) }),
+    (chip, choice) => {
+      chip.textContent = choice.name;
+      chip.setAttribute('aria-pressed', String(choice.id ? picked.includes(choice.id) : picked.length === 0));
+    },
+  );
+}
+
+// "All lights" is no list at all, so a light paired later is included too.
+function pickedLights(picked, lightId) {
+  if (!lightId) return [];
+  return picked.includes(lightId) ? picked.filter((i) => i !== lightId) : [...picked, lightId];
 }
 
 // A row of chips, one of which is picked. Rebuilt in place, keyed by value.

@@ -112,6 +112,7 @@ def main():
         os.path.join(args.data, "lights.json"),
         mqtt=lights_settings_from(config.get("lights")),
         zone=zone,
+        location=location,
         feed=feed,
     )
     currency = currency_from(config)

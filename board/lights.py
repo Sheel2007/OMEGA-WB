@@ -12,10 +12,16 @@ board can show them before Zigbee2MQTT has answered. What each light is doing ri
 now is only kept in memory, and goes to every screen over the event stream.
 
 Lights are known by their IEEE address, which survives renaming them in Zigbee2MQTT.
+
+"When it gets dark" switches lights on by itself, once a day: when the sun goes down
+at the board's latitude and longitude, or when a paired Zigbee light sensor says the
+room has gone dim. It only acts between noon and the time it stops, so it never fights
+someone who switched the lights off, and never wakes anyone up.
 """
 import copy
 import json
 import logging
+import math
 import re
 import threading
 import time
@@ -50,6 +56,19 @@ MAX_OFF_AGAIN_MINUTES = 240
 DEFAULT_WATCH_HOURS = 8
 MAX_WATCH_HOURS = 12
 MINUTE_STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
+DARK_FIELDS = ("enabled", "lights", "level", "until", "sensor")
+# How dark is dark enough, per level: the sun's height (degrees) or a light sensor's lux.
+DARK_LEVELS = {"early": (4.0, 100), "sunset": (-0.833, 30), "late": (-5.0, 10)}
+# The lights are only switched on by darkness from noon until the setting's stop time
+# ("00:00" is midnight, the end of the day).
+DARK_FROM = "12:00"
+DEFAULT_DARK_UNTIL = "23:00"
+# A sensor must read dark this long, so a passing shadow doesn't switch the lights on.
+DARK_FOR_MINUTES = 3
+# A sensor that hasn't reported for this long is ignored, and the sun decides instead.
+SENSOR_STALE_HOURS = 3
+MAX_SENSORS = 16
+ILLUMINANCE = ("illuminance_lux", "illuminance")
 
 
 class LightsUnavailable(Exception):
@@ -148,6 +167,54 @@ def lights_in(device_list):
     return found
 
 
+def sensors_in(device_list):
+    """The light sensors in Zigbee2MQTT's bridge/devices list, as {id: {"topic", "name", "property"}}.
+
+    Newer Zigbee2MQTT reports lux as `illuminance`; older versions as `illuminance_lux`,
+    next to a raw `illuminance`. The one measured in lux is used when there's a choice.
+    """
+    found = {}
+    for device in device_list if isinstance(device_list, list) else []:
+        if not isinstance(device, dict) or device.get("type") == "Coordinator" or device.get("disabled"):
+            continue
+        sensor_id = str(device.get("ieee_address", "")).lower()
+        topic = device.get("friendly_name")
+        if not LIGHT_ID.match(sensor_id) or not isinstance(topic, str) or not TOPIC_SAFE.match(topic):
+            continue
+        if not device.get("interview_completed", False):
+            continue
+        exposes = (device.get("definition") or {}).get("exposes") or []
+        flat = []
+        for expose in exposes:
+            if isinstance(expose, dict):
+                flat.append(expose)
+                flat += [f for f in expose.get("features") or [] if isinstance(f, dict)]
+        readings = [e for e in flat if e.get("type") == "numeric" and e.get("property") in ILLUMINANCE]
+        if not readings:
+            continue
+        best = min(readings, key=lambda e: (e.get("unit") != "lx", e["property"] != "illuminance_lux"))
+        found[sensor_id] = {"topic": topic, "name": display_name(topic, sensor_id), "property": best["property"]}
+        if len(found) >= MAX_SENSORS:
+            break
+    return found
+
+
+def sun_elevation(moment, latitude, longitude):
+    """The sun's height above the horizon in degrees at an aware datetime, worked out as web/js/sky.js does."""
+    d = moment.timestamp() / 86400 - 10957.5  # days since J2000.0
+    g = math.radians((357.529 + 0.98560028 * d) % 360)
+    q = (280.459 + 0.98564736 * d) % 360
+    ecliptic = math.radians(q + 1.915 * math.sin(g) + 0.02 * math.sin(2 * g))
+    tilt = math.radians(23.439 - 0.00000036 * d)
+    right_ascension = math.degrees(math.atan2(math.cos(tilt) * math.sin(ecliptic), math.cos(ecliptic)))
+    declination = math.asin(math.sin(tilt) * math.sin(ecliptic))
+    sidereal = (280.46061837 + 360.98564736629 * d) % 360
+    hour_angle = math.radians(sidereal + longitude - right_ascension)
+    lat = math.radians(latitude)
+    return math.degrees(math.asin(
+        math.sin(lat) * math.sin(declination) + math.cos(lat) * math.cos(declination) * math.cos(hour_angle)))
+
+
 def _pairing_event(event):
     """What a bridge/event says about a switch that's joining: (found or None, pairing done)."""
     data = event.get("data") if isinstance(event.get("data"), dict) else {}
@@ -196,11 +263,7 @@ def clean_schedule(raw):
     days = raw.get("days", [])
     if not isinstance(days, list) or not all(isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 6 for d in days):
         raise ValidationError("Days must be numbers from 0 (Sunday) to 6 (Saturday).")
-    lights = raw.get("lights", [])
-    if not isinstance(lights, list) or not all(isinstance(i, str) and LIGHT_ID.match(i.lower()) for i in lights):
-        raise ValidationError("Pick which lights the schedule switches.")
-    if len(lights) > MAX_LIGHTS:
-        raise ValidationError("That's more lights than the board knows about.")
+    lights = _light_ids(raw.get("lights", []), "Pick which lights the schedule switches.")
     enabled = raw.get("enabled", True)
     if not isinstance(enabled, bool):
         raise ValidationError("'enabled' must be true or false.")
@@ -216,12 +279,52 @@ def clean_schedule(raw):
         # No days means once, the next time that time comes round.
         "days": sorted(set(days)),
         # No lights means every light, including ones paired later.
-        "lights": list(dict.fromkeys(i.lower() for i in lights)),
+        "lights": lights,
         "enabled": enabled,
         # Only a Turn off schedule watches for lights being switched back on.
         "offAgain": 0 if on else off_again,
         "watchFor": watch_for,
     }
+
+
+def clean_dark(raw):
+    """The "When it gets dark" setting: on or off, which lights, how dark, until when, and by which sensor."""
+    if not isinstance(raw, dict):
+        raise ValidationError("Send the setting as a JSON object.")
+    enabled = raw.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ValidationError("'enabled' must be true or false.")
+    level = raw.get("level", "sunset")
+    if level not in DARK_LEVELS:
+        raise ValidationError("Pick how dark it should get.")
+    until = raw.get("until", DEFAULT_DARK_UNTIL)
+    if not isinstance(until, str) or not TIME.match(until) or not (until == "00:00" or until > DARK_FROM):
+        raise ValidationError("Pick a time after noon, up to midnight, for it to stop.")
+    sensor = raw.get("sensor")
+    if sensor is not None and not (isinstance(sensor, str) and LIGHT_ID.match(sensor.lower())):
+        raise ValidationError("Pick a light sensor, or the sun.")
+    return {
+        "enabled": enabled,
+        # No lights means every light, as in a schedule.
+        "lights": _light_ids(raw.get("lights", []), "Pick which lights come on."),
+        "level": level,
+        "until": until,
+        # None means the sun decides.
+        "sensor": sensor.lower() if sensor else None,
+    }
+
+
+def _light_ids(lights, message):
+    if not isinstance(lights, list) or not all(isinstance(i, str) and LIGHT_ID.match(i.lower()) for i in lights):
+        raise ValidationError(message)
+    if len(lights) > MAX_LIGHTS:
+        raise ValidationError("That's more lights than the board knows about.")
+    return list(dict.fromkeys(i.lower() for i in lights))
+
+
+def in_dark_window(clock, until):
+    """Whether "HH:MM" is between noon and the stop time, when darkness may switch lights on."""
+    return clock >= DARK_FROM and (until == "00:00" or clock < until)
 
 
 def _whole(value):
@@ -261,10 +364,14 @@ def _order(schedule):
 class Lights(JsonStore):
     label = "lights"
 
-    def __init__(self, path=None, *, mqtt=None, zone=None, feed=None, clock=None, epoch_ms=None,
+    def __init__(self, path=None, *, mqtt=None, zone=None, location=None, feed=None, clock=None, epoch_ms=None,
                  client_factory=MqttClient):
         self._mqtt = mqtt
         self._zone = zone
+        # {"latitude", "longitude"}: where the sun is worked out for "When it gets dark".
+        self._location = location
+        self._lux = {}         # sensor id -> {"lux", "at", "below": {level: local time it went under}}
+        self._sun_times = None  # (date, {level: "HH:MM" or None}): when it gets dark today, by the sun
         self._wall_clock = clock or self._local_now
         self._epoch_ms = epoch_ms or (lambda: int(time.time() * 1000))
         # Whether new switches may join, until when (epoch ms), and how the newest one is getting on.
@@ -325,6 +432,10 @@ class Lights(JsonStore):
                 self.enforce(now)
             except Exception:
                 log.exception("Lights: couldn't turn a light off again")
+            try:
+                self.check_dark(now)
+            except Exception:
+                log.exception("Lights: couldn't turn the lights on for the dark")
             # A clock that went back just waits; _fired stops a minute running twice.
             last = now
 
@@ -417,6 +528,100 @@ class Lights(JsonStore):
         self._watches = kept
         return changed
 
+    # When it gets dark
+
+    def check_dark(self, now):
+        """Switches the lights on the first time it's dark enough today, between noon and the stop time."""
+        with self._changed:
+            dark = self._dark
+            today = now.date().isoformat()
+            if not dark["enabled"] or (self._dark_ran or "")[:10] == today:
+                return
+            if not in_dark_window(now.strftime("%H:%M"), dark["until"]) or not self._is_dark(now):
+                return
+            # Without the broker nothing would come on; it's tried again next minute.
+            if not self._connected or self._hub is False:
+                return
+            targets = [i for i in (dark["lights"] or sorted(self._devices)) if i in self._devices]
+            if not targets:
+                return
+            self._dark_ran = now.isoformat(timespec="minutes")
+            # Like a Turn on schedule: an earlier watch doesn't switch these straight back off.
+            self._stop_watching(targets)
+            self._commit()
+        log.info("Lights: it's dark, turning on %d light(s)", len(targets))
+        for light_id in targets:
+            try:
+                self.set(light_id, True)
+            except (LightsUnavailable, NotFound) as err:
+                log.warning("Lights: couldn't turn %s on for the dark: %s", light_id, err)
+
+    def set_dark(self, raw):
+        if not isinstance(raw, dict):
+            raise ValidationError("Send the changes as a JSON object.")
+        with self._changed:
+            cleaned = clean_dark({**self._dark, **{k: raw[k] for k in DARK_FIELDS if k in raw}})
+            if cleaned != self._dark:
+                self._dark = cleaned
+                self._commit()
+            return {"state": self._state()}
+
+    def _dark_source(self, now):
+        """What decides whether it's dark: "sensor", "sun", or None. Call with self._changed held."""
+        reading = self._lux.get(self._dark["sensor"])
+        if reading is not None and now - reading["at"] <= timedelta(hours=SENSOR_STALE_HOURS):
+            return "sensor"
+        return "sun" if self._location else None
+
+    def _is_dark(self, now):
+        """Call with self._changed held."""
+        source = self._dark_source(now)
+        level = self._dark["level"]
+        if source == "sensor":
+            since = self._lux[self._dark["sensor"]]["below"].get(level)
+            return since is not None and now - since >= timedelta(minutes=DARK_FOR_MINUTES)
+        if source == "sun":
+            return self._elevation(now) < DARK_LEVELS[level][0]
+        return False
+
+    def _elevation(self, now):
+        moment = now.replace(tzinfo=self._zone) if self._zone else now.astimezone()
+        return sun_elevation(moment, self._location["latitude"], self._location["longitude"])
+
+    def _sun_times_on(self, day):
+        """{level: "HH:MM"}: when the sun gets low enough for each level that day, after noon.
+
+        None for a level the sun doesn't reach before midnight. Worked out once a day.
+        """
+        if self._sun_times is None or self._sun_times[0] != day:
+            times = dict.fromkeys(DARK_LEVELS)
+            minute = datetime.combine(day, datetime.min.time()).replace(hour=12)
+            while minute.date() == day and None in times.values():
+                elevation = self._elevation(minute)
+                for level, (below, _) in DARK_LEVELS.items():
+                    if times[level] is None and elevation < below:
+                        times[level] = minute.strftime("%H:%M")
+                minute += timedelta(minutes=1)
+            self._sun_times = (day, times)
+        return dict(self._sun_times[1])
+
+    def _note_lux(self, sensor_id, value):
+        """Keeps a light sensor's latest reading. Call with self._changed held."""
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0 <= value < 1e6:
+            return
+        now = self._wall_clock()
+        reading = self._lux.setdefault(sensor_id, {"lux": None, "at": None, "below": {}})
+        first = reading["at"] is None
+        reading["lux"], reading["at"] = value, now
+        for level, (_, limit) in DARK_LEVELS.items():
+            if value < limit:
+                reading["below"].setdefault(level, now)
+            else:
+                reading["below"].pop(level, None)
+        # Readings can come every few seconds, so screens only hear that a sensor has started reporting.
+        if first:
+            self._announce()
+
     def _is_on(self, light_id):
         raw = self._raw.get(light_id)
         return raw is not None and (raw == "ON") != (light_id in self._swapped)
@@ -464,17 +669,21 @@ class Lights(JsonStore):
             return
         if rest == "bridge/devices":
             try:
-                found = lights_in(json.loads(payload))
+                devices = json.loads(payload)
             except ValueError:
                 return
+            found, sensors = lights_in(devices), sensors_in(devices)
             with self._changed:
-                if found != self._devices:
+                if found != self._devices or sensors != self._sensors:
                     self._devices = found
+                    self._sensors = sensors
                     for gone in set(self._raw) - set(found):
                         self._raw.pop(gone, None)
                         self._online.pop(gone, None)
                     for gone in set(self._battery) - set(found):
                         self._battery.pop(gone, None)
+                    for gone in set(self._lux) - set(sensors):
+                        self._lux.pop(gone, None)
                     self._commit()
             self._follow()
             return
@@ -490,6 +699,14 @@ class Lights(JsonStore):
         name = rest[: -len("/availability")] if availability else rest
         with self._changed:
             light_id = next((i for i, d in self._devices.items() if d["topic"] == name), None)
+            sensor_id = next((i for i, d in self._sensors.items() if d["topic"] == name), None)
+            if sensor_id is not None and not availability:
+                try:
+                    report = json.loads(payload)
+                except ValueError:
+                    return
+                if isinstance(report, dict):
+                    self._note_lux(sensor_id, report.get(self._sensors[sensor_id]["property"]))
             if light_id is None:
                 return
             if availability:
@@ -534,6 +751,9 @@ class Lights(JsonStore):
             if not self._connected:
                 return
             wanted = {}
+            # Sensors only report; they're never asked (most sleep on batteries).
+            for device in self._sensors.values():
+                wanted["%s/%s" % (base, device["topic"])] = None
             for device in self._devices.values():
                 wanted["%s/%s" % (base, device["topic"])] = device["topic"]
                 wanted["%s/%s/availability" % (base, device["topic"])] = None
@@ -756,6 +976,9 @@ class Lights(JsonStore):
         self._schedules = []
         self._watches = []     # lights to turn off again if they're switched back on (see enforce)
         self._battery = {}     # id -> {"level": percent, "at": epoch ms of the latest report}
+        self._sensors = {}     # light sensors: id -> {"topic", "name", "property"}
+        self._dark = clean_dark({})
+        self._dark_ran = None  # the local minute "When it gets dark" last switched lights on
 
     def _state(self):
         lights = []
@@ -778,6 +1001,14 @@ class Lights(JsonStore):
                 "batteryAt": self._battery.get(light_id, {}).get("at"),
             })
         lights.sort(key=lambda light: (light["name"].lower(), light["id"]))
+        now = self._wall_clock()
+        stale = timedelta(hours=SENSOR_STALE_HOURS)
+        sensors = sorted(
+            ({"id": i, "name": self._names.get(i) or d["name"],
+              "reporting": i in self._lux and now - self._lux[i]["at"] <= stale}
+             for i, d in self._sensors.items()),
+            key=lambda sensor: (sensor["name"].lower(), sensor["id"]),
+        )
         return {
             "version": self._version,
             "configured": self._mqtt is not None,
@@ -786,6 +1017,16 @@ class Lights(JsonStore):
             "lights": lights,
             "schedules": copy.deepcopy(self._schedules),
             "pairing": copy.deepcopy(self._pairing),
+            "sensors": sensors,
+            "dark": {
+                **copy.deepcopy(self._dark),
+                # What decides it right now: "sensor", "sun", or None (no location and no sensor).
+                "using": self._dark_source(now),
+                # {"sunset": "18:21", ...}: when the sun gets low enough today, for each level.
+                "sunTimes": self._sun_times_on(now.date()) if self._location else None,
+                # "2026-10-10T17:42": the last time it switched lights on.
+                "ranAt": self._dark_ran,
+            },
         }
 
     def _to_disk(self):
@@ -796,6 +1037,9 @@ class Lights(JsonStore):
             "schedules": self._schedules,
             "watches": self._watches,
             "battery": self._battery,
+            "sensors": {sensor_id: dict(sensor) for sensor_id, sensor in self._sensors.items()},
+            "dark": self._dark,
+            "darkRan": self._dark_ran,
         }
 
     def _from_disk(self, data):
@@ -821,6 +1065,15 @@ class Lights(JsonStore):
             for i, b in (data.get("battery") or {}).items()
             if LIGHT_ID.match(i) and isinstance(b, dict) and _whole(b.get("level")) and 0 <= b["level"] <= 100
         }
+        self._sensors = {
+            i: {"topic": d["topic"], "name": d["name"], "property": d["property"]}
+            for i, d in (data.get("sensors") or {}).items()
+            if LIGHT_ID.match(i) and isinstance(d, dict) and isinstance(d.get("topic"), str)
+            and isinstance(d.get("name"), str) and d.get("property") in ILLUMINANCE
+        }
+        self._dark = clean_dark(data.get("dark") or {})
+        ran = data.get("darkRan")
+        self._dark_ran = ran if isinstance(ran, str) and MINUTE_STAMP.match(ran) else None
 
 
 def _valid_watch(raw):

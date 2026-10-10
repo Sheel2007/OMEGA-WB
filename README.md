@@ -112,6 +112,16 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     Pick how long to keep watching (the choices show the end time, like 7:00 AM).
     A Turn on schedule for those lights ends the watching early, and so does
     pausing or changing the schedule.
+  - **When it gets dark** — the row above the schedules. Switch it on and the
+    lights come on by themselves once a day, the first time it gets dark between
+    noon and the time you pick (9 PM to midnight). Switch them off again and they
+    stay off. Tap it to choose how dark (**Before sunset**, **At sunset** or
+    **After sunset**, with today's time for each) and which lights. The board
+    works out sunset from `latitude` and `longitude` in `config.json`. With a
+    Zigbee light sensor paired (any device that reports illuminance, like many
+    motion sensors), you can pick it instead, so a stormy afternoon counts too.
+    It has to read dim for a few minutes first, and if it stops reporting the
+    sun takes over.
   - **Batteries** — battery-powered switches report their charge. At 30% or
     less, the light's tile shows a battery mark and the percentage, and the
     widget's header says so ("Porch battery low"), so there's time to change the

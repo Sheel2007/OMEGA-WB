@@ -9,6 +9,10 @@ import {
   durationLabel,
   clockParts,
   countLabel,
+  darkRanLabel,
+  darkSummary,
+  sunLevelLabel,
+  untilLabel,
   lightsLabel,
   lightStateLabel,
   nextLabel,
@@ -151,4 +155,41 @@ test('switches at 30% battery or less are flagged, with plain words', () => {
   assert.equal(batteryLabel(porch, 1_000_000 + 30_000), 'Battery 22% — replace soon · reported just now');
   assert.equal(batteryLabel(porch, 1_000_000 + 2 * 3600_000), 'Battery 22% — replace soon · reported 2 hr ago');
   assert.equal(batteryLabel(porch, 1_000_000 + 3 * 86400_000), 'Battery 22% — replace soon · reported 3 days ago');
+});
+
+const DARK = {
+  enabled: true,
+  lights: [],
+  level: 'sunset',
+  until: '23:00',
+  sensor: null,
+  using: 'sun',
+  sunTimes: { early: '17:58', sunset: '18:24', late: '18:46' },
+  ranAt: null,
+};
+
+test('when it gets dark says how it tells, which lights and until when', () => {
+  const now = new Date(2026, 9, 10, 15, 0);
+  assert.equal(darkSummary(DARK, LIGHTS, [], now), 'Turn on · All lights · At sunset · 6:24 PM · Until 11:00 PM');
+  const sensors = [{ id: '0x09', name: 'Hall motion', reporting: true }];
+  assert.equal(
+    darkSummary({ ...DARK, using: 'sensor', sensor: '0x09', level: 'late', until: '00:00' }, LIGHTS, sensors, now),
+    'Turn on · All lights · Dark, by Hall motion · Until Midnight',
+  );
+  assert.equal(darkSummary({ ...DARK, using: null }, LIGHTS, [], now), 'Needs the board’s location or a light sensor');
+});
+
+test('when it gets dark says when it last came on, only on the day', () => {
+  const ran = { ...DARK, ranAt: '2026-10-10T18:25' };
+  assert.equal(darkRanLabel(ran, new Date(2026, 9, 10, 20, 0)), 'Came on at 6:25 PM today');
+  assert.equal(darkRanLabel(ran, new Date(2026, 9, 11, 20, 0)), '');
+  assert.match(darkSummary(ran, LIGHTS, [], new Date(2026, 9, 10, 20, 0)), /^Came on at 6:25 PM today · All lights/);
+});
+
+test('a sun time after the stop time is not today', () => {
+  const summer = { ...DARK, until: '21:00', sunTimes: { early: '20:10', sunset: '20:50', late: '21:30' } };
+  assert.equal(sunLevelLabel('sunset', summer), 'At sunset · 8:50 PM');
+  assert.equal(sunLevelLabel('late', summer), 'After sunset · not before 9:00 PM today');
+  assert.equal(sunLevelLabel('late', { ...summer, sunTimes: { ...summer.sunTimes, late: null } }), 'After sunset · not before 9:00 PM today');
+  assert.equal(untilLabel('22:00'), '10:00 PM');
 });

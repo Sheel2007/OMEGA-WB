@@ -2,7 +2,8 @@ import json
 import os
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from board.lights import (
     MAX_CATCH_UP_MINUTES,
@@ -11,7 +12,9 @@ from board.lights import (
     display_name,
     due,
     lights_in,
+    sensors_in,
     settings_from,
+    sun_elevation,
 )
 from board.store import ChangeFeed, NotFound, ValidationError
 
@@ -76,12 +79,12 @@ class FakeClient:
         return True
 
 
-def connected_lights(path=None, feed=None, clock=None):
+def connected_lights(path=None, feed=None, clock=None, devices=DEVICES, **options):
     lights = Lights(path, mqtt=settings_from(True), feed=feed, clock=clock, epoch_ms=lambda: 1_000_000,
-                    client_factory=FakeClient)
+                    client_factory=FakeClient, **options)
     lights.handle_connect()
     lights.handle_message("zigbee2mqtt/bridge/state", b'{"state":"online"}')
-    lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
+    lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(devices).encode())
     return lights
 
 
@@ -577,6 +580,178 @@ class TurnOffAgainTest(unittest.TestCase):
         for bad in ({"offAgain": 3}, {"offAgain": 241}, {"offAgain": True}, {"watchFor": 0}, {"watchFor": 13}):
             with self.assertRaises(ValidationError, msg=bad):
                 lights.add_schedule({"time": "23:00", "on": False, **bad})
+
+
+HALL = "0x00158d0001a2b3c4"
+NEW_YORK = {"latitude": 40.71, "longitude": -74.01}
+
+
+def light_sensor(ieee, name, exposes):
+    return {"ieee_address": ieee, "friendly_name": name, "type": "EndDevice", "interview_completed": True,
+            "definition": {"exposes": exposes}}
+
+
+WITH_SENSOR = DEVICES + [light_sensor(HALL, "hall_motion", [
+    {"type": "binary", "property": "occupancy"},
+    {"type": "numeric", "property": "illuminance", "name": "illuminance"},
+    {"type": "numeric", "property": "illuminance_lux", "name": "illuminance_lux", "unit": "lx"},
+])]
+
+
+class WhenItGetsDarkTest(unittest.TestCase):
+    def by_sun(self, clock, **dark):
+        lights = connected_lights(clock=clock, zone=ZoneInfo("America/New_York"), location=NEW_YORK)
+        lights.set_dark({"enabled": True, **dark})
+        lights._client.published.clear()
+        return lights
+
+    def on_messages(self, lights):
+        return sorted(t for t, payload in lights._client.published if payload == {"state": "ON"})
+
+    def test_the_sun_is_worked_out_like_the_wallpaper(self):
+        noon = sun_elevation(datetime(2026, 6, 21, 16, 55, tzinfo=timezone.utc), **NEW_YORK)
+        self.assertAlmostEqual(noon, 90 - 40.71 + 23.44, delta=0.5, msg="midsummer noon in New York")
+        night = sun_elevation(datetime(2026, 6, 21, 4, 55, tzinfo=timezone.utc), **NEW_YORK)
+        self.assertLess(night, -20)
+
+    def test_it_is_off_until_switched_on(self):
+        clock = Clock(2026, 10, 10, 20, 0)
+        lights = connected_lights(clock=clock, zone=ZoneInfo("America/New_York"), location=NEW_YORK)
+        dark = lights.snapshot()["dark"]
+        self.assertEqual((dark["enabled"], dark["level"], dark["until"], dark["using"]), (False, "sunset", "23:00", "sun"))
+        lights.check_dark(clock())
+        self.assertEqual(self.on_messages(lights), [])
+
+    def test_the_lights_come_on_once_when_the_sun_goes_down(self):
+        clock = Clock(2026, 10, 10, 17, 0)
+        lights = self.by_sun(clock)
+        sun_at = lights.snapshot()["dark"]["sunTimes"]["sunset"]
+        self.assertTrue("18:20" <= sun_at <= "18:35", "New York sunset in October, not %s" % sun_at)
+
+        lights.check_dark(clock.at(2026, 10, 10, 18, 0))
+        self.assertEqual(lights._client.published, [], "still light out")
+        lights.check_dark(clock.at(2026, 10, 10, 18, 40))
+        self.assertEqual(self.on_messages(lights), ["zigbee2mqtt/bedroom_light/set", "zigbee2mqtt/kitchen_light/set"])
+        self.assertEqual(lights.snapshot()["dark"]["ranAt"], "2026-10-10T18:40")
+
+        # Someone switches them off: they stay off for the rest of the evening.
+        lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"OFF"}')
+        lights._client.published.clear()
+        lights.check_dark(clock.at(2026, 10, 10, 20, 0))
+        self.assertEqual(lights._client.published, [])
+
+        lights.check_dark(clock.at(2026, 10, 11, 18, 45))
+        self.assertEqual(len(self.on_messages(lights)), 2, "and again the next evening")
+
+    def test_only_between_noon_and_the_stop_time(self):
+        lights = self.by_sun(Clock(2026, 10, 10, 6, 0), until="22:00", lights=[KITCHEN])
+        lights.check_dark(datetime(2026, 10, 10, 6, 0))
+        self.assertEqual(lights._client.published, [], "dark before dawn, but it's morning")
+        lights.check_dark(datetime(2026, 10, 10, 22, 0))
+        self.assertEqual(lights._client.published, [], "too late: people may be asleep")
+        lights.check_dark(datetime(2026, 10, 10, 21, 59))
+        self.assertEqual(self.on_messages(lights), ["zigbee2mqtt/kitchen_light/set"], "only the lights it names")
+
+    def test_how_dark_moves_the_time(self):
+        times = self.by_sun(Clock(2026, 10, 10, 17, 0)).snapshot()["dark"]["sunTimes"]
+        self.assertLess(times["early"], times["sunset"])
+        self.assertLess(times["sunset"], times["late"])
+        lights = self.by_sun(Clock(2026, 10, 10, 18, 40), level="late")
+        lights.check_dark(datetime(2026, 10, 10, 18, 40))
+        self.assertEqual(self.on_messages(lights), [], "After sunset waits past the moment the sun sets")
+
+    def test_without_the_broker_it_tries_again_next_minute(self):
+        clock = Clock(2026, 10, 10, 19, 0)
+        lights = self.by_sun(clock)
+        lights.handle_disconnect()
+        lights.check_dark(clock())
+        self.assertIsNone(lights.snapshot()["dark"]["ranAt"])
+        lights.handle_connect()
+        lights._client.published.clear()
+        lights.check_dark(clock.at(2026, 10, 10, 19, 1))
+        self.assertEqual(len(self.on_messages(lights)), 2)
+
+    def test_it_ends_a_turn_off_watch_for_the_lights_it_turns_on(self):
+        clock = Clock(2026, 10, 10, 16, 0)
+        lights = self.by_sun(clock)
+        lights.add_schedule({"time": "16:00", "on": False, "days": [6], "offAgain": 15, "watchFor": 6})
+        lights.run_due(datetime(2026, 10, 10, 15, 59), clock())
+        lights.check_dark(clock.at(2026, 10, 10, 19, 0))
+        self.assertEqual(lights._watches, [])
+
+    def test_a_light_sensor_decides_when_one_is_picked(self):
+        clock = Clock(2026, 10, 10, 13, 0)
+        lights = connected_lights(clock=clock, devices=WITH_SENSOR)
+        self.assertIn("zigbee2mqtt/hall_motion", lights._client.subscribed)
+        self.assertNotIn(("zigbee2mqtt/hall_motion/get", {"state": ""}), lights._client.published)
+        self.assertEqual(lights.snapshot()["sensors"], [{"id": HALL, "name": "Hall motion", "reporting": False}])
+        lights.set_dark({"enabled": True, "sensor": HALL, "level": "sunset"})
+        self.assertIsNone(lights.snapshot()["dark"]["using"], "no reading yet, and no location for the sun")
+
+        lights.handle_message("zigbee2mqtt/hall_motion", b'{"illuminance": 9000, "illuminance_lux": 250}')
+        self.assertEqual(lights.snapshot()["dark"]["using"], "sensor")
+        self.assertTrue(lights.snapshot()["sensors"][0]["reporting"])
+        clock.at(2026, 10, 10, 14, 0)
+        lights.handle_message("zigbee2mqtt/hall_motion", b'{"illuminance_lux": 12}')
+        lights._client.published.clear()
+        lights.check_dark(clock.at(2026, 10, 10, 14, 2))
+        self.assertEqual(lights._client.published, [], "a shadow, not yet dark for long")
+        lights.check_dark(clock.at(2026, 10, 10, 14, 3))
+        self.assertEqual(len(self.on_messages(lights)), 2, "a stormy afternoon counts")
+
+    def test_a_brief_bright_reading_starts_the_wait_again(self):
+        clock = Clock(2026, 10, 10, 15, 0)
+        lights = connected_lights(clock=clock, devices=WITH_SENSOR)
+        lights.set_dark({"enabled": True, "sensor": HALL})
+        lights.handle_message("zigbee2mqtt/hall_motion", b'{"illuminance_lux": 5}')
+        clock.at(2026, 10, 10, 15, 2)
+        lights.handle_message("zigbee2mqtt/hall_motion", b'{"illuminance_lux": 80}')
+        clock.at(2026, 10, 10, 15, 3)
+        lights.handle_message("zigbee2mqtt/hall_motion", b'{"illuminance_lux": 5}')
+        lights._client.published.clear()
+        lights.check_dark(clock.at(2026, 10, 10, 15, 4))
+        self.assertEqual(lights._client.published, [])
+
+    def test_a_quiet_sensor_hands_over_to_the_sun(self):
+        clock = Clock(2026, 10, 10, 13, 0)
+        lights = connected_lights(clock=clock, devices=WITH_SENSOR, zone=ZoneInfo("America/New_York"), location=NEW_YORK)
+        lights.set_dark({"enabled": True, "sensor": HALL})
+        lights.handle_message("zigbee2mqtt/hall_motion", b'{"illuminance_lux": 400}')
+        clock.at(2026, 10, 10, 19, 0)
+        self.assertEqual(lights.snapshot()["dark"]["using"], "sun")
+        lights._client.published.clear()
+        lights.check_dark(clock())
+        self.assertEqual(len(self.on_messages(lights)), 2)
+
+    def test_sensors_are_found_by_their_illuminance(self):
+        found = sensors_in(WITH_SENSOR)
+        self.assertEqual(found, {HALL: {"topic": "hall_motion", "name": "Hall motion", "property": "illuminance_lux"}})
+        newer = sensors_in([light_sensor(HALL, "hall", [
+            {"type": "numeric", "property": "illuminance", "name": "illuminance", "unit": "lx"}])])
+        self.assertEqual(newer[HALL]["property"], "illuminance")
+        self.assertEqual(sensors_in(DEVICES), {})
+
+    def test_settings_are_checked_and_survive_a_restart(self):
+        lights = connected_lights()
+        for bad in ({"enabled": "yes"}, {"level": "pitch"}, {"until": "11:00"}, {"until": "25:00"},
+                    {"sensor": "hall"}, {"lights": ["nope"]}):
+            with self.assertRaises(ValidationError, msg=bad):
+                lights.set_dark(bad)
+        self.assertEqual(lights.set_dark({"until": "00:00"})["state"]["dark"]["until"], "00:00", "midnight is fine")
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "lights.json")
+            lights = self.by_sun(Clock(2026, 10, 10, 19, 0))
+            lights._path = path
+            lights.check_dark(datetime(2026, 10, 10, 19, 0))
+            lights.set_dark({"lights": [BEDROOM], "level": "late"})
+            again = Lights(path, mqtt=settings_from(True), clock=Clock(2026, 10, 10, 19, 30), client_factory=FakeClient,
+                           zone=ZoneInfo("America/New_York"), location=NEW_YORK)
+            again.handle_connect()
+            again.handle_message("zigbee2mqtt/bridge/state", b'{"state":"online"}')
+            dark = again.snapshot()["dark"]
+            self.assertEqual((dark["enabled"], dark["lights"], dark["level"]), (True, [BEDROOM], "late"))
+            again.check_dark(datetime(2026, 10, 10, 19, 30))
+            self.assertEqual(self.on_messages(again), [], "a restart doesn't switch them on twice in one evening")
 
 
 class PersistenceTest(unittest.TestCase):

@@ -231,6 +231,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/lights/swap": "lights_swap",
         "/api/lights/pair": "lights_pair",
         "/api/lights/rename": "lights_rename",
+        "/api/lights/dark": "lights_dark",
         "/api/lights/schedules/add": "lights_schedule_add",
         "/api/lights/schedules/update": "lights_schedule_update",
         "/api/lights/schedules/remove": "lights_schedule_remove",
@@ -541,6 +542,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def lights_rename(self, body):
         return self.server.lights.rename(body.get("id"), body.get("name"))
+
+    def lights_dark(self, body):
+        return self.server.lights.set_dark(body)
 
     def lights_pair(self, body):
         return self.server.lights.pair(body.get("open"))

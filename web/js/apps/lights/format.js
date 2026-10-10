@@ -205,3 +205,52 @@ export function lightStateLabel(light) {
   if (light.on && light.offAt) return `Until ${clockLabel(light.offAt)}`;
   return light.on ? 'On' : 'Off';
 }
+
+// "When it gets dark": the lights come on once a day, between noon and `until`.
+
+// Earliest to latest. Matches DARK_LEVELS in board/lights.py.
+export const DARK_LEVELS = ['early', 'sunset', 'late'];
+export const DARK_UNTIL = ['21:00', '22:00', '23:00', '00:00'];
+// The lux each level means to a light sensor, for its hint.
+export const DARK_LUX = { early: 100, sunset: 30, late: 10 };
+
+const SUN_LEVELS = { early: 'Before sunset', sunset: 'At sunset', late: 'After sunset' };
+const SENSOR_LEVELS = { early: 'A little dim', sunset: 'Dim', late: 'Dark' };
+
+export function darkLevelLabel(level, bySensor = false) {
+  return (bySensor ? SENSOR_LEVELS : SUN_LEVELS)[level] ?? '';
+}
+
+// "11:00 PM", or "Midnight" for the end of the day.
+export function untilLabel(until) {
+  return until === '00:00' ? 'Midnight' : clockLabel(until);
+}
+
+// Whether "HH:MM" comes before the stop time (midnight being the end of the day).
+export function beforeUntil(time, until) {
+  return until === '00:00' || time < until;
+}
+
+// The sun's time for a level today ("At sunset · 6:24 PM"), or why it won't come today.
+export function sunLevelLabel(level, dark) {
+  const at = dark.sunTimes?.[level];
+  if (!dark.sunTimes) return darkLevelLabel(level);
+  if (!at || !beforeUntil(at, dark.until)) return `${darkLevelLabel(level)} · not before ${untilLabel(dark.until)} today`;
+  return `${darkLevelLabel(level)} · ${clockLabel(at)}`;
+}
+
+// "Came on at 6:24 PM" when it switched the lights on today, else ''.
+export function darkRanLabel(dark, now = new Date()) {
+  if (!dark.ranAt) return '';
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return dark.ranAt.slice(0, 10) === today ? `Came on at ${clockLabel(dark.ranAt.slice(11, 16))} today` : '';
+}
+
+// The row in the app: what it does, which lights, how it tells, and until when.
+export function darkSummary(dark, lights, sensors, now = new Date()) {
+  if (!dark.using) return 'Needs the board’s location or a light sensor';
+  const ran = darkRanLabel(dark, now);
+  const sensor = dark.using === 'sensor' && sensors.find((s) => s.id === dark.sensor);
+  const when = sensor ? `${darkLevelLabel(dark.level, true)}, by ${sensor.name}` : sunLevelLabel(dark.level, dark);
+  return [ran || 'Turn on', lightsLabel(dark.lights, lights), when, `Until ${untilLabel(dark.until)}`].join(' · ');
+}

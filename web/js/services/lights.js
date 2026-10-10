@@ -13,6 +13,8 @@ const EMPTY = {
   lights: [],
   schedules: [],
   pairing: { open: false, until: null, found: null, error: null },
+  sensors: [],
+  dark: { enabled: false, lights: [], level: 'sunset', until: '23:00', sensor: null, using: null, sunTimes: null, ranAt: null },
 };
 // Matches PAIR_SECONDS in board/lights.py.
 const PAIR_MS = 254 * 1000;
@@ -41,6 +43,8 @@ export function createLightsService({ live }) {
     getState: () => synced.state,
     getLights: () => synced.state.lights,
     getSchedules: () => synced.state.schedules,
+    getDark: () => synced.state.dark,
+    getSensors: () => synced.state.sensors,
     subscribe: synced.subscribe,
     refresh: synced.refresh,
 
@@ -71,6 +75,15 @@ export function createLightsService({ live }) {
       return synced.mutate('rename', { id, name: tidy }, (state) => {
         const light = state.lights.find((l) => l.id === id);
         if (light) light.name = tidy;
+        return state;
+      });
+    },
+
+    // "When it gets dark": changes: { enabled, lights: [ids] (none = every light),
+    //   level: 'early'|'sunset'|'late', until: 'HH:MM' ('00:00' = midnight), sensor: id or null (the sun) }.
+    setDark(changes) {
+      return synced.mutate('dark', changes, (state) => {
+        state.dark = { ...state.dark, ...changes };
         return state;
       });
     },

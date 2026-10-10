@@ -519,8 +519,42 @@
 }
 
 /* A schedule that's switched off keeps its place, in quieter type. */
-.schedule-row--off .schedule-row__time {
+.schedule-row--off .schedule-row__time,
+.schedule-row--off .dark-row__title {
   color: var(--text-3);
+}
+
+/* "When it gets dark": above the schedules, in the same kind of row. */
+.dark-row {
+  margin-bottom: 0.8rem;
+}
+
+.dark-row__title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: var(--fs-item);
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.dark-row__icon {
+  display: grid;
+  flex: none;
+}
+
+.dark-row__icon svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.dark-editor__missing {
+  margin: 0;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius-control);
+  background: var(--fill);
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 
 .schedule-list__empty {

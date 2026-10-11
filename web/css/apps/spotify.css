@@ -1,8 +1,24 @@
-/* Spotify widget: a round cover with the song under it, and no header at any
-   size. Mini (one column by two rows, the strip beside the clock) is just that;
-   small makes the cover bigger, medium puts the words beside the cover, and large
-   adds the album and a playhead under a big cover. The cover is sized from its slot with container units, so it's always
-   the biggest circle that fits whatever size the widget is. */
+/* Spotify widget: a round cover with the song under it, and no header or card
+   at any size: like the clock, it sits straight on the wallpaper, in the
+   wallpaper's text colours. Mini (one column by two rows, the strip beside the
+   clock) is just that; small makes the cover bigger, medium puts the words beside
+   the cover, and large adds the album and a playhead under a big cover. The cover
+   is sized from its slot with container units, so it's always the biggest circle
+   that fits whatever size the widget is. */
+
+:root[data-theme] .widget.spotify-widget {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: var(--sky-text);
+  text-shadow: var(--sky-text-shadow-sm);
+}
+
+/* Glass draws its frosted card on a layer of its own. */
+:root[data-theme] .widget.spotify-widget::before {
+  display: none;
+}
 
 .spotify-widget__body {
   flex: 1;
@@ -26,8 +42,8 @@
   aspect-ratio: 1;
   border-radius: 50%;
   overflow: hidden;
-  background: var(--fill-strong);
-  box-shadow: 0 0 0 1px var(--hairline);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   transition: opacity 0.3s var(--ease-out);
 }
 
@@ -88,7 +104,7 @@
   font-size: var(--fs-body);
   font-weight: 600;
   line-height: 1.25;
-  color: var(--text-2);
+  color: var(--sky-text-quiet, var(--sky-text));
 }
 
 .spotify-widget__album {
@@ -96,14 +112,14 @@
   font-size: var(--fs-body);
   font-weight: 500;
   line-height: 1.25;
-  color: var(--text-2);
+  color: var(--sky-text-quiet, var(--sky-text));
 }
 
 .spotify-widget__hint {
   margin: 0.3rem 0 0;
   font-size: var(--fs-body);
   font-weight: 600;
-  color: var(--text-2);
+  color: var(--sky-text-quiet, var(--sky-text));
 }
 
 .spotify-widget__connect {
@@ -120,6 +136,7 @@
   box-shadow: var(--shadow-sm);
   font-size: var(--fs-body);
   font-weight: 700;
+  text-shadow: none;
 }
 
 .spotify-widget__connect:active {
@@ -140,7 +157,7 @@
   display: block;
   height: 0.5rem;
   border-radius: var(--radius-pill);
-  background: var(--fill-strong);
+  background: color-mix(in srgb, var(--sky-text) 25%, transparent);
   overflow: hidden;
 }
 
@@ -159,12 +176,12 @@
   margin-top: 0.4rem;
   font-size: var(--fs-caption);
   font-weight: 600;
-  color: var(--text-2);
+  color: var(--sky-text-quiet, var(--sky-text));
   font-variant-numeric: tabular-nums;
 }
 
 [data-theme="blocks"] .spotify-widget__cover {
-  box-shadow: 0 0 0 0.2rem var(--line);
+  box-shadow: 0 0 0 0.2rem #1d1d1d;
 }
 
 [data-theme="blocks"] :is(.spotify-widget__bar, .spotify-widget__connect) {

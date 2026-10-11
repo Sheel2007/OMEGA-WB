@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { libraryProgress, libraryTarget, resist, spring, swipeTarget, velocity } from '../../web/js/swipe.js';
+import { libraryProgress, libraryTarget, resist, sideProgress, sideTarget, spring, swipeTarget, velocity } from '../../web/js/swipe.js';
 
 const width = 1000;
 
@@ -72,4 +72,21 @@ test('the spring settles at 1, and a flick carries on at the finger\'s speed', (
   const firm = spring({ damping: 1 });
   for (let f = 0; f <= 1; f += 0.02) assert.ok(firm.at(f) <= 1.0005, 'a damping of 1 never overshoots');
   assert.ok(Math.max(...Array.from({ length: 51 }, (_, i) => spring({ damping: 0.6 }).at(i / 50))) > 1, 'a looser one does');
+});
+
+test('the Sports page slides in one for one with the finger, and no further', () => {
+  assert.equal(sideProgress({ from: 0, dx: 250, width }), 0.25);
+  assert.equal(sideProgress({ from: 0, dx: -300, width }), 0, 'dragging left from shut stays shut');
+  assert.equal(sideProgress({ from: 1, dx: -400, width }), 0.6);
+  assert.equal(sideProgress({ from: 1, dx: 400, width }), 1, 'no stretch past open');
+  assert.equal(sideProgress({ from: 0.5, dx: 100, width: 0 }), 0.5);
+});
+
+test('the Sports page opens and shuts like turning a page', () => {
+  assert.equal(sideTarget({ from: 0, progress: 0.1, vx: 0 }), false, 'too short');
+  assert.equal(sideTarget({ from: 0, progress: 0.25, vx: 0 }), true);
+  assert.equal(sideTarget({ from: 0, progress: 0.05, vx: 0.6 }), true, 'a flick right');
+  assert.equal(sideTarget({ from: 0, progress: 0.6, vx: -0.6 }), false, 'flicked back: never mind');
+  assert.equal(sideTarget({ from: 1, progress: 0.9, vx: 0 }), true, 'nudged left stays open');
+  assert.equal(sideTarget({ from: 1, progress: 0.7, vx: 0 }), false);
 });

@@ -29,7 +29,7 @@ const SCHEMA_VERSION = 9;
 // Roommate Cup, then Grocery) and nothing else. Up to 6 a page was a list of ids
 // laid out in order; version 7 gives each widget its own place and size, so older
 // pages are laid out once, in their order, at each widget's default size. From
-// version 7 on, a widget named in `widgetsSince` (Spotify in 8, Sports in 9) goes
+// version 7 on, a widget named in `widgetsSince` (Spotify in 8; Sports was one in 9, and is a page of its own now, so a saved one is dropped like any unknown widget) goes
 // in the first free spot that fits it, leaving everything else where it was.
 const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8];
 const FIRST_PLACED_VERSION = 7;

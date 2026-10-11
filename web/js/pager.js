@@ -21,7 +21,10 @@ const COMPACT = '(max-width: 900px), (max-height: 560px)';
 // vertical: { begin(y, dy) → whether it takes the drag, move(y, t), end() } for drags
 // that go more up or down than sideways. It starts from where the finger is then,
 // so nothing jumps by the distance it took to tell.
-export function createPager({ home, viewport, track, dots, onChange, onLongPress, onTap, vertical, holdMs = () => LONG_PRESS_MS, ignore = () => false }) {
+// side: the page before page 1 (side-page.js): { begin(x, dx), move(x, t), end() }
+// for swipes right that start on page 1, plus { label, glyph, open(), close(),
+// isOpen() } for its dot, which goes before the page dots.
+export function createPager({ home, viewport, track, dots, onChange, onLongPress, onTap, vertical, side, holdMs = () => LONG_PRESS_MS, ignore = () => false }) {
   const lifetime = new AbortController();
   const compact = matchMedia(COMPACT);
   let page = 0;
@@ -41,10 +44,17 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     track.style.transform = flat || (page === 0 && offset === 0) ? '' : offset ? `translate3d(${-page * viewport.clientWidth + offset}px, 0, 0)` : `translate3d(${-page * 100}%, 0, 0)`;
     // Pages off to the side can't be focused or read out; on phones everything is one column.
     pages().forEach((node, i) => (node.inert = !flat && i !== page));
-    [...dots.children].forEach((dot, i) => dot.setAttribute('aria-current', String(i === page)));
+    paintDots();
+  }
+
+  function paintDots() {
+    const beside = Boolean(side?.isOpen());
+    dots.querySelector('.page-dots__side')?.setAttribute('aria-current', String(beside));
+    [...dots.querySelectorAll('.page-dots__page')].forEach((dot, i) => dot.setAttribute('aria-current', String(!beside && i === page)));
   }
 
   function goTo(next, { animate = true } = {}) {
+    if (side?.isOpen()) side.close();
     const target = Math.min(count - 1, Math.max(0, next));
     const changed = target !== page;
     page = target;
@@ -55,13 +65,27 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
   function setCount(next) {
     count = Math.max(1, next);
     const paged = count > 1;
-    home.classList.toggle('home--paged', paged);
+    // With a page before page 1, there's always somewhere to go, so the dots stay.
+    const dotted = paged || Boolean(side);
+    home.classList.toggle('home--paged', dotted);
     track.classList.toggle('pager__track--paged', paged);
-    dots.hidden = !paged;
+    dots.hidden = !dotted;
+    const sideDot = side
+      ? [
+          el('button', {
+            class: 'page-dots__dot page-dots__side',
+            type: 'button',
+            'aria-label': side.label,
+            html: side.glyph,
+            onclick: () => (side.isOpen() ? side.close() : side.open()),
+          }),
+        ]
+      : [];
     dots.replaceChildren(
-      ...Array.from({ length: paged ? count : 0 }, (_, i) =>
+      ...sideDot,
+      ...Array.from({ length: dotted ? count : 0 }, (_, i) =>
         el('button', {
-          class: 'page-dots__dot',
+          class: 'page-dots__dot page-dots__page',
           type: 'button',
           'aria-label': `Page ${i + 1} of ${count}`,
           onclick: () => goTo(i),
@@ -88,6 +112,7 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     gesture.listeners.abort();
     // However the gesture ends, the app library settles rather than staying half open.
     if (gesture.mode === 'vertical') vertical.end();
+    if (gesture.mode === 'side') side.end();
     gesture = null;
   }
 
@@ -135,6 +160,9 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
           return;
         }
         gesture.mode = 'vertical';
+      } else if (page === 0 && dx > 0 && side?.begin(event.clientX, dx)) {
+        // Right from page 1: the page before it.
+        gesture.mode = 'side';
       } else if (count < 2) {
         gesture.mode = 'ignored';
         return;
@@ -146,6 +174,10 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     }
     if (gesture.mode === 'vertical') {
       vertical.move(event.clientY, event.timeStamp);
+      return;
+    }
+    if (gesture.mode === 'side') {
+      side.move(event.clientX, event.timeStamp);
       return;
     }
     if (gesture.mode !== 'swiping') return;
@@ -166,7 +198,7 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     const { mode, dx, samples } = gesture;
     endGesture();
     if (mode === 'pressed') onTap?.(event);
-    if (mode === 'vertical') {
+    if (mode === 'vertical' || mode === 'side') {
       guardNextClick();
       return;
     }
@@ -196,6 +228,8 @@ export function createPager({ home, viewport, track, dots, onChange, onLongPress
     pages,
     goTo,
     setCount,
+    // The page before page 1 has opened or shut: its dot (or page 1's) is the current one.
+    paintDots,
     // Slides the pages `px` towards the next one (-1 left, 1 right) or back (0),
     // so a widget held at the edge shows where it's about to go.
     peek(direction, px = 0) {

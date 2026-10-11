@@ -45,7 +45,7 @@ const svg = {
 };
 
 function card(color) {
-  return el('span', { class: `sports-card sports-card--${color}`, 'aria-hidden': 'true' });
+  return el('span', { class: `sports-booking sports-booking--${color}`, 'aria-hidden': 'true' });
 }
 
 export function createMatchPage({ sports, matchId, onBack }) {

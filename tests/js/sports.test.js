@@ -21,11 +21,14 @@ import {
   subtitle,
   tableFor,
   tableWindow,
-  widgetList,
+  comingList,
+  countdownClock,
+  gameDayMatch,
+  resultsList,
 } from '../../web/js/apps/sports/format.js';
 
 // Local times, so the day labels read the same in any time zone the tests run in.
-const local = (month, day, hour = 12, minute = 0) => new Date(2026, month - 1, day, hour, minute).getTime();
+const local = (month, day, hour = 12, minute = 0, second = 0, ms = 0) => new Date(2026, month - 1, day, hour, minute, second, ms).getTime();
 const NOW = new Date(local(10, 13, 12));
 
 const FOLLOWS = [
@@ -76,7 +79,7 @@ test("then a team's result from the last few hours, then its next match", () => 
   assert.equal(pickFeatured([], FOLLOWS, NOW), null);
 });
 
-test('under it: the rest of what is on, what is next for the teams, then their results', () => {
+test('beside it: the rest of what is on and what is next for the teams, and their results', () => {
   const matches = [
     match('old', local(10, 1, 15), { status: 'ft', ...scored(1, 1) }),
     match('older', local(9, 20, 15), { status: 'ft', ...scored(0, 2) }),
@@ -86,7 +89,8 @@ test('under it: the rest of what is on, what is next for the teams, then their r
     match('next', local(10, 18, 15)),
   ];
   matches.sort((a, b) => a.kickoff - b.kickoff);
-  assert.deepEqual(widgetList(matches, FOLLOWS, NOW, 'featured').map((m) => m.id), ['ucl-live', 'next', 'old', 'older']);
+  assert.deepEqual(comingList(matches, FOLLOWS, NOW, 'featured').map((m) => m.id), ['ucl-live', 'next']);
+  assert.deepEqual(resultsList(matches, FOLLOWS, 'featured').map((m) => m.id), ['old', 'older'], 'newest first');
 });
 
 test('the app opens on a followed team playing now', () => {
@@ -205,4 +209,27 @@ test('a list row says the day in as few words as it can', () => {
   assert.equal(shortDay(local(10, 16, 19), NOW), 'Fri');
   assert.equal(shortDay(local(10, 10, 11), NOW), 'Sat', 'last weekend too');
   assert.equal(shortDay(local(10, 24, 15), NOW), 'Oct 24');
+});
+
+test('the game-day strip: the live match, a fresh result, then the next kickoff today', () => {
+  const morning = match('am', local(10, 13, 9), { status: 'ft', ...scored(2, 1) });
+  const evening = match('pm', local(10, 13, 20), { follows: ['tottenham'] });
+  const ucl = match('ucl', local(10, 13, 18), { follows: ['ucl'] });
+  const at = (hour, minute = 0) => new Date(local(10, 13, hour, minute));
+  assert.equal(gameDayMatch([morning, ucl, evening], FOLLOWS, at(11, 10))?.id, 'am', 'just finished');
+  assert.equal(gameDayMatch([morning, ucl, evening], FOLLOWS, at(11, 40))?.id, 'pm', 'then the countdown to the next');
+  assert.equal(gameDayMatch([morning], FOLLOWS, at(13))?.id, 'am', 'nothing later: the result stays a while');
+  assert.equal(gameDayMatch([morning], FOLLOWS, at(15)), null, 'and then goes');
+  assert.equal(gameDayMatch([ucl], FOLLOWS, at(12)), null, 'a match nobody follows a team in');
+  assert.equal(gameDayMatch([match('tmrw', local(10, 14, 15))], FOLLOWS, at(12)), null, 'not today');
+  const live = match('live', local(10, 13, 11), { status: 'live' });
+  assert.equal(gameDayMatch([morning, live, evening], FOLLOWS, at(11, 10))?.id, 'live');
+});
+
+test('the countdown ticks in hours, minutes and seconds', () => {
+  const kickoff = match('x', local(10, 13, 15));
+  assert.equal(countdownClock(kickoff, new Date(local(10, 13, 10, 54, 51))), '4:05:09');
+  assert.equal(countdownClock(kickoff, new Date(local(10, 13, 14, 45, 55))), '14:05');
+  assert.equal(countdownClock(kickoff, new Date(local(10, 13, 14, 59, 59, 500))), '0:01');
+  assert.equal(countdownClock(kickoff, new Date(local(10, 13, 15, 2))), '0:00');
 });

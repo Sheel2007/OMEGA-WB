@@ -260,6 +260,49 @@
   background: var(--accent-pressed);
 }
 
+/* The page before page 1 (side-page.js, the Sports page): it slides in from the
+   left as the pages slide away to the right, and the page dots stay put. Only
+   transform changes while it moves. */
+
+.home--side > .pager,
+.home--side > .home__scene {
+  will-change: transform;
+}
+
+.side-page {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: calc(var(--status-h) + 0.8rem) var(--gutter) 4.6rem;
+  will-change: transform;
+  touch-action: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Its dot, before the page dots: a little football. */
+.page-dots__side {
+  color: var(--line);
+}
+
+.page-dots__side::before {
+  display: none;
+}
+
+.page-dots__side svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.page-dots__side[aria-current="true"] {
+  color: var(--text);
+}
+
+.page-dots__side[aria-current="true"] svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
 /* The app library (app-library.js): the pages lift away and the apps rise over
    the wallpaper, dimmed by a solid scrim (no blur, for the Pi's GPU). Only
    transform and opacity change while it moves. */

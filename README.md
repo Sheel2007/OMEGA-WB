@@ -5,7 +5,7 @@ looks like an iPad home screen: a big clock, widgets, and every app a swipe up a
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has nine widgets:
+It has eight widgets, and a Sports page:
 
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
   Google Calendars. Anyone can add an event on the board or from their phone and
@@ -28,13 +28,17 @@ It has nine widgets:
   circle with the song's name under it. It starts as a slim one-column widget that
   fits the gap beside the clock, and grows to show the artist, album and how far
   through the song it is.
-- **Sports.** Arsenal and Tottenham (Premier League, FA Cup, League Cup and
-  Champions League), Maryland soccer in the Big Ten, and every Champions League
-  match: live scores, what's coming up, results, and the tables. Tap a match for
-  its match page: the score and who scored, the line-ups on a pitch with goals,
-  assists, cards and substitutions, the team stats and a timeline. On game day
-  the widget leads with that match, and while a followed team is playing the
-  Sports app opens straight onto it.
+
+**Sports** follows Arsenal and Tottenham (Premier League, FA Cup, League Cup and
+Champions League), Maryland soccer in the Big Ten, and every Champions League
+match. It isn't a widget: swipe right on the first home page (or tap the little
+football before the page dots) and the Sports page slides in, with the match
+that matters most right now, what's coming up, the latest results and a table.
+On a day one of the teams plays, a strip under the clock counts down to kickoff
+to the second, then shows the score and the minute all through the match. Tap
+any match for its match page: the score and who scored, the line-ups on a pitch
+with goals, assists, cards and substitutions, the team stats and a timeline.
+While a followed team is playing, the Sports app opens straight onto that match.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the

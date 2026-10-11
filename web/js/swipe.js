@@ -58,6 +58,21 @@ export function libraryTarget({ from, progress, vy }) {
   return from >= 1 ? progress > 1 - LIBRARY_COMMIT : progress > LIBRARY_COMMIT;
 }
 
+// The page before the first one (the Sports page) slides in under the finger
+// like any other page: 0 is shut, 1 is open, one for one over the screen's
+// width. Dragging right (dx > 0) opens it.
+export function sideProgress({ from, dx, width }) {
+  if (!width) return from;
+  return Math.min(1, Math.max(0, from + dx / width));
+}
+
+// Whether it ends up open: the same distance or flick that turns a page. vx is
+// the finger's speed in px/ms (right is positive).
+export function sideTarget({ from, progress, vx }) {
+  if (Math.abs(vx) >= TURN_SPEED) return vx > 0;
+  return from >= 1 ? progress > 1 - TURN_DISTANCE : progress > TURN_DISTANCE;
+}
+
 // A damped spring from 0 to 1, for a CSS `linear()` easing, so a release carries
 // on at the finger's speed and settles the way iOS does. `velocity` is in units
 // of the whole distance per second at the start; `response` is the spring's

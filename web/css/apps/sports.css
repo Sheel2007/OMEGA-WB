@@ -1,11 +1,12 @@
-/* Sports: the widget (.sports-widget), the app (.sports-app), the match page
-   (.sports-page) and the pieces they share. The pitch is a game board: like the
+/* Sports: the page before page 1 (.sports-today), the game-day strip under the
+   clock (.game-day), the app (.sports-app), the match page (.sports-page) and the
+   pieces they share. The pitch is a game board: like the
    Games boards it keeps its own fixed colours in every theme (white on #26282d is
    14:1, the grey names 9:1). Everything else takes the theme's tokens. The two
    sides' colours in the stats are the calendar's blue and orange, which keep 3:1
    against a card in every theme, with the card colour as their (bold, large) text. */
 
-.sports-widget,
+.sports-today,
 .sports-app,
 .sports-page {
   --sports-home: var(--event-blue);
@@ -206,7 +207,7 @@
 
 /* Cards (the referee's kind) */
 
-.sports-card {
+.sports-booking {
   display: inline-block;
   width: 0.9rem;
   height: 1.25rem;
@@ -214,33 +215,32 @@
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25);
 }
 
-.sports-card--yellow {
+.sports-booking--yellow {
   background: #f4c534;
 }
 
-.sports-card--red {
+.sports-booking--red {
   background: #e5483a;
 }
 
-/* Widget */
+/* The featured match (the Sports page's big card) */
 
 .sports-feature {
   position: relative;
-  z-index: 2;
-  flex: none;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.6rem;
+  gap: 0.9rem;
   width: 100%;
-  padding: 0.8rem 0.8rem 0.9rem;
+  min-height: 0;
+  padding: 1rem;
   border-radius: var(--radius-panel);
-  background: var(--fill);
   text-align: center;
 }
 
 .sports-feature:active {
-  background: var(--fill-strong);
+  background: var(--fill);
 }
 
 .sports-feature__top {
@@ -253,7 +253,7 @@
 
 .sports-feature__comp {
   overflow: hidden;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-body);
   font-weight: 700;
   color: var(--text-2);
   text-overflow: ellipsis;
@@ -264,27 +264,27 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.8rem;
 }
 
 .sports-feature__team {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.6rem;
   min-width: 0;
 }
 
 .sports-feature__crest {
-  width: 3.8rem;
-  height: 3.8rem;
+  width: 5.6rem;
+  height: 5.6rem;
 }
 
 .sports-feature__name {
   max-width: 100%;
   overflow: hidden;
-  font-size: var(--fs-body);
-  font-weight: 700;
+  font-size: var(--fs-item);
+  font-weight: 750;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -298,13 +298,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.3rem;
 }
 
 .sports-feature__score {
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
-  font-size: 2.6rem;
+  font-size: 4rem;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -312,11 +312,11 @@
 }
 
 .sports-feature--upcoming .sports-feature__score {
-  font-size: var(--fs-title);
+  font-size: 2.6rem;
 }
 
 .sports-feature__status {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-body);
   font-weight: 700;
   color: var(--text-2);
   white-space: nowrap;
@@ -325,56 +325,196 @@
 .sports-feature__foot {
   margin: 0;
   overflow: hidden;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* The Sports page (page.js): the page before page 1, in side-page.js's layer.
+   Like the home pages, it sits straight on the wallpaper; its cards are the
+   widgets' cards. */
+
+.sports-today {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.sports-today__header {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.6rem;
+  color: var(--sky-text);
+  text-shadow: var(--sky-text-shadow);
+}
+
+.sports-today__heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.sports-today__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-weight: 700;
+  font-size: var(--fs-heading);
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+[data-theme="blocks"] .sports-today__title {
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.sports-today__meta {
+  margin: 0.4rem 0 0;
+  font-size: var(--fs-item);
+  font-weight: 650;
+  text-shadow: var(--sky-text-shadow-sm);
+}
+
+.sports-today__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--hit);
+  padding: 0 1rem 0 1.4rem;
+  border-radius: var(--radius-pill);
+  border: var(--card-border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  text-shadow: none;
+}
+
+.sports-today__all svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.sports-today__all:active {
+  background: var(--fill-strong);
+}
+
+.sports-today__grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 1.2rem;
+}
+
+.sports-card {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.2rem 1.3rem 1rem;
+  border-radius: var(--radius-card);
+  border: var(--card-border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* Placed, not auto-placed: the match over what's coming up, then the results and the table. */
+.sports-card--feature {
+  grid-area: 1 / 1;
+  padding: 0.6rem;
+}
+
+.sports-card--coming {
+  grid-area: 2 / 1;
+}
+
+.sports-card--results {
+  grid-area: 1 / 2 / span 2;
+}
+
+.sports-card--table {
+  grid-area: 1 / 3 / span 2;
+}
+
+.sports-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.sports-card__title {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-title);
+  font-size: var(--fs-title);
+  font-weight: 750;
+  line-height: 1.15;
+}
+
+.sports-card__head .sports-card__title {
+  margin: 0;
+}
+
 /* Positioned, so fitRows() measures its rows from its own top. */
-.sports-widget__list {
+.sports-card__list {
   position: relative;
   container: sports-list / inline-size;
   flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 0.5rem -0.5rem 0;
+  margin: 0 -0.5rem;
   padding: 0;
   list-style: none;
   overflow: hidden;
 }
 
-.sports-widget__more {
-  margin: 0.2rem 0 0;
+.sports-card__more,
+.sports-card__none {
+  margin: 0.3rem 0 0;
   font-size: var(--fs-caption);
   font-weight: 600;
   color: var(--text-2);
 }
 
-.sports-widget__table {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin-top: 0.8rem;
-}
-
-.sports-widget:not(.widget--large) .sports-widget__table {
-  display: none;
-}
-
-.sports-widget__table-title {
-  margin: 0 0 0.3rem;
+.sports-card__none {
   font-size: var(--fs-body);
-  font-weight: 750;
+}
+
+.sports-tabs--small {
+  padding: 0.2rem;
+}
+
+.sports-tabs--small .sports-tabs__tab {
+  padding: 0 0.9rem;
+  font-size: var(--fs-caption);
+}
+
+/* On the Sports page the table's tabs take the card's width, in one row. */
+.sports-card__head .sports-tabs {
+  flex: 1;
+  flex-wrap: nowrap;
+}
+
+.sports-card__head .sports-tabs__tab {
+  flex: 1 1 auto;
+  padding: 0 0.5rem;
+  white-space: nowrap;
 }
 
 .sports-mini-table {
   flex: 1 1 0;
   min-height: 0;
-  margin: 0 -0.4rem;
+  margin: 0 -0.5rem;
   padding: 0;
   list-style: none;
   overflow: hidden;
@@ -382,14 +522,18 @@
 
 .sports-mini-table__row {
   display: grid;
-  grid-template-columns: 2rem 1.7rem minmax(0, 1fr) 3.4rem 2.6rem;
+  grid-template-columns: 2.2rem 1.8rem minmax(0, 1fr) 2.4rem 3.4rem 2.8rem;
   align-items: center;
   gap: 0.5rem;
-  height: 2.4rem;
-  padding: 0 0.4rem;
+  height: 2.6rem;
+  padding: 0 0.5rem;
   border-radius: var(--radius-control);
   font-size: var(--fs-body);
   font-variant-numeric: tabular-nums;
+}
+
+.sports-mini-table__row.sports-zone {
+  box-shadow: inset 0.3rem 0 0 var(--zone);
 }
 
 .sports-mini-table__row--ours {
@@ -398,8 +542,8 @@
 }
 
 .sports-mini-table__crest {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.7rem;
+  height: 1.7rem;
 }
 
 .sports-mini-table__crest .sports-crest__abbr {
@@ -421,6 +565,7 @@
   text-align: right;
 }
 
+.sports-mini-table__played,
 .sports-mini-table__diff {
   color: var(--text-2);
 }
@@ -429,117 +574,152 @@
   font-weight: 800;
 }
 
-.sports-widget__empty {
+.sports-today__empty {
   flex: 1;
   display: grid;
   place-content: center;
   text-align: center;
 }
 
-.sports-widget__empty-title {
+.sports-today__empty-title {
   margin: 0;
   font-size: var(--fs-item);
   font-weight: 750;
 }
 
-.sports-widget__empty-text {
+.sports-today__empty-text {
   margin: 0.3rem 0 0;
   font-size: var(--fs-body);
   color: var(--text-2);
 }
 
-/* Small: just the one match, filling the card. */
+/* Glass: the cards are a dark frosted tint over the wallpaper (the page slides,
+   so there's no lined-up copy of the wallpaper behind them, and no live blur). */
 
-.widget--small :is(.sports-widget__list, .sports-widget__more) {
-  display: none;
+:root[data-theme="apple"] .sports-card,
+:root[data-theme="apple"] .sports-today__all {
+  border: var(--glass-border);
+  background: rgb(18 16 46 / 0.62);
+  box-shadow: none;
 }
 
-.widget--small .sports-feature {
-  flex: 1 1 auto;
-  min-height: 0;
+:root[data-theme="apple"] .sports-today__header {
+  text-shadow: none;
 }
 
-/* Medium: the match, smaller, and what's next under it. */
+/* The game-day strip under the clock (game-day.js): the two teams with a
+   countdown that ticks, then the score and the minute. A card, so it reads over
+   any sky; it resets the clock's outline. */
 
-.widget--medium .sports-feature {
+.game-day {
+  display: flex;
+  flex-direction: column;
   gap: 0.35rem;
-  padding-block: 0.6rem 0.7rem;
+  width: min(100%, 30rem);
+  margin-top: 1.4rem;
+  padding: 0.7rem 1.1rem 0.8rem;
+  border-radius: var(--radius-panel);
+  border: var(--card-border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  text-shadow: none;
+  text-align: left;
 }
 
-.widget--medium .sports-feature__team {
-  gap: 0.3rem;
+.game-day:active {
+  background: var(--card);
 }
 
-.widget--medium .sports-feature__crest {
+.home--editing .game-day {
+  pointer-events: none;
+}
+
+.game-day__top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.game-day__label {
+  overflow: hidden;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-day__teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.game-day__team {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  font-size: var(--fs-item);
+  font-weight: 800;
+}
+
+.game-day__team--home {
+  justify-content: flex-end;
+}
+
+.game-day__crest {
   width: 2.6rem;
   height: 2.6rem;
 }
 
-.widget--medium .sports-feature__score {
-  font-size: 2.2rem;
+.game-day__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.widget--medium .sports-feature__foot {
-  display: none;
+.game-day__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
 }
 
-/* Large: a big match, what's next, and the table under it. */
-
-.widget--large .sports-feature {
-  gap: 0.8rem;
-  padding: 1.2rem 1rem;
+.game-day__score > :first-child {
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.widget--large .sports-feature__crest {
-  width: 5rem;
-  height: 5rem;
+.game-day--counting .game-day__score > :first-child {
+  font-size: 2rem;
 }
 
-.widget--large .sports-feature__name {
-  font-size: var(--fs-item);
+.game-day__caption {
+  margin-top: 0.2rem;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  color: var(--text-2);
+  white-space: nowrap;
 }
 
-.widget--large .sports-feature__score {
-  font-size: 3.4rem;
+:root[data-theme="apple"] .game-day {
+  width: min(100%, 26rem);
+  margin-top: 1rem;
+  border: var(--glass-border);
+  background: rgb(18 16 46 / 0.62);
+  box-shadow: none;
 }
 
-.widget--large .sports-widget__list {
-  flex: 0 1 auto;
-  max-height: calc(var(--hit) * 4);
-}
-
-/* Glass: medium is wide and short there, so the match sits beside the list. */
-
-:root[data-theme="apple"] .widget--medium.sports-widget {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  column-gap: 0.8rem;
-}
-
-:root[data-theme="apple"] .widget--medium.sports-widget > .widget-head {
-  grid-column: 1 / -1;
-}
-
-:root[data-theme="apple"] .widget--medium .sports-feature {
-  grid-row: 2 / 4;
-}
-
-:root[data-theme="apple"] .widget--medium .sports-widget__list {
-  grid-column: 2;
-  margin-top: 0;
-}
-
-:root[data-theme="apple"] .widget--medium .sports-widget__more {
-  grid-column: 2;
-}
-
-:root[data-theme="apple"] .widget--medium .sports-widget__empty {
-  grid-column: 1 / -1;
-}
-
-:root[data-theme="apple"] .sports-feature {
-  background: rgb(255 255 255 / 0.06);
+[data-theme="blocks"] .game-day {
+  margin-top: 1.2rem;
 }
 
 /* App: header, tabs and the follow chips */

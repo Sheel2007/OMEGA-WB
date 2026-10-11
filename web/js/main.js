@@ -21,6 +21,10 @@ import { createRoommateGamesService } from './services/roommate-games.js';
 import { createSettingsService } from './services/settings.js';
 import { createSpotifyService } from './services/spotify.js';
 import { createSportsService } from './services/sports.js';
+import { createGameDay } from './apps/sports/game-day.js';
+import { dotGlyph as sportsDot, name as sportsName } from './apps/sports/meta.js';
+import { createSportsPage } from './apps/sports/page.js';
+import { createSidePage } from './side-page.js';
 import { createWeatherService } from './services/weather.js';
 import { createBlocksScene } from './scene/blocks-scene.js';
 import { dayPhase, guessLocation, parseTimeOverride, startSky } from './sky.js';
@@ -81,7 +85,7 @@ let place = guessLocation();
 // Blocks scenery (clouds and critters): exists only while the theme is Blocks.
 let scene = null;
 let phase = 'day';
-const scenePaused = { app: false, edit: false, library: false };
+const scenePaused = { app: false, edit: false, library: false, side: false };
 
 const sky = startSky({
   starsEl: document.querySelector('.sky__stars'),
@@ -171,6 +175,8 @@ const appHost = createAppHost({
 context.openApp = appHost.openApp;
 
 const track = home.querySelector('.pager__track');
+// The page before page 1 (set up below, once the app library and editor exist).
+let sidePage = null;
 // Long-press a widget to edit the home screen; while editing, a short hold picks it up.
 const EDIT_HOLD_MS = 150;
 const pager = createPager({
@@ -188,6 +194,19 @@ const pager = createPager({
     move: (y, t) => library?.drag.move(y, t),
     end: () => library?.drag.end(),
   },
+  // Swiping right on page 1 brings in the Sports page. Phones have the app instead.
+  side: compact.matches
+    ? undefined
+    : {
+        label: sportsName,
+        glyph: sportsDot,
+        begin: (x, dx) => sidePage?.drag.begin(x, dx) ?? false,
+        move: (x, t) => sidePage?.drag.move(x, t),
+        end: () => sidePage?.drag.end(),
+        open: () => sidePage?.open(),
+        close: () => sidePage?.close(),
+        isOpen: () => Boolean(sidePage?.isOpen),
+      },
 });
 const glass = createGlass({
   board: document.querySelector('.board'),
@@ -216,7 +235,7 @@ const library = phoneHome
       home,
       apps: APPS,
       openApp: (id, options) => appHost.openApp(id, options),
-      canOpen: () => !editor.editing,
+      canOpen: () => !editor.editing && !sidePage?.isOpen,
       // The critters wait while the apps are up.
       onShow: (shown) => {
         scenePaused.library = shown;
@@ -224,6 +243,25 @@ const library = phoneHome
       },
     });
 if (library) home.append(...library.nodes);
+
+// The page before page 1: Sports.
+sidePage = phoneHome
+  ? null
+  : createSidePage({
+      home,
+      content: createSportsPage(context).node,
+      label: sportsName,
+      canOpen: () => !editor.editing && !library?.isOpen,
+      onToggle: () => pager.paintDots(),
+      onShow: (shown) => {
+        scenePaused.side = shown;
+        scene?.setPaused('side', shown);
+      },
+    });
+if (sidePage) home.insertBefore(sidePage.node, home.querySelector('.page-dots'));
+
+// On game days, a countdown and then the score under the clock.
+document.querySelector('.clock').append(createGameDay(context).node);
 if (!phoneHome) widgets.render(services.settings.getPages());
 
 function addWidget(id) {
@@ -264,7 +302,10 @@ const editor = createHomeEditor({
   onChange: (editing) => {
     scenePaused.edit = editing;
     scene?.setPaused('edit', editing);
-    if (editing) library?.close();
+    if (editing) {
+      library?.close();
+      sidePage?.close();
+    }
   },
 });
 services.settings.subscribe((settings) => {
@@ -304,6 +345,7 @@ function syncScene({ theme, scenery }) {
     scene.setPaused('app', scenePaused.app);
     scene.setPaused('edit', scenePaused.edit);
     scene.setPaused('library', scenePaused.library);
+    scene.setPaused('side', scenePaused.side);
     scene.setPaused('motion', reducedMotion.matches);
     scene.setPaused('compact', compact.matches);
   } else if (theme !== 'blocks' && scene) {
@@ -334,6 +376,7 @@ if (kiosk) {
       menu.close();
       editor.exit();
       library?.close({ animate: false });
+      sidePage?.close({ animate: false });
       appHost.goHome();
       pager.goTo(0);
     },

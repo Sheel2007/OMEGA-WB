@@ -42,7 +42,7 @@ function isTeamMatch(match, teams) {
   return match.follows.some((id) => teams.has(id));
 }
 
-// The match the widget shows big, and why: a followed team playing now, then any
+// The match the Sports page shows big, and why: a followed team playing now, then any
 // followed match playing now, then a team's result from the last few hours, then
 // the next team match, the next of anything, and last of all the latest result.
 export function pickFeatured(matches, follows, now) {
@@ -64,18 +64,50 @@ export function pickFeatured(matches, follows, now) {
   return found ? { why: found[0], match: found[1] } : null;
 }
 
-// What goes under the featured match on the widget: anything else on now, then
-// the followed teams' next matches, then their latest results.
-export function widgetList(matches, follows, now, skipId) {
+// Under the featured match: anything else on now, then the followed teams' next matches.
+export function comingList(matches, follows, now, skipId) {
   const t = at(now);
   const teams = teamFollows(follows);
   const others = matches.filter((m) => m.id !== skipId);
-  const ours = others.filter((m) => isTeamMatch(m, teams));
-  return [
-    ...others.filter(isLive),
-    ...ours.filter((m) => isUpcoming(m) && m.kickoff >= t - MATCH_LENGTH_MS),
-    ...ours.filter(isDone).reverse(),
-  ];
+  return [...others.filter(isLive), ...others.filter((m) => isTeamMatch(m, teams) && isUpcoming(m) && m.kickoff >= t - MATCH_LENGTH_MS)];
+}
+
+// The followed teams' results, newest first.
+export function resultsList(matches, follows, skipId) {
+  const teams = teamFollows(follows);
+  return matches.filter((m) => m.id !== skipId && isTeamMatch(m, teams) && isDone(m)).reverse();
+}
+
+// After the final whistle, the result stays on the home screen this long before
+// a later match that day takes over with its countdown.
+const RESULT_HELD_MS = 30 * MINUTE;
+
+// The match for the game-day strip under the clock: a followed team playing now,
+// then one that's just finished, then the next one today, then today's last result
+// for a few hours after. Null when no followed team plays today.
+export function gameDayMatch(matches, follows, now) {
+  const t = at(now);
+  const teams = teamFollows(follows);
+  const today = dayKey(t);
+  const ours = matches.filter((m) => isTeamMatch(m, teams));
+  const ended = (m) => t - (m.kickoff + MATCH_LENGTH_MS);
+  const finished = ours.filter((m) => isFinal(m) && m.kickoff <= t && ended(m) <= RESULT_SHOWN_MS);
+  return (
+    ours.find(isLive) ??
+    finished.filter((m) => ended(m) <= RESULT_HELD_MS).at(-1) ??
+    ours.find((m) => isUpcoming(m) && dayKey(m.kickoff) === today && m.kickoff >= t - MATCH_LENGTH_MS) ??
+    finished.at(-1) ??
+    null
+  );
+}
+
+// A countdown to kickoff that ticks: "4:05:09", "14:05", then "0:00".
+export function countdownClock(match, now) {
+  const left = Math.max(0, Math.ceil((match.kickoff - at(now)) / 1000));
+  const hours = Math.floor(left / 3600);
+  const minutes = Math.floor((left % 3600) / 60);
+  const seconds = String(left % 60).padStart(2, '0');
+  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 }
 
 // The followed team match on right now, if there is one: the Sports app opens on it.

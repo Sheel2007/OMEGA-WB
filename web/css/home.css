@@ -280,7 +280,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Its dot, before the page dots: a little football. */
+/* Its dot, before the page dots: a little football (dotGlyph in apps/sports/meta.js). */
 .page-dots__side {
   color: var(--line);
 }
@@ -290,8 +290,8 @@
 }
 
 .page-dots__side svg {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.3rem;
+  height: 1.3rem;
 }
 
 .page-dots__side[aria-current="true"] {
@@ -299,8 +299,8 @@
 }
 
 .page-dots__side[aria-current="true"] svg {
-  width: 1.3rem;
-  height: 1.3rem;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 /* The app library (app-library.js): the pages lift away and the apps rise over

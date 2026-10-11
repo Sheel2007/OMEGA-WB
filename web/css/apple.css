@@ -60,7 +60,7 @@
 
 /* Glass: widgets and the page dots. */
 
-:root[data-theme="apple"] :is(.widget, .page-dots) {
+:root[data-theme="apple"] :is(.widget, .page-dots, .match-note) {
   isolation: isolate;
   border: var(--glass-border);
   background: var(--glass-frost);
@@ -68,7 +68,7 @@
   corner-shape: squircle;
 }
 
-:root[data-theme="apple"] :is(.widget, .page-dots)::before {
+:root[data-theme="apple"] :is(.widget, .page-dots, .match-note)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -82,11 +82,11 @@
   background-position: calc(-1 * var(--glass-x, 0px)) calc(-1 * var(--glass-y, 0px));
 }
 
-:root[data-theme="apple"][data-glass="live"] :is(.widget, .page-dots) {
+:root[data-theme="apple"][data-glass="live"] :is(.widget, .page-dots, .match-note) {
   backdrop-filter: blur(30px) saturate(180%);
 }
 
-:root[data-theme="apple"][data-glass="live"] :is(.widget, .page-dots)::before {
+:root[data-theme="apple"][data-glass="live"] :is(.widget, .page-dots, .match-note)::before {
   display: none;
 }
 

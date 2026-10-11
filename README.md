@@ -39,6 +39,9 @@ to the second, then shows the score and the minute all through the match. Tap
 any match for its match page: the score and who scored, the line-ups on a pitch
 with goals, assists, cards and substitutions, the team stats and a timeline.
 While a followed team is playing, the Sports app opens straight onto that match.
+At the foot of page 1, notifications (like game alerts on an iPhone) show
+Arsenal's and Tottenham's next matches, when and where; while one is on, it shows
+the score. When they play each other, it's one note: the North London Derby.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the

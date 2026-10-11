@@ -23,6 +23,7 @@ import { createSpotifyService } from './services/spotify.js';
 import { createSportsService } from './services/sports.js';
 import { createGameDay } from './apps/sports/game-day.js';
 import { dotGlyph as sportsDot, name as sportsName } from './apps/sports/meta.js';
+import { createNextMatchNotes } from './apps/sports/next-match.js';
 import { createSportsPage } from './apps/sports/page.js';
 import { createSidePage } from './side-page.js';
 import { createWeatherService } from './services/weather.js';
@@ -262,6 +263,18 @@ if (sidePage) home.insertBefore(sidePage.node, home.querySelector('.page-dots'))
 
 // On game days, a countdown and then the score under the clock.
 document.querySelector('.clock').append(createGameDay(context).node);
+// Arsenal's and Tottenham's next matches, as notifications at the foot of page 1,
+// which makes room for them under its widgets while they're there.
+const firstPage = track.firstElementChild;
+firstPage.append(
+  createNextMatchNotes({
+    ...context,
+    onShow: (shown) => {
+      firstPage.classList.toggle('home-page--note', shown);
+      glass.refresh();
+    },
+  }).node,
+);
 if (!phoneHome) widgets.render(services.settings.getPages());
 
 function addWidget(id) {

@@ -101,54 +101,6 @@ export function gameDayMatch(matches, follows, now) {
   );
 }
 
-// A followed team's next match (by follow id): the one it's playing now, else the
-// one it's just finished (for half an hour, like the game-day strip), else the next
-// one to come. Null when none is known.
-export function nextMatchFor(matches, followId, now) {
-  const t = at(now);
-  const ours = matches.filter((m) => m.follows.includes(followId));
-  const ended = (m) => t - (m.kickoff + MATCH_LENGTH_MS);
-  return (
-    ours.find(isLive) ??
-    ours.filter((m) => isFinal(m) && m.kickoff <= t && ended(m) <= RESULT_HELD_MS).at(-1) ??
-    ours.find((m) => isUpcoming(m) && m.kickoff >= t - MATCH_LENGTH_MS) ??
-    null
-  );
-}
-
-// Each team's next match, soonest first; a match two of them play shows once.
-export function nextMatches(matches, followIds, now) {
-  const found = new Map();
-  for (const id of followIds) {
-    const match = nextMatchFor(matches, id, now);
-    if (match) found.set(match.id, match);
-  }
-  return [...found.values()].sort((a, b) => a.kickoff - b.kickoff);
-}
-
-// What a match is called on its notification: its derby's name when it has one.
-const DERBIES = { '359:367': 'North London Derby' };
-export function meetingName(match) {
-  const key = [match.home.id, match.away.id].sort().join(':');
-  return DERBIES[key] ?? `${match.home.short} v ${match.away.short}`;
-}
-
-// How long until it, the way a notification says when: "in 55 days",
-// "Tomorrow", "in 3h 20m", "Now", "Full time".
-export function untilLabel(match, now) {
-  if (isLive(match)) return 'Now';
-  if (isDone(match)) return 'Full time';
-  const days = daysBetween(at(now), match.kickoff);
-  if (days > 1) return `in ${days} days`;
-  if (days === 1) return 'Tomorrow';
-  const left = match.kickoff - at(now);
-  if (left <= 0) return 'Now';
-  const hours = Math.floor(left / HOUR);
-  const minutes = Math.ceil((left % HOUR) / MINUTE);
-  if (hours === 0) return `in ${minutes} min`;
-  return minutes === 60 ? `in ${hours + 1}h` : minutes === 0 ? `in ${hours}h` : `in ${hours}h ${minutes}m`;
-}
-
 // A countdown to kickoff that ticks: "4:05:09", "14:05", then "0:00".
 export function countdownClock(match, now) {
   const left = Math.max(0, Math.ceil((match.kickoff - at(now)) / 1000));

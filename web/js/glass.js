@@ -7,7 +7,7 @@
 // widget's place on its page is the place it's shown at once that page is current.
 // Measuring is only needed when the layout itself changes (refresh()) or the
 // screen is resized (watched here).
-const GLASS = '.home-page > .widget, .match-notes > .match-note, .home__drag-layer > .widget, .page-dots, .app-library__scrim';
+const GLASS = '.home-page > .widget, .home__drag-layer > .widget, .page-dots, .app-library__scrim';
 
 export function createGlass({ board, home, isActive }) {
   // Where `node` sits inside .home, which fills the board.

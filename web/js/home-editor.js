@@ -136,22 +136,19 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
   }
 
   // The grid of the page on screen, measured from the pager (which never moves)
-  // rather than the page (which may still be sliding into place). A page can keep
-  // room below its grid (page 1, for the next-match notes), so its padding comes off.
+  // rather than the page (which may still be sliding into place).
   function pageGeometry() {
     const box = home.querySelector('.pager').getBoundingClientRect();
     const page = pager.pages()[pager.current] ?? pager.pages()[0];
     const style = getComputedStyle(page);
     const padLeft = parseFloat(style.paddingLeft) || 0;
     const padRight = parseFloat(style.paddingRight) || 0;
-    const padTop = parseFloat(style.paddingTop) || 0;
-    const padBottom = parseFloat(style.paddingBottom) || 0;
     const { cols, rows } = settings.getLayout().grid;
     return {
       left: box.left + padLeft,
-      top: box.top + padTop,
+      top: box.top,
       width: box.width - padLeft - padRight,
-      height: box.height - padTop - padBottom,
+      height: box.height,
       colGap: parseFloat(style.columnGap) || 0,
       rowGap: parseFloat(style.rowGap) || 0,
       cols,

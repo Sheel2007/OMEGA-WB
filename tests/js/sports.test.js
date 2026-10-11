@@ -10,9 +10,6 @@ import {
   kickoffLabel,
   liveTeamMatch,
   matchesFor,
-  meetingName,
-  nextMatches,
-  untilLabel,
   pickFeatured,
   scorers,
   shortDay,
@@ -235,33 +232,4 @@ test('the countdown ticks in hours, minutes and seconds', () => {
   assert.equal(countdownClock(kickoff, new Date(local(10, 13, 14, 45, 55))), '14:05');
   assert.equal(countdownClock(kickoff, new Date(local(10, 13, 14, 59, 59, 500))), '0:01');
   assert.equal(countdownClock(kickoff, new Date(local(10, 13, 15, 2))), '0:00');
-});
-
-test("each team's next match, soonest first, and a derby only once", () => {
-  const spurs = (id, kickoff, extra = {}) => match(id, kickoff, { follows: ['tottenham'], home: side('367', 'Tottenham'), away: side('357', 'Leeds'), ...extra });
-  const lille = match('lille', local(10, 14, 20));
-  const forest = match('forest', local(10, 18, 15));
-  const leeds = spurs('leeds', local(10, 13, 20));
-  assert.deepEqual(nextMatches([lille, forest, leeds], ['arsenal', 'tottenham'], NOW).map((m) => m.id), ['leeds', 'lille']);
-  const played = match('played', local(10, 13, 9), { status: 'ft', ...scored(2, 1) });
-  assert.deepEqual(nextMatches([played, lille], ['arsenal'], new Date(local(10, 13, 11, 15))).map((m) => m.id), ['played'], 'just finished');
-  assert.deepEqual(nextMatches([played, lille], ['arsenal'], new Date(local(10, 13, 12))).map((m) => m.id), ['lille'], 'then the next one');
-  const live = match('live', local(10, 13, 11), { status: 'live' });
-  assert.deepEqual(nextMatches([live, lille], ['arsenal'], NOW).map((m) => m.id), ['live']);
-  const derby = spurs('derby', local(10, 20, 15), { follows: ['arsenal', 'tottenham'], away: side('359', 'Arsenal') });
-  assert.deepEqual(nextMatches([derby, forest], ['arsenal', 'tottenham'], NOW).map((m) => m.id), ['derby'], 'once, for both');
-  assert.equal(meetingName(derby), 'North London Derby');
-  assert.equal(meetingName(lille), 'Arsenal v Lille');
-  assert.deepEqual(nextMatches([], ['arsenal'], NOW), []);
-});
-
-test('when it is, the way a notification says it', () => {
-  const at = (kickoff, status) => match('x', kickoff, { status });
-  assert.equal(untilLabel(at(local(12, 5, 10)), NOW), 'in 53 days');
-  assert.equal(untilLabel(at(local(10, 14, 10)), NOW), 'Tomorrow');
-  assert.equal(untilLabel(at(local(10, 13, 15, 20)), NOW), 'in 3h 20m');
-  assert.equal(untilLabel(at(local(10, 13, 14)), NOW), 'in 2h');
-  assert.equal(untilLabel(at(local(10, 13, 12, 45)), NOW), 'in 45 min');
-  assert.equal(untilLabel(at(local(10, 13, 11), 'live'), NOW), 'Now');
-  assert.equal(untilLabel(at(local(10, 13, 9), 'ft'), NOW), 'Full time');
 });

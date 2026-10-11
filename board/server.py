@@ -20,6 +20,7 @@ from .kiosk import is_local_address
 from .lights import LightsUnavailable
 from .products import ProductsUnavailable, fold, query_text
 from .spotify import NowPlaying, SpotifyAccount, SpotifyError
+from .sports import Sports, SportsUnavailable, follows_from
 from .store import NotFound, ValidationError
 from .weather import WeatherUnavailable
 
@@ -105,7 +106,7 @@ class BoardServer(ThreadingHTTPServer):
 
     def __init__(self, address, *, notes, calendar, calendar_sources, google, feed, weather, kiosk,
                  lights, roommate_games, grocery, products, store_products, product_images, photos, spotify=None,
-                 web_dir=WEB_DIR, location=None, public_url=None):
+                 sports=None, web_dir=WEB_DIR, location=None, public_url=None):
         self.grocery = grocery
         self.products = products
         self.store_products = store_products
@@ -114,6 +115,8 @@ class BoardServer(ThreadingHTTPServer):
         self.lights = lights
         # Left out, the widget just says Spotify isn't set up.
         self.spotify = spotify or NowPlaying(SpotifyAccount())
+        # Left out, the board follows nothing (and never goes online for it).
+        self.sports = sports or Sports(follows_from(False))
         self.roommate_games = roommate_games
         self.notes = notes
         self.calendar = calendar
@@ -136,7 +139,8 @@ class BoardServer(ThreadingHTTPServer):
         """Stores whose state is pushed over /api/events, by event name."""
         return {"notes": self.notes, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
-                "roommate-games": self.roommate_games, "grocery": self.grocery, "spotify": self.spotify}
+                "roommate-games": self.roommate_games, "grocery": self.grocery, "spotify": self.spotify,
+                "sports": self.sports}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -182,6 +186,7 @@ class BoardServer(ThreadingHTTPServer):
         self.roommate_games.stop()
         self.store_products.stop()
         self.spotify.stop()
+        self.sports.stop()
         super().shutdown()
 
 
@@ -222,6 +227,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         # Where Spotify sends people back to after they sign in.
         "/api/spotify/done": "spotify_done",
         "/api/spotify/art": "spotify_art",
+        "/api/sports": "sports_state",
+        "/api/sports/match": "sports_match",
+        "/api/sports/crest": "sports_crest",
     }
     # Bodies that aren't JSON: a photo taken on a phone.
     UPLOAD_ROUTES = {
@@ -478,6 +486,31 @@ class BoardHandler(SimpleHTTPRequestHandler):
         image_id = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
         try:
             image = self.server.spotify.art(image_id)
+        except ValueError as err:
+            return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
+        self._send_image(image)
+
+    def sports_state(self):
+        self._send_json(HTTPStatus.OK, self.server.sports.snapshot())
+
+    def sports_match(self):
+        """One match's page: line-ups, what's happened and the team stats, from the Pi's copy."""
+        match_id = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+        try:
+            detail = self.server.sports.match(match_id)
+        except ValueError as err:
+            return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
+        except SportsUnavailable as err:
+            return self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, str(err))
+        if detail is None:
+            return self._send_error(HTTPStatus.NOT_FOUND, "The board doesn't know that match.")
+        self._send_json(HTTPStatus.OK, detail)
+
+    def sports_crest(self):
+        """A team's crest, for a team the board has shown, from the Pi's copy."""
+        crest_id = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+        try:
+            image = self.server.sports.crest(crest_id)
         except ValueError as err:
             return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
         self._send_image(image)

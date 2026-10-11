@@ -5,7 +5,7 @@ looks like an iPad home screen: a big clock, widgets, and every app a swipe up a
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has eight widgets:
+It has nine widgets:
 
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
   Google Calendars. Anyone can add an event on the board or from their phone and
@@ -28,6 +28,13 @@ It has eight widgets:
   circle with the song's name under it. It starts as a slim one-column widget that
   fits the gap beside the clock, and grows to show the artist, album and how far
   through the song it is.
+- **Sports.** Arsenal and Tottenham (Premier League, FA Cup, League Cup and
+  Champions League), Maryland soccer in the Big Ten, and every Champions League
+  match: live scores, what's coming up, results, and the tables. Tap a match for
+  its match page: the score and who scored, the line-ups on a pitch with goals,
+  assists, cards and substitutions, the team stats and a timeline. On game day
+  the widget leads with that match, and while a followed team is playing the
+  Sports app opens straight onto it.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
@@ -408,6 +415,31 @@ which the Pi downloads from Open Food Facts once a week (about 5,000 names, unde
 { "grocery": { "currency": "EUR", "country": "germany" } }
 ```
 
+### Sports
+
+Nothing to set up: the scores, line-ups and the Premier League and Champions
+League tables come from ESPN's public scoreboard, and the Big Ten table from
+[bigten.org](https://bigten.org/sports/msoc/standings) (ESPN has no college
+tables). Neither needs an account. The Pi reads the schedules every hour and the
+tables every few hours (and again just after a followed match ends); while a
+followed match is on it checks the score every 30 seconds and keeps that match's
+page fresh. Screens only ever ask the Pi.
+
+It follows Maryland's men's team; to follow the women's team instead, or to turn
+Sports off:
+
+```json
+{ "sports": { "maryland": "women" } }
+```
+
+```json
+{ "sports": false }
+```
+
+ESPN's scoreboard is unofficial, so if it changes, the widget shows less rather
+than breaking; player ratings aren't in it, so the line-ups mark goals, assists,
+cards and substitutions instead.
+
 ### Roommate Cup: email and texts
 
 Optional: without them the Cup still works, and nothing is sent. Add either or
@@ -471,7 +503,8 @@ board/                  server: JSON stores, HTTP API + live updates, weather,
                         lights (Zigbee2MQTT over a built-in MQTT client) and their schedules,
                         the Roommate Cup and its emails and texts (notify.py),
                         the grocery list, its product lookups (products.py), the stores'
-                        product list for predictions and the pictures (grocery_images.py)
+                        product list for predictions and the pictures (grocery_images.py),
+                        and the sports scores, tables and match pages (sports.py)
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks / Glass themes

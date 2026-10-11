@@ -21,6 +21,7 @@ from board.notes import NotesBoard
 from board.notify import Notifier, settings_from as notify_settings_from
 from board.products import ProductLookup
 from board.spotify import NowPlaying, SpotifyAccount
+from board.sports import Sports, follows_from
 from board.store_products import StoreProducts
 from board.roommate_games import RoommateGames
 from board.server import ROOT, BoardServer, lan_address, phone_address
@@ -139,6 +140,7 @@ def main():
         feed=feed,
     )
     spotify = spotify_from(config, args.data, feed)
+    sports = Sports(follows_from(config.get("sports")), feed=feed)
     server = BoardServer(
         (args.host, port),
         notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
@@ -156,6 +158,7 @@ def main():
         product_images=ProductImages(os.path.join(args.data, "grocery-images"), products),
         photos=photos,
         spotify=spotify,
+        sports=sports,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
     )
@@ -165,6 +168,7 @@ def main():
     roommate_games.start()
     store_products.start()
     spotify.start()
+    sports.start()
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
@@ -183,6 +187,7 @@ def main():
         roommate_games.stop()
         store_products.stop()
         spotify.stop()
+        sports.stop()
         server.server_close()
 
 

@@ -20,6 +20,7 @@ import { createNotesService } from './services/notes.js';
 import { createRoommateGamesService } from './services/roommate-games.js';
 import { createSettingsService } from './services/settings.js';
 import { createSpotifyService } from './services/spotify.js';
+import { createSportsService } from './services/sports.js';
 import { createWeatherService } from './services/weather.js';
 import { createBlocksScene } from './scene/blocks-scene.js';
 import { dayPhase, guessLocation, parseTimeOverride, startSky } from './sky.js';
@@ -46,7 +47,7 @@ const now = () => fixedTime ?? new Date();
 // Services: the only code that talks to the server or to storage.
 
 const live = createLiveConnection({
-  streams: ['notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify'],
+  streams: ['notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify', 'sports'],
   onServerRestart: () => location.reload(),
 });
 const services = {
@@ -56,6 +57,7 @@ const services = {
   roommateGames: createRoommateGamesService({ live }),
   grocery: createGroceryService({ live }),
   spotify: createSpotifyService({ live }),
+  sports: createSportsService({ live }),
   weather: createWeatherService(),
   games: createGamesStore(),
   settings: createSettingsService({
@@ -323,6 +325,7 @@ services.calendar.refresh();
 services.lights.refresh();
 services.roommateGames.refresh();
 services.grocery.refresh();
+services.sports.refresh();
 
 if (kiosk) {
   initKiosk({

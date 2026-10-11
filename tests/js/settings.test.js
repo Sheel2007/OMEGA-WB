@@ -51,7 +51,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(ids(again.getPages()), [['weather', 'notes']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 8);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 9);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -189,6 +189,22 @@ test('a version 7 screen picks up Spotify once, in the first free spot, leaving 
   assert.equal(make().getWidgets().includes('spotify'), false, 'taken off stays off');
 });
 
+test('a version 8 screen picks up Sports once, leaving everything else where it was', () => {
+  const sizes = { calendar: 'small', weather: 'medium', notes: 'small', spotify: 'mini', sports: 'medium' };
+  const widgets = Object.fromEntries(Object.entries(sizes).map(([id, size]) => [id, { size, sizes: ['mini', 'small', 'medium', 'large'] }]));
+  const board = [[at('spotify', 'mini', 5, 1), at('calendar', 'small', 6, 1), at('weather', 'medium', 9, 1), at('notes', 'small', 1, 3)]];
+  const storage = saved({ version: 8, theme: 'auto', pages: board, applePages: null, scenery: true });
+  const make = () =>
+    createSettingsService({ storage, widgets, defaultWidgets: ['spotify', 'calendar', 'weather', 'notes', 'sports'], widgetsSince: { spotify: 8, sports: 9 } });
+
+  const settings = make();
+  const pages = settings.getPages();
+  assert.deepEqual(pages[0].find((item) => item.id === 'sports'), at('sports', 'medium', 4, 3), 'the first free spot that fits');
+  assert.deepEqual(pages[0].filter((item) => item.id !== 'sports'), board[0]);
+  settings.removeWidget('sports');
+  assert.equal(make().getWidgets().includes('sports'), false, 'taken off stays off');
+});
+
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {
   const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather'], ['games']], scenery: true })));
   assert.equal(settings.addWidget('notes', { page: 1 }), 1);
@@ -246,7 +262,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   const corrupt = createSettingsService(options(memoryStorage({ [STORAGE_KEY]: '{nope' })));
   assert.deepEqual(ids(corrupt.getPages()), [['shopping', 'weather']]);
 
-  const future = createSettingsService(options(saved({ version: 9, theme: 'dark' })));
+  const future = createSettingsService(options(saved({ version: 10, theme: 'dark' })));
   assert.equal(future.getTheme(), 'auto');
 
   const tampered = createSettingsService(

@@ -22,16 +22,16 @@ import {
 } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
 // versions 4, 5 and 6 pick up the ones named in `widgetsSince` (Lights, the
 // Roommate Cup, then Grocery) and nothing else. Up to 6 a page was a list of ids
 // laid out in order; version 7 gives each widget its own place and size, so older
 // pages are laid out once, in their order, at each widget's default size. From
-// version 7 on, a widget named in `widgetsSince` (Spotify, in 8) goes in the first
-// free spot that fits it, leaving everything else where it was.
-const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7];
+// version 7 on, a widget named in `widgetsSince` (Spotify in 8, Sports in 9) goes
+// in the first free spot that fits it, leaving everything else where it was.
+const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8];
 const FIRST_PLACED_VERSION = 7;
 const MAX_ASKER_LENGTH = 30;
 const RENAMED_THEMES = { retro: 'blocks' };

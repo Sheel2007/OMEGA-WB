@@ -5,6 +5,7 @@ import { summaryLabel as grocerySummary } from './apps/grocery/format.js';
 import { statusLabel as lightsStatus } from './apps/lights/format.js';
 import { countLabel as notesCount } from './apps/notes/format.js';
 import { leaderLabel } from './apps/roommate-games/format.js';
+import { subtitle as sportsLine } from './apps/sports/format.js';
 
 // Each returns a subscribe(fn) that reports the line, and stops when the handle is called.
 // Services only report changes, so the ones that can say how things are now do that first.
@@ -35,6 +36,8 @@ const SUBTITLES = {
     line(grocery.getState());
     return grocery.subscribe(line);
   },
+
+  sports: ({ sports }) => (set) => sports.subscribe((state) => set(sportsLine(state, new Date()))),
 
   games: () => (set) => {
     set('Pick a game');

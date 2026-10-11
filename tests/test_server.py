@@ -18,11 +18,13 @@ from board.notes import NotesBoard
 from board.roommate_games import RoommateGames
 from board.server import BoardHandler, BoardServer, phone_address
 from board.spotify import NowPlaying, SpotifyAccount
+from board.sports import Sports
 from board.store import ChangeFeed
 from board.products import ProductsUnavailable
 from board.weather import WeatherUnavailable
 from tests.test_lights import BEDROOM, DEVICES, FakeClient
 from tests.test_spotify import FakeSpotify
+from tests.test_sports import NOW, FakeESPN, espn_pages
 
 
 class FakeWeather:
@@ -109,6 +111,9 @@ class ServerTest(unittest.TestCase):
         cls.lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
         cls.spotify_api = FakeSpotify()
         cls.spotify = NowPlaying(SpotifyAccount("client-1", transport=cls.spotify_api))
+        cls.sports = Sports(fetch=FakeESPN(espn_pages()), fetch_crest=lambda url: (b"\x89PNG", "image/png"),
+                            clock=lambda: NOW, feed=feed)
+        cls.sports.poll()
         cls.server = BoardServer(
             ("127.0.0.1", 0),
             notes=NotesBoard(os.path.join(cls.tmp.name, "data", "notes.json"), feed=feed),
@@ -127,6 +132,7 @@ class ServerTest(unittest.TestCase):
                                          fetch=lambda url: JPEG),
             photos=cls.photos,
             spotify=cls.spotify,
+            sports=cls.sports,
             web_dir=web,
             location={"latitude": 1.5, "longitude": 2},
         )
@@ -245,11 +251,12 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 8)
+            events = self._read_events(stream, 9)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
-                             {"notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify"})
+                             {"notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify",
+                              "sports"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/notes/add", {"text": "live note"})
@@ -474,6 +481,24 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(status, 400)
         status, _headers, _raw = self.request("/api/spotify/art?id=" + "c" * 40)
         self.assertEqual(status, 404)
+
+    def test_sports_scores_tables_and_a_match_page(self):
+        status, _headers, raw = self.request("/api/sports")
+        state = json.loads(raw)
+        self.assertEqual(status, 200)
+        self.assertIn("2001", [m["id"] for m in state["matches"]])
+        self.assertEqual(set(state["tables"]), {"eng.1", "uefa.champions", "big-ten"})
+        status, _headers, raw = self.request("/api/sports/match?id=1001")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw)["home"]["formation"], "4-2-3-1")
+        self.assertEqual(self.request("/api/sports/match?id=424242")[0], 404)
+        self.assertEqual(self.request("/api/sports/match?id=x/../1")[0], 400)
+
+    def test_sports_crests_are_only_ones_the_board_has_shown(self):
+        status, headers, raw = self.request("/api/sports/crest?id=soccer:359")
+        self.assertEqual((status, headers["Content-Type"], raw), (200, "image/png", b"\x89PNG"))
+        self.assertEqual(self.request("/api/sports/crest?id=soccer:1")[0], 404)
+        self.assertEqual(self.request("/api/sports/crest?id=https://evil.example/x.png")[0], 400)
 
     def test_weather_forecast(self):
         status, _, raw = self.request("/api/weather")

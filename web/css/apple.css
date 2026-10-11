@@ -130,6 +130,7 @@
 :root[data-theme="apple"] .widget[data-widget="roommate-games"] { --widget-accent: var(--accent-roommate-games); }
 :root[data-theme="apple"] .widget[data-widget="grocery"] { --widget-accent: var(--accent-grocery); }
 :root[data-theme="apple"] .widget[data-widget="spotify"] { --widget-accent: var(--accent-spotify); }
+:root[data-theme="apple"] .widget[data-widget="sports"] { --widget-accent: var(--accent-sports); }
 
 /* Header: just the widget's name, small, in its accent colour. No icon tile and no
    subtitle. */

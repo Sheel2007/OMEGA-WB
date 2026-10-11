@@ -639,11 +639,17 @@
   min-height: var(--hit);
   padding: 0.75rem 1.1rem 0.75rem 0.9rem;
   border-radius: 1.6rem;
-  border: var(--card-border);
+  border: 0;
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
   text-align: left;
+}
+
+/* No outline in any theme: not Blocks' black edge, not Glass's hairline (which
+   apple.css gives every frosted card; this outranks it). */
+:root[data-theme] .match-notes > .match-note {
+  border: 0;
 }
 
 .match-note:active {

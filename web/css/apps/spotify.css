@@ -1,4 +1,4 @@
-/* Spotify widget: a round cover with the song under it, and no header or card
+/* Spotify widget: the cover as a CD with the song under it, and no header or card
    at any size: like the clock, it sits straight on the wallpaper, in the
    wallpaper's text colours. Mini (one column by two rows, the strip beside the
    clock) is just that; small makes the cover bigger, medium puts the words beside
@@ -41,14 +41,28 @@
   width: min(100cqw, 100cqh);
   aspect-ratio: 1;
   border-radius: 50%;
-  overflow: hidden;
-  background: var(--surface);
   box-shadow: var(--shadow-sm);
   transition: opacity 0.3s var(--ease-out);
 }
 
 .spotify-widget--paused .spotify-widget__cover {
   opacity: 0.55;
+}
+
+/* The cover as a CD: a hole through the middle (the wallpaper shows through it),
+   then the shine laid over the disc. Nothing here moves. */
+.spotify-widget__disc,
+.spotify-widget__shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(circle, transparent 0 9%, #000 9.5%);
+  mask: radial-gradient(circle, transparent 0 9%, #000 9.5%);
+}
+
+.spotify-widget__disc {
+  overflow: hidden;
+  background: var(--surface);
 }
 
 .spotify-widget__placeholder {
@@ -60,8 +74,8 @@
 }
 
 .spotify-widget__placeholder svg {
-  width: 46%;
-  height: 46%;
+  width: 40%;
+  height: 40%;
 }
 
 .spotify-widget__art {
@@ -70,6 +84,17 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* The clear plastic hub round the hole, a groove at its edge, and two soft
+   streaks of light across the disc. Fixed colours: it's a disc, not the theme. */
+.spotify-widget__shine {
+  pointer-events: none;
+  background:
+    radial-gradient(circle, transparent 0 9.5%, rgb(255 255 255 / 0.55) 10% 11%, rgb(255 255 255 / 0.22) 11.5% 19%,
+      rgb(0 0 0 / 0.25) 19.5% 20.5%, transparent 21%),
+    conic-gradient(from 30deg, transparent 0 4%, rgb(255 255 255 / 0.2) 9%, transparent 15% 50%,
+      rgb(255 255 255 / 0.16) 59%, transparent 65%);
 }
 
 .spotify-widget__text {
@@ -182,6 +207,13 @@
 
 [data-theme="blocks"] .spotify-widget__cover {
   box-shadow: 0 0 0 0.2rem #1d1d1d;
+}
+
+/* Blocks: the hub drawn in the theme's hard black outline. */
+[data-theme="blocks"] .spotify-widget__shine {
+  background:
+    radial-gradient(circle, transparent 0 9.5%, #1d1d1d 10% 11.5%, rgb(255 255 255 / 0.3) 12% 19%, #1d1d1d 19.5% 21%,
+      transparent 21.5%);
 }
 
 [data-theme="blocks"] :is(.spotify-widget__bar, .spotify-widget__connect) {

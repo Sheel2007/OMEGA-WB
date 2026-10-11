@@ -1,5 +1,5 @@
-// Spotify: the song playing on the board's account, as a round cover with its
-// name under it. Display only; the board never controls playback. No header at
+// Spotify: the song playing on the board's account, its cover made into a CD,
+// with the song's name under it. Display only; the board never controls playback. No header at
 // any size: just the cover and the song.
 //
 // Mini (one column by two rows) is the cover, the song and who it's by; bigger
@@ -19,12 +19,9 @@ export function createWidget({ services }) {
   const { spotify } = services;
   const art = el('img', { class: 'spotify-widget__art', alt: '', decoding: 'async', draggable: 'false' });
   art.hidden = true;
-  const cover = el(
-    'div',
-    { class: 'spotify-widget__cover' },
-    el('span', { class: 'spotify-widget__placeholder', html: NOTE }),
-    art,
-  );
+  // The cover printed on the disc, with the CD's hub and shine laid over it.
+  const disc = el('div', { class: 'spotify-widget__disc' }, el('span', { class: 'spotify-widget__placeholder', html: NOTE }), art);
+  const cover = el('div', { class: 'spotify-widget__cover' }, disc, el('span', { class: 'spotify-widget__shine', 'aria-hidden': 'true' }));
   const title = el('p', { class: 'spotify-widget__title' });
   const artist = el('p', { class: 'spotify-widget__artist' });
   const album = el('p', { class: 'spotify-widget__album' });

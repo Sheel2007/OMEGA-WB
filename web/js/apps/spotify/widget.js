@@ -1,12 +1,13 @@
 // Spotify: the song playing on the board's account, as a round cover with its
-// name under it. Display only; the board never controls playback.
+// name under it. Display only; the board never controls playback. No header at
+// any size: just the cover and the song.
 //
-// Mini (one column by two rows) is the cover and the song; bigger sizes add the
-// header, the album and a playhead. The server pushes a new reading only when the
+// Mini (one column by two rows) is the cover, the song and who it's by; bigger
+// sizes add the album and a playhead. The server pushes a new reading only when the
 // song, the pause state or the position jumps, so the playhead is moved along here
 // by one 1s timer that runs only while a song is playing.
-import { appIcon, el, toast } from '../../ui.js';
-import { clockTime, describe, progressAt, statusLabel } from './format.js';
+import { el, toast } from '../../ui.js';
+import { clockTime, describe, progressAt } from './format.js';
 import * as meta from './meta.js';
 
 const TICK_MS = 1000;
@@ -16,7 +17,6 @@ const NOTE = `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M27 16l20-5v2
 
 export function createWidget({ services }) {
   const { spotify } = services;
-  const status = el('p', { class: 'widget-head__meta' });
   const art = el('img', { class: 'spotify-widget__art', alt: '', decoding: 'async', draggable: 'false' });
   art.hidden = true;
   const cover = el(
@@ -42,12 +42,6 @@ export function createWidget({ services }) {
   const node = el(
     'article',
     { class: 'spotify-widget', 'aria-label': meta.name },
-    el(
-      'header',
-      { class: 'widget-head' },
-      appIcon(meta, 'widget-head__icon'),
-      el('div', { class: 'widget-head__heading' }, el('h2', { class: 'widget-head__title', text: meta.name }), status),
-    ),
     el(
       'div',
       { class: 'spotify-widget__body' },
@@ -91,7 +85,6 @@ export function createWidget({ services }) {
     track = state.track;
     if (state.error && state.error !== logged) console.warn(`Spotify: ${state.error}`);
     logged = state.error;
-    status.textContent = statusLabel(state);
     node.setAttribute('aria-label', describe(state));
     node.classList.toggle('spotify-widget--paused', Boolean(track && !track.playing));
     node.classList.toggle('spotify-widget--idle', !track);

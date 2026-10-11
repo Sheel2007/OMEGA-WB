@@ -1,7 +1,7 @@
-/* Spotify widget: a round cover with the song under it. Mini (one column by two
-   rows, the strip beside the clock) is just that; small adds the header, medium
-   puts the words beside the cover, and large adds the album and a playhead under a
-   big cover. The cover is sized from its slot with container units, so it's always
+/* Spotify widget: a round cover with the song under it, and no header at any
+   size. Mini (one column by two rows, the strip beside the clock) is just that;
+   small makes the cover bigger, medium puts the words beside the cover, and large
+   adds the album and a playhead under a big cover. The cover is sized from its slot with container units, so it's always
    the biggest circle that fits whatever size the widget is. */
 
 .spotify-widget__body {
@@ -178,7 +178,6 @@
   padding: 1rem 0.7rem;
 }
 
-.widget--mini .widget-head,
 .widget--mini :is(.spotify-widget__album, .spotify-widget__hint, .spotify-widget__playhead) {
   display: none;
 }
@@ -212,7 +211,7 @@
   font-size: var(--fs-caption);
 }
 
-/* Small: the header, the cover and one line each for the song and who it's by. */
+/* Small: the cover and one line each for the song and who it's by. */
 
 .widget--small :is(.spotify-widget__album, .spotify-widget__playhead) {
   display: none;
@@ -264,7 +263,7 @@
 }
 
 /* Glass: mini is a small square there (LAYOUTS.apple), so it's laid out like
-   small but without the header. */
+   small. */
 
 :root[data-theme="apple"] .widget--mini .spotify-widget__cover-slot {
   flex: 1 1 0;

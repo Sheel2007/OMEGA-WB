@@ -6,20 +6,22 @@
 // one in place the same way (resizeWidget). A layout is a list of pages, each a
 // list of placements { id, size, col, row } in reading order.
 //
-// Each page is a 12 × 4 grid; page 1 also has the clock in its top-left 4 × 2.
+// Each page is a 12 × 4 grid; page 1 also has the clock in its top-left 3 × 2.
 // The Apple theme lays pages out in iOS widget units instead (LAYOUTS.apple): a
 // 4 × 2 grid of near-square cells, with the clock in one medium slot.
 //
 // Widgets come in four sizes (SIZES); each app says which it supports in meta.js.
-// Mini is one column by two rows: the strip a 12-column page has left over beside
-// the clock and three- and four-column widgets, which nothing else fits in.
+// Mini is one column by two rows: a strip, like the column beside the clock,
+// that nothing three or four columns wide fits in.
 
 export const SIZES = ['mini', 'small', 'medium', 'large'];
 export const GRID = { cols: 12, rows: 4 };
 export const SPANS = { mini: { w: 1, h: 2 }, small: { w: 3, h: 2 }, medium: { w: 4, h: 2 }, large: { w: 5, h: 4 } };
-// The clock only needs room for the time and the date under it; the rest of the
-// top row is left for widgets, so the five the board ships with share page 1.
-export const CLOCK_AREA = { col: 1, row: 1, w: 4, h: 2 };
+// The clock only needs room for the time and the date under it (home.css sizes
+// both so the widest, "12:45 PM" and "Wednesday, September 30", fit three
+// columns); the rest of the top row is left for widgets, starting with the column
+// right beside it, which a mini widget fits.
+export const CLOCK_AREA = { col: 1, row: 1, w: 3, h: 2 };
 
 export const LAYOUTS = {
   board: { id: 'board', grid: GRID, spans: SPANS, clock: CLOCK_AREA },

@@ -1,7 +1,7 @@
 /* Home screen: pages of widgets that slide sideways, the clock on page 1, page
    dots; swiping up brings up the app library. Each page is a fixed 12 × 4 grid (one cell is
-   about 130 × 184px at 1920×1080); widgets get explicit grid areas from
-   widget-layout.js, and the clock takes the top-left 7 × 2 of page 1. */
+   about 130 × 207px at 1920×1080); widgets get explicit grid areas from
+   widget-layout.js, and the clock takes the top-left 3 × 2 of page 1. */
 
 .home {
   position: fixed;
@@ -103,7 +103,7 @@
 
 .clock {
   /* Matches CLOCK_AREA in widget-layout.js, which is what the widgets pack around. */
-  grid-column: 1 / span 4;
+  grid-column: 1 / span 3;
   grid-row: 1 / span 2;
   align-self: start;
   padding-top: 1.4rem;
@@ -114,7 +114,8 @@
 .clock__date {
   margin: 0 0 0 0.12em;
   text-shadow: var(--sky-text-shadow-sm);
-  font-size: 1.8rem;
+  /* "Wednesday, September 30", the longest date, fits the clock's three columns. */
+  font-size: 1.7rem;
   font-weight: 650;
   letter-spacing: 0.005em;
 }
@@ -125,8 +126,9 @@
   font-family: var(--font-display);
   font-weight: 430;
   font-stretch: 75%;
-  /* Sized so the widest time, "12:45 PM", clears the widget in the next column. */
-  font-size: 16rem;
+  /* Sized so the widest time, "12:45 PM", fits three columns and clears the
+     widget in the next one. */
+  font-size: 13rem;
   line-height: 0.8;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -149,11 +151,15 @@
 }
 
 /* The pixel font has no narrow cut and every glyph is the same width, so the
-   Blocks clock has to be a good deal smaller to fit its four columns. */
+   Blocks clock has to be a good deal smaller to fit its three columns. */
+[data-theme="blocks"] .clock__date {
+  font-size: 1.6rem;
+}
+
 [data-theme="blocks"] .clock__time {
   margin: 0.8rem 0 0;
   font-weight: 700;
-  font-size: 9rem;
+  font-size: 7.3rem;
   line-height: 0.85;
   letter-spacing: 0;
 }

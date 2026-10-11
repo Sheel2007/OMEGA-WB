@@ -73,7 +73,7 @@ test('the four widgets the board starts with share page 1 beside the clock', () 
   const { pages, placements } = paginate([['calendar', 'shopping', 'weather', 'notes', 'games']], spanOf);
   checkLayout([['calendar', 'shopping', 'weather', 'notes', 'games']]);
   assert.deepEqual(pages, [['calendar', 'shopping', 'weather', 'notes'], ['games']]);
-  assert.deepEqual(placements.get('calendar'), { page: 0, col: 5, row: 1, w: 3, h: 2 });
+  assert.deepEqual(placements.get('calendar'), { page: 0, col: 4, row: 1, w: 3, h: 2 });
   assert.deepEqual(placements.get('shopping'), { page: 0, col: 8, row: 1, w: 5, h: 4 });
   assert.deepEqual(placements.get('weather'), { page: 0, col: 1, row: 3, w: 4, h: 2 });
   assert.deepEqual(placements.get('notes'), { page: 0, col: 5, row: 3, w: 3, h: 2 });
@@ -156,7 +156,7 @@ const at = (id, size, col, row) => ({ id, size, col, row });
 test('fromOrder gives an ordered list places of its own', () => {
   const pages = fromOrder([['calendar', 'shopping', 'weather', 'notes', 'games']], (id) => SIZE_OF[id]);
   assert.deepEqual(pages, [
-    [at('calendar', 'small', 5, 1), at('shopping', 'large', 8, 1), at('weather', 'medium', 1, 3), at('notes', 'small', 5, 3)],
+    [at('calendar', 'small', 4, 1), at('shopping', 'large', 8, 1), at('weather', 'medium', 1, 3), at('notes', 'small', 5, 3)],
     [at('games', 'small', 1, 1)],
   ]);
   checkPlacements(pages, board);
@@ -256,16 +256,19 @@ test('removeWidget says where the widget was, so placeWidget can put it back', (
   assert.deepEqual(removeWidget(pages, 'nope'), { pages, from: null });
 });
 
-test('a mini widget fills the one column the clock, a small and a medium leave on page 1', () => {
+test('the clock takes three columns, and a mini widget fits the one right beside it', () => {
+  assert.deepEqual(CLOCK_AREA, { col: 1, row: 1, w: 3, h: 2 });
   assert.deepEqual(SPANS.mini, { w: 1, h: 2 });
-  const sizes = { calendar: 'small', weather: 'medium', spotify: 'mini', notes: 'small', games: 'small', lights: 'medium' };
+  const sizes = { spotify: 'mini', calendar: 'small', weather: 'medium', notes: 'small', games: 'small', lights: 'medium' };
   const pages = fromOrder([Object.keys(sizes)], (id) => sizes[id], board);
   assert.equal(pages.length, 1, 'all six on page 1');
-  assert.deepEqual(pages[0].find((item) => item.id === 'spotify'), { id: 'spotify', size: 'mini', col: 12, row: 1 });
-  // Dropped next to the clock on a board with that column free, it stays there.
-  const moved = placeWidget(pages, { id: 'spotify', size: 'mini' }, { page: 0, col: 5, row: 1 }, board);
-  assert.deepEqual(moved[0].find((item) => item.id === 'spotify'), { id: 'spotify', size: 'mini', col: 5, row: 1 });
-  // Nothing else fits the column it left.
+  assert.deepEqual(pages[0].slice(0, 3), [at('spotify', 'mini', 4, 1), at('calendar', 'small', 5, 1), at('weather', 'medium', 8, 1)]);
+  // Dropped back beside the clock after being moved away, it goes there again.
+  const away = placeWidget(pages, { id: 'spotify', size: 'mini' }, { page: 0, col: 12, row: 1 }, board);
+  assert.deepEqual(findWidget(away, 'spotify'), { page: 0, ...at('spotify', 'mini', 12, 1) });
+  const back = placeWidget(away, { id: 'spotify', size: 'mini' }, { page: 0, col: 4, row: 1 }, board);
+  assert.deepEqual(findWidget(back, 'spotify'), { page: 0, ...at('spotify', 'mini', 4, 1) });
+  // Nothing wider fits the column it leaves.
   assert.equal(firstSpot(pages[0].filter((item) => item.id !== 'spotify'), 0, 'small', board), null);
 });
 

@@ -18,7 +18,7 @@ export function clockTime(ms) {
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 }
 
-// The line under the widget's name.
+// How things stand, in a few words (what a screen reader hears when nothing's playing).
 export function statusLabel({ configured, linked, track, error }) {
   if (!configured) return 'Not set up';
   if (!linked) return 'Not connected';

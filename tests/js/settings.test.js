@@ -29,10 +29,10 @@ const at = (id, size, col, row) => ({ id, size, col, row });
 
 test('starts from defaults when nothing is saved', () => {
   const settings = createSettingsService(options(memoryStorage()));
-  // Laid out in order: Shopping (large) beside the clock, Weather under the clock.
+  // Laid out in order: Shopping (large) beside the clock, and Weather beside that.
   assert.deepEqual(settings.get(), {
     theme: 'auto',
-    pages: [[at('shopping', 'large', 5, 1), at('weather', 'medium', 1, 3)]],
+    pages: [[at('shopping', 'large', 4, 1), at('weather', 'medium', 9, 1)]],
     widgets: ['shopping', 'weather'],
     scenery: true,
     asker: null,
@@ -50,7 +50,7 @@ test('saves changes and reads them back on the next load', () => {
   const again = createSettingsService(options(storage));
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
-  assert.deepEqual(ids(again.getPages()), [['notes', 'weather']]);
+  assert.deepEqual(ids(again.getPages()), [['weather', 'notes']]);
   assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 8);
 });
 
@@ -178,7 +178,7 @@ test('a version 7 screen picks up Spotify once, in the first free spot, leaving 
 
   const settings = make();
   const pages = settings.getPages();
-  assert.deepEqual(pages[0].find((item) => item.id === 'spotify'), at('spotify', 'mini', 5, 1), 'the column beside the clock');
+  assert.deepEqual(pages[0].find((item) => item.id === 'spotify'), at('spotify', 'mini', 4, 1), 'the column beside the clock');
   assert.deepEqual(pages[0].filter((item) => item.id !== 'spotify'), [at('calendar', 'small', 6, 1), at('weather', 'medium', 9, 1), at('notes', 'small', 1, 3)]);
   settings.setTheme('apple');
   assert.ok(settings.getWidgets().includes('spotify'), 'on the Glass layout too');
@@ -254,7 +254,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   );
   assert.deepEqual(tampered.get(), {
     theme: 'dark',
-    pages: [[at('notes', 'small', 5, 1)], [at('games', 'small', 1, 1)]],
+    pages: [[at('notes', 'small', 4, 1)], [at('games', 'small', 1, 1)]],
     widgets: ['notes', 'games'],
     scenery: true,
     asker: null,
@@ -302,10 +302,11 @@ test('the Apple theme keeps its own arrangement, and switching back leaves the b
 
   settings.setTheme('apple');
   assert.equal(settings.getLayout().id, 'apple');
-  // Shopping (large) fills the right half beside the clock, Notes goes under the
-  // clock, and Weather (medium) no longer fits, so it starts page 2.
-  assert.deepEqual(board, [['shopping', 'notes', 'weather'], ['games']]);
-  assert.deepEqual(ids(settings.getPages()), [['shopping', 'notes'], ['weather', 'games']]);
+  // On the board, Shopping (large) and Weather (medium) share the top beside the
+  // clock. On Glass, Shopping fills the right half beside the clock and Weather
+  // the medium slot under the clock, so Notes starts page 2.
+  assert.deepEqual(board, [['shopping', 'weather', 'notes'], ['games']]);
+  assert.deepEqual(ids(settings.getPages()), [['shopping', 'weather'], ['notes', 'games']]);
   settings.moveWidget('games', { page: 0, index: 0 });
   const apple = ids(settings.getPages());
 
@@ -347,7 +348,7 @@ test('adding and removing a widget changes every layout; moving or resizing only
 
 test('a version 6 screen keeps its order, laid out once with each widget at its default size', () => {
   const settings = createSettingsService(options(saved({ version: 6, theme: 'auto', pages: [['weather', 'notes'], ['games']], applePages: [['notes']], scenery: true })));
-  assert.deepEqual(settings.getPages(), [[at('weather', 'medium', 5, 1), at('notes', 'small', 9, 1)], [at('games', 'small', 1, 1)]]);
+  assert.deepEqual(settings.getPages(), [[at('weather', 'medium', 4, 1), at('notes', 'small', 8, 1)], [at('games', 'small', 1, 1)]]);
   settings.setTheme('apple');
   assert.deepEqual(ids(settings.getPages()), [['weather', 'notes'], ['games']], 'an old Apple arrangement is worked out again');
 });

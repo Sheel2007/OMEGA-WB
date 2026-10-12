@@ -16,6 +16,8 @@ import urllib.request
 from email.message import EmailMessage
 from email.utils import parseaddr
 
+from .store import ValidationError
+
 log = logging.getLogger(__name__)
 
 SMTP_TIMEOUT_SECONDS = 20
@@ -25,6 +27,44 @@ TWILIO_URL = "https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json"
 MAX_SMS_LENGTH = 320
 ACCOUNT_SID = re.compile(r"^AC[0-9a-fA-F]{32}$")
 E164 = re.compile(r"^\+[1-9]\d{6,14}$")
+
+
+# Phone numbers
+
+
+def clean_phone(raw, country_code="1"):
+    """The number in international form (+15551234567), or None when left blank.
+
+    A number typed without its country code gets `country_code` when it's the right
+    length for a national number, so "(555) 123-4567" works in the US.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise ValidationError("A phone number must be text.")
+    text = re.sub(r"[\s().\-]", "", raw)
+    if not text:
+        return None
+    if text.startswith("00"):
+        text = "+" + text[2:]
+    if text.startswith("+"):
+        digits = text[1:]
+    elif text.isdigit() and len(text) == 10:
+        digits = country_code + text
+    elif text.isdigit() and text.startswith(country_code) and len(text) == len(country_code) + 10:
+        digits = text
+    else:
+        raise ValidationError("Type the phone number with its area code, like (555) 123-4567 or +44 7700 900123.")
+    if not (digits.isdigit() and 8 <= len(digits) <= 15 and digits[0] != "0"):
+        raise ValidationError("That phone number doesn't look right.")
+    return "+" + digits
+
+
+def mask_phone(phone):
+    return "•••• %s" % phone[-4:] if phone else None
+
+
+# Settings
 
 
 def settings_from(raw):
@@ -186,7 +226,9 @@ class Notifier:
         email = EmailMessage()
         email["From"] = self._email["from"]
         email["To"] = message["email"]
-        email["Subject"] = message["subject"]
+        # Texts sent through a carrier's email gateway go without one, or it shows up in the text.
+        if message["subject"]:
+            email["Subject"] = message["subject"]
         email.set_content(message["text"])
         return email
 

@@ -5,7 +5,7 @@ import { getJson, newId, postBlob, postJson } from './http.js';
 import { createSyncedState } from './synced-state.js';
 
 // Version -1 until the board has answered, so nothing says "nothing to get" too early.
-const EMPTY = { version: -1, currency: 'USD', items: [], catalog: [], people: [] };
+const EMPTY = { version: -1, currency: 'USD', items: [], catalog: [], people: [], texting: [], texts: false };
 
 export const isReady = (state) => state.version >= 0;
 
@@ -110,6 +110,24 @@ export function createGroceryService({ live }) {
 
     restoreItems(ids) {
       return synced.mutate('restore', { ids });
+    },
+
+    // Texts when things are added. `texting` in the state lists who gets them, with
+    // only the last four digits of each number; `texts` says whether the Pi can send.
+    // fields: name, phone, carrier (tmobile, verizon or googlefi).
+    addTexter(fields) {
+      return synced.mutate('texting/add', { ...fields, id: newId() });
+    },
+
+    removeTexter(id) {
+      return synced.mutate('texting/remove', { id }, (s) => {
+        s.texting = s.texting.filter((t) => t.id !== id);
+        return s;
+      });
+    },
+
+    restoreTexters(ids) {
+      return synced.mutate('texting/restore', { ids });
     },
   };
 }

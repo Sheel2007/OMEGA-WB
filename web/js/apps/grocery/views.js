@@ -14,6 +14,8 @@ export const svg = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M7 3.5h10v3l-3 4v10h-4v-10l-3-4z"/><path d="M12 13.5v2"/></svg>',
   keyboard:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M7.5 14.5h9"/></svg>',
+  message:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 4c4.97 0 9 3.13 9 7s-4.03 7-9 7c-.9 0-1.77-.1-2.6-.3L5 20l1-3.6C4.15 15.1 3 13.15 3 11c0-3.87 4.03-7 9-7z"/></svg>',
   cart:
     '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 12h7.5l6.2 28.5a4 4 0 0 0 3.9 3.2h22.8a4 4 0 0 0 3.9-3.1L56 22H19" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="27" cy="52" r="4" fill="currentColor"/><circle cx="47" cy="52" r="4" fill="currentColor"/></svg>',
 };

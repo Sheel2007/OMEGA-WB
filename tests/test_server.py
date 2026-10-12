@@ -325,6 +325,22 @@ class ServerTest(unittest.TestCase):
         status, body = self.post("/api/grocery/add", {"name": "Eggs", "price": 1.5})
         self.assertEqual(status, 400)
 
+    def test_grocery_texting_sign_up_remove_and_undo_never_show_the_number(self):
+        status, body = self.post("/api/grocery/texting/add", {"name": "Noah", "phone": "(555) 111-0001",
+                                                               "carrier": "tmobile"})
+        self.assertEqual(status, 200)
+        texter = body["texter"]
+        self.assertEqual(texter["phone"], "•••• 0001")
+        self.assertNotIn("5551110001", json.dumps(body))
+        status, body = self.post("/api/grocery/texting/add", {"name": "Sam", "phone": "+447700900123",
+                                                               "carrier": "tmobile"})
+        self.assertEqual(status, 400)
+        status, body = self.post("/api/grocery/texting/remove", {"id": texter["id"]})
+        self.assertEqual(body["state"]["texting"], [])
+        status, body = self.post("/api/grocery/texting/restore", {"ids": [texter["id"]]})
+        self.assertEqual(body["restored"], [texter["id"]])
+        self.post("/api/grocery/texting/remove", {"id": texter["id"]})
+
     def test_grocery_lookup_uses_what_the_board_remembers_before_going_online(self):
         self.post("/api/grocery/add", {"name": "Our usual bread", "code": "4056489011293", "price": 189})
         status, _, raw = self.request("/api/grocery/lookup?code=4056489011293")

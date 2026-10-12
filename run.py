@@ -15,6 +15,7 @@ from board.calendar import CalendarChoices, CalendarSources, CalendarStore, loca
 from board.google import GoogleAccount
 from board.grocery import GroceryList
 from board.grocery_images import Photos, ProductImages
+from board.grocery_texts import GroceryTexts
 from board.kiosk import Kiosk
 from board.lights import Lights, settings_from as lights_settings_from
 from board.notes import NotesBoard
@@ -85,6 +86,21 @@ def store_products_from(config, data_folder):
         return StoreProducts(path)
 
 
+def grocery_texts_from(config, notify, **kwargs):
+    """Texts for grocery adds, sent as email from the account under "grocery.texts" (or the
+    Roommate Cup's) in config.json, or None when there's no account or "texts" is false."""
+    grocery = config.get("grocery") if isinstance(config.get("grocery"), dict) else {}
+    texts = grocery.get("texts")
+    if texts is False:
+        return None
+    own = texts.get("email") if isinstance(texts, dict) else None
+    email = notify_settings_from({"email": own})["email"] if own else notify["email"]
+    if email is None:
+        logging.info("Grocery texts are off: they're sent as email, so add an email account to config.json.")
+        return None
+    return GroceryTexts(Notifier(email), **kwargs)
+
+
 def weather_from(config, location):
     unit = config.get("units", "celsius")
     try:
@@ -129,9 +145,14 @@ def main():
     products = ProductLookup(currency, catalog=store_products)
     # Each needs the other: the list checks photos exist, and pruning keeps the ones it uses.
     photos = Photos(os.path.join(args.data, "grocery-photos"), in_use=lambda: grocery.photos_in_use())
-    grocery = GroceryList(os.path.join(args.data, "grocery.json"), currency=currency, photo_exists=photos.exists,
-                          feed=feed)
     notify = notify_settings_from(config.get("roommate_games"))
+    # Texts whoever signed up in the Grocery app when things go on the list.
+    grocery_texts = grocery_texts_from(config, notify, recipients=lambda: grocery.texting_book(),
+                                       still_wanted=lambda ids: grocery.open_ids(ids))
+    grocery = GroceryList(os.path.join(args.data, "grocery.json"), currency=currency, photo_exists=photos.exists,
+                          texts=grocery_texts is not None,
+                          on_add=grocery_texts.added if grocery_texts else None,
+                          on_join=grocery_texts.joined if grocery_texts else None, feed=feed)
     roommate_games = RoommateGames(
         os.path.join(args.data, "roommate-games.json"),
         notifier=Notifier(notify["email"], notify["sms"]),
@@ -166,6 +187,8 @@ def main():
     sources.start()
     lights.start()
     roommate_games.start()
+    if grocery_texts:
+        grocery_texts.start()
     store_products.start()
     spotify.start()
     sports.start()
@@ -185,6 +208,8 @@ def main():
         server.wake_streams()
         lights.stop()
         roommate_games.stop()
+        if grocery_texts:
+            grocery_texts.stop()
         store_products.stop()
         spotify.stop()
         sports.stop()

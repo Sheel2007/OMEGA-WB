@@ -2,6 +2,8 @@
 // screen can use it without loading the app).
 
 export const STORE_LABELS = { traderjoes: 'Trader Joe’s', lidl: 'Lidl' };
+// The carriers whose email-to-text gateways the board can send through (CARRIERS in board/grocery_texts.py).
+export const CARRIER_LABELS = { tmobile: 'T-Mobile', verizon: 'Verizon', googlefi: 'Google Fi' };
 export const STORE_ORDER = ['traderjoes', 'lidl', null];
 
 const formats = new Map();

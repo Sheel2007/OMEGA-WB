@@ -274,6 +274,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/grocery/remove": "grocery_remove",
         "/api/grocery/restore": "grocery_restore",
         "/api/grocery/clear-checked": "grocery_clear_checked",
+        "/api/grocery/texting/add": "grocery_texting_add",
+        "/api/grocery/texting/remove": "grocery_texting_remove",
+        "/api/grocery/texting/restore": "grocery_texting_restore",
         "/api/spotify/link": "spotify_link",
         "/api/spotify/unlink": "spotify_unlink",
         "/api/kiosk/exit": "kiosk_exit",
@@ -687,6 +690,15 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def grocery_clear_checked(self, body):
         return self.server.grocery.clear_checked()
+
+    def grocery_texting_add(self, body):
+        return self.server.grocery.add_texter(body, texter_id=body.get("id"))
+
+    def grocery_texting_remove(self, body):
+        return self.server.grocery.remove_texter(body.get("id"))
+
+    def grocery_texting_restore(self, body):
+        return self.server.grocery.restore_texters(body.get("ids"))
 
     def spotify_link(self, body):
         """Starts the Spotify sign-in. Only from the board itself: the redirect comes back to it."""

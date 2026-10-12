@@ -5,6 +5,8 @@
 // button), a search finds the product (Open Food Facts, through the Pi), or a name
 // is typed in. Each goes through the same sheet, where the price, how many, the
 // store and who's asking can be set before it's added.
+//
+// Under the totals, anyone can sign up for a text when someone else adds to the list.
 import { createKeyboard } from '../../keyboard.js';
 import { fetchQrSvg } from '../../services/board.js';
 import { isReady } from '../../services/grocery.js';
@@ -13,6 +15,7 @@ import { boughtOf, shownDone, toBuyOf, toggleItem } from './settle.js';
 import { readScan } from './codes.js';
 import {
   askers,
+  CARRIER_LABELS,
   countLabel,
   detailLabel,
   money,
@@ -42,6 +45,7 @@ const STORE_CHOICES = [
   ['traderjoes', STORE_LABELS.traderjoes],
   ['lidl', STORE_LABELS.lidl],
 ];
+const CARRIERS = Object.entries(CARRIER_LABELS);
 const FILTERS = [
   [null, 'All'],
   ['traderjoes', STORE_LABELS.traderjoes],
@@ -222,6 +226,23 @@ export function mount(root, { services, kiosk, info }) {
     peopleTotals,
   );
 
+  // Texts
+
+  const textingNote = el('p', { class: 'grocery-texting__note' });
+  const textingList = el('ul', { class: 'grocery-total__rows', 'aria-label': 'Getting texts' });
+  const textingPanel = el(
+    'section',
+    { class: 'grocery-glass grocery-texting', 'aria-label': 'Texts' },
+    el(
+      'header',
+      { class: 'grocery-texting__head' },
+      el('h2', { class: 'grocery-phone__title grocery-texting__title' }, el('span', { class: 'grocery-phone__icon', html: svg.message }), 'Texts'),
+      el('button', { class: 'grocery-link', type: 'button', text: 'Add Your Number', onclick: () => openTextingSheet() }),
+    ),
+    textingNote,
+    textingList,
+  );
+
   const qr = el('div', { class: 'phone-link__qr', role: 'img', 'aria-label': 'QR code for the grocery list' });
   const url = el('p', { class: 'phone-link__url' });
   const phonePanel = el(
@@ -260,7 +281,7 @@ export function mount(root, { services, kiosk, info }) {
       el('div', { class: 'grocery-search-area' }, form, predictions),
       scroll,
     ),
-    el('aside', { class: 'grocery-app__side' }, totalPanel, phonePanel),
+    el('aside', { class: 'grocery-app__side' }, totalPanel, textingPanel, phonePanel),
     scanFab,
   );
   root.append(view);
@@ -882,6 +903,157 @@ export function mount(root, { services, kiosk, info }) {
     );
   }
 
+  // Texts
+
+  function openTextingSheet() {
+    const nameField = el('input', {
+      class: 'grocery-field__input',
+      type: 'text',
+      value: kiosk ? '' : (settings.getAsker() ?? ''),
+      placeholder: 'Your name',
+      maxlength: '30',
+      autocomplete: 'given-name',
+      autocapitalize: 'words',
+      enterkeyhint: 'next',
+      inputmode: kiosk ? 'none' : null,
+    });
+    const phoneField = el('input', {
+      class: 'grocery-field__input',
+      type: 'tel',
+      placeholder: '(555) 123-4567',
+      maxlength: '20',
+      autocomplete: 'tel-national',
+      enterkeyhint: 'done',
+      inputmode: kiosk ? 'none' : 'tel',
+    });
+    const carrier = segmented(CARRIERS, 'tmobile', 'Carrier');
+    const inputs = [nameField, phoneField];
+    let current = nameField;
+    inputs.forEach((field) => field.addEventListener('focus', () => (current = field)));
+    const advance = (field) => {
+      if (field === nameField) focus(phoneField);
+      else sheet?.primaryButton.click();
+    };
+    inputs.forEach((field) =>
+      field.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        advance(field);
+      }),
+    );
+    const formKeyboard = kiosk
+      ? createKeyboard({
+          inputs,
+          enterLabel: 'Next',
+          onEnter: () => advance(current),
+          onToggle: (open) => document.documentElement.classList.toggle('is-typing', open),
+        })
+      : null;
+    function focus(field) {
+      current = field;
+      if (formKeyboard) formKeyboard.focusField(field);
+      else field.focus();
+    }
+
+    const content = el(
+      'div',
+      { class: 'grocery-form' },
+      el('p', {
+        class: 'grocery-form__note',
+        text: grocery.getState().texts
+          ? 'Get a free text whenever someone else adds to the list. A welcome text comes first, so you know it works.'
+          : 'Texts are off until the Pi has an email account to send them from. Numbers added now get texts once it does.',
+      }),
+      el('label', { class: 'grocery-field' }, el('span', { class: 'grocery-field__label', text: 'Name' }), nameField),
+      el('label', { class: 'grocery-field' }, el('span', { class: 'grocery-field__label', text: 'Phone number' }), phoneField),
+      el('div', { class: 'grocery-field' }, el('span', { class: 'grocery-field__label', text: 'Carrier' }), carrier.node),
+      el('p', { class: 'grocery-texting__fine', text: 'Your number stays on the board. Screens only show its last four digits.' }),
+    );
+    if (formKeyboard) root.append(formKeyboard.node);
+
+    const own = openSheet({
+      title: 'Get Texts',
+      content,
+      primary: {
+        label: 'Add',
+        onClick: () => {
+          const person = tidy(nameField.value);
+          const number = phoneField.value.trim();
+          const missing = !person ? nameField : !number ? phoneField : null;
+          if (missing) {
+            nudge(missing);
+            focus(missing);
+            toast(missing === nameField ? 'Type your name first.' : 'Type your phone number first.');
+            return;
+          }
+          own.primaryButton.disabled = true;
+          grocery.addTexter({ name: person, phone: number, carrier: carrier.get() }).then(
+            () => {
+              if (!kiosk) settings.setAsker(person);
+              if (sheet === own) closeSheet();
+              toast(grocery.getState().texts ? 'Added. A welcome text is on its way.' : `Added ${person}`);
+            },
+            (err) => {
+              toast(err.message);
+              own.primaryButton.disabled = false;
+            },
+          );
+        },
+      },
+      onClose: () => {
+        formKeyboard?.destroy();
+        document.documentElement.classList.remove('is-typing');
+      },
+    });
+    focus(nameField.value ? phoneField : nameField);
+  }
+
+  function removeTexter(texterId) {
+    const texter = grocery.getState().texting.find((t) => t.id === texterId);
+    if (!texter) return;
+    grocery.removeTexter(texterId).then(
+      () =>
+        toast(`${texter.name} won’t get texts`, {
+          action: 'Undo',
+          onAction: () => grocery.restoreTexters([texterId]).catch((e) => toast(e.message)),
+        }),
+      (err) => toast(err.message),
+    );
+  }
+
+  function createTexterRow() {
+    const row = el('li', { class: 'grocery-total__row grocery-texting__row' });
+    row.append(
+      el('span'),
+      el('span', { class: 'grocery-texting__text' }, el('span', { class: 'grocery-total__name' }), el('span', { class: 'grocery-texting__detail' })),
+      el('button', { class: 'grocery-texting__remove', type: 'button', html: icons.close, onclick: () => removeTexter(row.dataset.key) }),
+    );
+    return row;
+  }
+
+  function updateTexterRow(row, texter) {
+    const [, text, remove] = row.children;
+    if (row.dataset.name !== texter.name) {
+      row.dataset.name = texter.name;
+      row.firstChild.replaceWith(avatar(texter.name, 'grocery-texting__avatar'));
+    }
+    text.children[0].textContent = texter.name;
+    text.children[1].textContent = [CARRIER_LABELS[texter.carrier], texter.phone].filter(Boolean).join(' · ');
+    remove.setAttribute('aria-label', `Stop texting ${texter.name}`);
+  }
+
+  function renderTexting(state) {
+    const people = state.texting ?? [];
+    textingNote.textContent = !isReady(state)
+      ? ''
+      : !state.texts
+        ? 'Texts are off until the Pi has an email account to send them from.'
+        : people.length
+          ? 'They get a text when someone else adds to the list.'
+          : 'Get a free text when someone adds to the list.';
+    reconcile(textingList, people, (t) => t.id, createTexterRow, updateTexterRow);
+  }
+
   // Rows
 
   function setRowDone(row, isDone) {
@@ -1010,6 +1182,7 @@ export function mount(root, { services, kiosk, info }) {
           ? 'Tap Scan and point at a barcode, or search above.'
           : 'Search above, or scan a barcode with your phone.';
       renderTotals(state);
+      renderTexting(state);
     };
     if (firstRender) {
       apply();

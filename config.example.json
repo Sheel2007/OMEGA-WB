@@ -38,8 +38,20 @@
     }
   },
 
-  "_grocery": "Optional. The currency grocery prices are in, and the country whose Trader Joe's and Lidl products the search predicts from (USD and united-states unless you say otherwise).",
-  "grocery": { "currency": "USD", "country": "united-states" },
+  "_grocery": "Optional. The currency grocery prices are in, and the country whose Trader Joe's and Lidl products the search predicts from (USD and united-states unless you say otherwise). 'texts': anyone can sign up in the Grocery app (Texts → Add Your Number, with their carrier) for a free text when someone else adds to the list. They go through the carrier's email-to-text gateway, so they're sent from an email account: put one under texts.email (same fields as roommate_games.email), or leave it out to use the Roommate Cup's. \"texts\": false turns them off.",
+  "grocery": {
+    "currency": "USD",
+    "country": "united-states",
+    "texts": {
+      "email": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "username": "your.board@gmail.com",
+        "password": "your app password",
+        "from": "Home Board <your.board@gmail.com>"
+      }
+    }
+  },
 
   "_spotify": "Optional. Shows what's playing on one Spotify account. Make an app at developer.spotify.com/dashboard, tick 'Web API', and add the redirect URI http://127.0.0.1:8080/api/spotify/done (with your port if it isn't 8080). Paste its Client ID here (no secret needed), then tap Connect on the Spotify widget on the board's own screen.",
   "spotify": { "client_id": "your spotify client id" },

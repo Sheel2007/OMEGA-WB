@@ -28,6 +28,7 @@ import threading
 import uuid
 from datetime import date, datetime, timedelta
 
+from .notify import clean_phone, mask_phone
 from .store import JsonStore, NotFound, ValidationError, tidy_text
 
 log = logging.getLogger(__name__)
@@ -94,43 +95,11 @@ def clean_email(raw):
     return "%s@%s" % (local, domain.lower())
 
 
-def clean_phone(raw, country_code="1"):
-    """The number in international form (+15551234567), or None when left blank.
-
-    A number typed without its country code gets `country_code` when it's the right
-    length for a national number, so "(555) 123-4567" works in the US.
-    """
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        raise ValidationError("A phone number must be text.")
-    text = re.sub(r"[\s().\-]", "", raw)
-    if not text:
-        return None
-    if text.startswith("00"):
-        text = "+" + text[2:]
-    if text.startswith("+"):
-        digits = text[1:]
-    elif text.isdigit() and len(text) == 10:
-        digits = country_code + text
-    elif text.isdigit() and text.startswith(country_code) and len(text) == len(country_code) + 10:
-        digits = text
-    else:
-        raise ValidationError("Type the phone number with its area code, like (555) 123-4567 or +44 7700 900123.")
-    if not (digits.isdigit() and 8 <= len(digits) <= 15 and digits[0] != "0"):
-        raise ValidationError("That phone number doesn't look right.")
-    return "+" + digits
-
-
 def mask_email(email):
     if not email:
         return None
     local, domain = email.rsplit("@", 1)
     return "%s•••@%s" % (local[0], domain)
-
-
-def mask_phone(phone):
-    return "•••• %s" % phone[-4:] if phone else None
 
 
 def clean_schedule(raw, current):

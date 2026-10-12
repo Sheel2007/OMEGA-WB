@@ -1101,6 +1101,88 @@
   height: 1.3rem;
 }
 
+/* Texts */
+
+.grocery-texting {
+  padding: 1.2rem 1.2rem 0.6rem;
+}
+
+.grocery-texting__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.grocery-texting__title {
+  margin: 0;
+}
+
+.grocery-texting__head .grocery-link {
+  margin-right: -0.6rem;
+  padding: 0.5rem 0.8rem;
+}
+
+.grocery-texting__note {
+  margin: 0.4rem 0 0.7rem;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.grocery-texting__note:empty {
+  display: none;
+}
+
+.grocery-texting__row {
+  min-height: 3.6rem;
+}
+
+.grocery-texting__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.grocery-texting__text .grocery-total__name {
+  flex: none;
+}
+
+.grocery-texting__detail {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.grocery-texting__remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  margin-right: -0.6rem;
+  border-radius: var(--radius-pill);
+  color: var(--text-2);
+}
+
+.grocery-texting__remove svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.grocery-texting__remove:active {
+  background: var(--fill);
+}
+
+.grocery-texting__fine {
+  margin: 0;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
 /* Sheets */
 
 .grocery-sheet {

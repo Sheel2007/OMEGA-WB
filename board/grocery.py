@@ -10,11 +10,16 @@ Every product added is also remembered in a small catalog, keyed by its barcode
 someone took of it, if any. Scanning the same thing again fills itself in from
 there without going online, and searches find the household's usual things first.
 Photo files themselves live in board/grocery_images.py; items only name them.
+
+It also keeps who gets a text when something's added (name, US number, carrier;
+board/grocery_texts.py sends them). Screens only ever get the numbers masked.
 """
 import copy
 import re
 import uuid
 
+from .grocery_texts import CARRIERS, US_NUMBER
+from .notify import clean_phone, mask_phone
 from .store import JsonStore, NotFound, ValidationError, tidy_text
 
 __all__ = ["GroceryList", "NotFound", "ValidationError", "normalize_code", "STORES"]
@@ -31,6 +36,7 @@ MAX_PRICE_CENTS = 100000
 MAX_CATALOG = 300
 CATALOG_SENT = 80
 MAX_PEOPLE = 20
+MAX_TEXTING = 12
 CLIENT_ID = re.compile(r"^[a-f0-9]{8,32}$")
 PHOTO_NAME = re.compile(r"^[a-f0-9]{16}\.(?:jpg|png|webp)$")
 DIGITS = re.compile(r"^\d+$")
@@ -129,6 +135,28 @@ def clean_person(raw):
     return _text(raw, label="A name", max_length=MAX_PERSON_LENGTH)
 
 
+def clean_texter_name(raw):
+    name = clean_person(raw)
+    if name is None:
+        raise ValidationError("Type your name first.")
+    return name
+
+
+def clean_texter_phone(raw):
+    phone = clean_phone(raw, "1")
+    if phone is None:
+        raise ValidationError("Type the phone number first.")
+    if not US_NUMBER.match(phone):
+        raise ValidationError("Texts only reach US numbers.")
+    return phone
+
+
+def clean_carrier(raw):
+    if raw not in CARRIERS:
+        raise ValidationError("Pick the phone's carrier.")
+    return raw
+
+
 def name_key(name):
     return " ".join(name.split()).casefold()
 
@@ -136,10 +164,19 @@ def name_key(name):
 class GroceryList(JsonStore):
     label = "grocery list"
 
-    def __init__(self, path=None, *, currency="USD", photo_exists=None, **kwargs):
+    def __init__(self, path=None, *, currency="USD", photo_exists=None, texts=False, on_add=None, on_join=None,
+                 **kwargs):
         self._currency = currency
         # Whether a photo name refers to a saved photo (grocery_images.Photos.exists).
         self._photo_exists = photo_exists or (lambda name: True)
+        # Whether the board can send texts (an email account is set up), for the app to say so.
+        self._texts = texts
+        # Told about each item put on the list and each person signing up for texts, once
+        # saved (grocery_texts.GroceryTexts.added and .joined).
+        self._on_add = on_add
+        self._on_join = on_join
+        # Removed people, for Undo: in memory only, so a number taken off is gone from the file.
+        self._texting_trash = {}
         super().__init__(path, **kwargs)
 
     def _clean_photo(self, raw):
@@ -159,6 +196,16 @@ class GroceryList(JsonStore):
         with self._changed:
             entry = next((e for e in self._catalog if e["code"] == code), None)
             return self._as_product(entry) if entry else None
+
+    def texting_book(self):
+        """Everyone signed up for texts, numbers unmasked: for sending from the Pi only."""
+        with self._changed:
+            return [{"name": t["name"], "phone": t["phone"], "carrier": t["carrier"]} for t in self._texting]
+
+    def open_ids(self, item_ids):
+        """Which of `item_ids` are still on the list and not bought yet."""
+        with self._changed:
+            return {i["id"] for i in self._items if i["id"] in item_ids and not i["done"]}
 
     def photos_in_use(self):
         """Every photo the list, the catalog or Undo could still show."""
@@ -231,7 +278,10 @@ class GroceryList(JsonStore):
             self._items.insert(0, item)
             self._remember(item)
             self._commit()
-            return self._result(outcome, item)
+            result = self._result(outcome, item)
+        if self._on_add is not None:
+            self._on_add(result["item"])
+        return result
 
     def update(self, item_id, raw):
         """Changes only the fields given: name, brand, size, store, price, qty, by, photo."""
@@ -303,7 +353,64 @@ class GroceryList(JsonStore):
                 self._commit()
             return {"state": self._state(), "restored": [item["id"] for _, item in entries]}
 
+    # Texts
+
+    def add_texter(self, raw, texter_id=None):
+        """Signs someone up for texts. Their number again changes its name and carrier."""
+        if not isinstance(raw, dict):
+            raise ValidationError("Send the person as a JSON object.")
+        name = clean_texter_name(raw.get("name"))
+        phone = clean_texter_phone(raw.get("phone"))
+        carrier = clean_carrier(raw.get("carrier"))
+        with self._changed:
+            texter = next((t for t in self._texting if t["phone"] == phone), None)
+            if texter is None:
+                if len(self._texting) >= MAX_TEXTING:
+                    raise ValidationError("That's as many people as get texts (%d)." % MAX_TEXTING)
+                texter = {"id": self._new_texter_id(texter_id), "phone": phone}
+                self._texting.append(texter)
+            texter.update(name=name, carrier=carrier)
+            self._commit()
+            result = {"state": self._state(), "texter": _public_texter(texter)}
+            joined = dict(texter)
+        if self._on_join is not None:
+            self._on_join(joined)
+        return result
+
+    def remove_texter(self, texter_id):
+        with self._changed:
+            texter = next((t for t in self._texting if t["id"] == texter_id), None)
+            if texter is None:
+                raise NotFound("They aren't getting texts anymore.")
+            index = self._texting.index(texter)
+            self._texting.pop(index)
+            self._texting_trash[texter["id"]] = (index, texter)
+            while len(self._texting_trash) > MAX_TEXTING:
+                self._texting_trash.pop(next(iter(self._texting_trash)))
+            self._commit()
+            return {"state": self._state(), "texter": _public_texter(texter)}
+
+    def restore_texters(self, texter_ids):
+        if not isinstance(texter_ids, list) or not all(isinstance(i, str) for i in texter_ids):
+            raise ValidationError("'ids' must be a list of ids.")
+        with self._changed:
+            phones = {t["phone"] for t in self._texting}
+            back = sorted((self._texting_trash.pop(i) for i in texter_ids if i in self._texting_trash),
+                          key=lambda pair: pair[0])
+            back = [(index, t) for index, t in back if t["phone"] not in phones][:MAX_TEXTING - len(self._texting)]
+            for index, texter in back:
+                self._texting.insert(min(index, len(self._texting)), texter)
+            if back:
+                self._commit()
+            return {"state": self._state(), "restored": [t["id"] for _, t in back]}
+
     # Internals
+
+    def _new_texter_id(self, requested):
+        taken = {t["id"] for t in self._texting} | set(self._texting_trash)
+        if isinstance(requested, str) and CLIENT_ID.match(requested) and requested not in taken:
+            return requested
+        return uuid.uuid4().hex[:12]
 
     def _known_photo(self, code, name):
         """The photo the catalog has for this product, so it comes back when it's added again."""
@@ -377,6 +484,7 @@ class GroceryList(JsonStore):
         self._items = []
         self._catalog = []
         self._people = []
+        self._texting = []
 
     def _state(self):
         return {
@@ -385,15 +493,30 @@ class GroceryList(JsonStore):
             "items": copy.deepcopy(self._items),
             "catalog": [self._as_product(e) | {"count": e["count"]} for e in self._catalog[:CATALOG_SENT]],
             "people": list(self._people),
+            "texting": [_public_texter(t) for t in self._texting],
+            "texts": self._texts,
         }
 
     def _to_disk(self):
-        return {"items": self._items, "catalog": self._catalog, "people": self._people}
+        return {"items": self._items, "catalog": self._catalog, "people": self._people, "texting": self._texting}
 
     def _from_disk(self, data):
         self._items = [_valid_item(i) for i in data.get("items", [])]
         self._catalog = [_valid_entry(e) for e in data.get("catalog", [])]
         self._people = [p for p in data.get("people", []) if isinstance(p, str)][:MAX_PEOPLE]
+        self._texting = [_valid_texter(t) for t in data.get("texting", [])][:MAX_TEXTING]
+
+
+def _public_texter(texter):
+    return {"id": texter["id"], "name": texter["name"], "carrier": texter["carrier"],
+            "phone": mask_phone(texter["phone"])}
+
+
+def _valid_texter(raw):
+    if not (isinstance(raw["id"], str) and isinstance(raw["name"], str) and isinstance(raw["phone"], str)
+            and US_NUMBER.match(raw["phone"]) and raw["carrier"] in CARRIERS):
+        raise ValueError("bad texter")
+    return {"id": raw["id"], "name": raw["name"], "phone": raw["phone"], "carrier": raw["carrier"]}
 
 
 def _optional(raw, key, kind):

@@ -4,12 +4,18 @@ export const description = 'Arsenal, Tottenham, Maryland and the Champions Leagu
 // No widget: Sports is the page before page 1 (page.js), with a strip under the
 // clock on game days (game-day.js). The app itself has every match and table.
 export const iconBackground = 'var(--icon-sports)';
-// A football: our own drawing.
+// A football: our own drawing. White patches, black pentagons cut off at the
+// ball's white rim, and a little shade low on the right for roundness.
 export const iconGlyph = `<svg viewBox="0 0 64 64" aria-hidden="true">
-  <circle cx="32" cy="32" r="22" fill="#fff"/>
-  <path d="M32 23.5l8.1 5.9-3.1 9.5H27l-3.1-9.5z" fill="#232838"/>
-  <path d="M32 23.5V10.5M40.1 29.4l12.3-4M37 38.9l7.6 10.4M27 38.9l-7.6 10.4M23.9 29.4l-12.3-4" stroke="#232838" stroke-width="2.4" stroke-linecap="round"/>
-  <path d="M26.5 11.2l5.5 2.3 5.5-2.3M50 20.5l1.6 6.2-3.3 4.6M47.3 45.4l-5.2 3.6-5.6-.4M16.7 45.4l5.2 3.6 5.6-.4M14 20.5l-1.6 6.2 3.3 4.6" fill="none" stroke="#232838" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs><clipPath id="sports-icon-ball"><circle cx="32" cy="32" r="22"/></clipPath></defs>
+  <g clip-path="url(#sports-icon-ball)">
+    <rect width="64" height="64" fill="#d3d8e3"/>
+    <circle cx="30.5" cy="30" r="22" fill="#fff"/>
+    <path d="M32 23.40L40.18 29.34L37.05 38.96L26.95 38.96L23.82 29.34Z" fill="#1d2230" stroke="#1d2230" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M32 23.40L32 17.40M40.18 29.34L45.89 27.49M37.05 38.96L40.58 43.81M26.95 38.96L23.42 43.81M23.82 29.34L18.11 27.49" stroke="#1d2230" stroke-width="2" stroke-linecap="round"/>
+    <path d="M32 17.40L24.01 11.60L27.06 2.20L36.94 2.20L39.99 11.60ZM45.89 27.49L48.94 18.10L58.81 18.10L61.86 27.49L53.87 33.29ZM40.58 43.81L50.46 43.81L53.51 53.20L45.52 59.01L37.53 53.20ZM23.42 43.81L26.47 53.20L18.48 59.01L10.49 53.20L13.54 43.81ZM18.11 27.49L10.13 33.29L2.14 27.49L5.19 18.10L15.06 18.10Z" fill="#1d2230" stroke="#1d2230" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  <circle cx="32" cy="32" r="22.4" fill="none" stroke="#fff" stroke-width="2.2"/>
 </svg>`;
 // The dot before the page dots that opens the Sports page: a football in the
 // dots' own colour (currentColor), its edge patches cut off by the ball's outline.

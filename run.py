@@ -12,6 +12,7 @@ import signal
 import sys
 
 from board.calendar import CalendarChoices, CalendarSources, CalendarStore, local_zone, sources_from
+from board.fotmob import fotmob_from
 from board.google import GoogleAccount
 from board.grocery import GroceryList
 from board.grocery_images import Photos, ProductImages
@@ -161,7 +162,7 @@ def main():
         feed=feed,
     )
     spotify = spotify_from(config, args.data, feed)
-    sports = Sports(follows_from(config.get("sports")), feed=feed)
+    sports = Sports(follows_from(config.get("sports")), feed=feed, fotmob=fotmob_from(config))
     server = BoardServer(
         (args.host, port),
         notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),

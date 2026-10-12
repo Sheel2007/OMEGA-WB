@@ -25,6 +25,13 @@ import {
   countdownClock,
   gameDayMatch,
   resultsList,
+  formText,
+  minutesText,
+  outText,
+  perMatchText,
+  ratingBand,
+  ratingText,
+  versusAverage,
 } from '../../web/js/apps/sports/format.js';
 
 // Local times, so the day labels read the same in any time zone the tests run in.
@@ -232,4 +239,38 @@ test('the countdown ticks in hours, minutes and seconds', () => {
   assert.equal(countdownClock(kickoff, new Date(local(10, 13, 14, 45, 55))), '14:05');
   assert.equal(countdownClock(kickoff, new Date(local(10, 13, 14, 59, 59, 500))), '0:01');
   assert.equal(countdownClock(kickoff, new Date(local(10, 13, 15, 2))), '0:00');
+});
+
+test('ratings are coloured the way FotMob does', () => {
+  assert.equal(ratingBand(9.1), 'top');
+  assert.equal(ratingBand(7), 'good');
+  assert.equal(ratingBand(6.9), 'ok');
+  assert.equal(ratingBand(5.8), 'poor');
+  assert.equal(ratingBand(null), null);
+  assert.equal(ratingText(8), '8.0');
+});
+
+test('a referee against the league average', () => {
+  assert.equal(perMatchText(20.27), '20.3');
+  assert.equal(perMatchText(4.15), '4.15');
+  assert.equal(versusAverage({ perMatch: 20.27, average: 21.16 }), 'Below the league average of 21.2');
+  assert.equal(versusAverage({ perMatch: 4.15, average: 3.8 }), 'Above the league average of 3.80');
+  assert.equal(versusAverage({ perMatch: 3.82, average: 3.8 }), 'Level with the league average of 3.80');
+  assert.equal(versusAverage({ perMatch: 3, average: null }), '');
+});
+
+test('form, who is out and minutes played', () => {
+  assert.equal(formText({ result: 'W', for: 2, against: 1, opponent: 'Chelsea', home: true }), 'Won 2–1 at home to Chelsea');
+  assert.equal(formText({ result: 'L', for: 0, against: 1, opponent: 'Napoli', home: false }), 'Lost 0–1 away at Napoli');
+  assert.equal(outText({ reason: 'injury', back: 'Doubtful' }), 'Injured · Doubtful');
+  assert.equal(outText({ reason: 'suspension', back: null }), 'Suspended');
+  assert.equal(outText({ reason: 'personal', back: 'Late October' }), 'Personal · Late October');
+  assert.equal(outText({ reason: null, back: null }), 'Out');
+  assert.equal(minutesText(90), '90 minutes played');
+  assert.equal(minutesText(null), '');
+});
+
+test('fewer big chances missed is better', () => {
+  assert.equal(statLeader({ key: 'bigChancesMissed', home: 3, away: 1 }), 'away');
+  assert.equal(statLeader({ key: 'xg', home: 2.33, away: 0.62 }), 'home');
 });

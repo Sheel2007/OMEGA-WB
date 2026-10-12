@@ -17,9 +17,11 @@ schedules every hour and the tables every few hours (and again just after a
 followed match ends), and while a followed match is on, its league's scoreboard
 every 30 seconds. A match page (line-ups, timeline, stats) is ESPN's match
 summary, fetched when a screen opens it and kept fresh by the same thread while
-the match is on, so screens never ask ESPN anything themselves. Crests come only
-from ESPN's image server, only for teams the board has shown, and are kept in
-memory.
+the match is on, so screens never ask ESPN anything themselves. For the English
+competitions and the Champions League, the same read adds FotMob's extras to the
+page (board/fotmob.py: the referee's record, predicted line-ups, injuries, player
+ratings and stats, form and head-to-head). Crests come only from ESPN's image
+server, only for teams the board has shown, and are kept in memory.
 
 Only the standard library.
 """
@@ -34,6 +36,8 @@ import urllib.request
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
+
+from .fotmob import merge as add_fotmob
 
 try:
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -826,8 +830,11 @@ class Sports:
 
     label = "sports"
 
-    def __init__(self, follows=None, *, feed=None, fetch=fetch_bytes, fetch_crest=fetch_image, clock=time.time):
+    def __init__(self, follows=None, *, feed=None, fetch=fetch_bytes, fetch_crest=fetch_image, clock=time.time,
+                 fotmob=None):
         self._follows = follows if follows is not None else Follows()
+        # board.fotmob.FotMob, or None to leave FotMob out.
+        self._fotmob = fotmob
         self._feed = feed
         self._fetch = fetch
         self._fetch_crest = fetch_crest
@@ -1160,6 +1167,8 @@ class Sports:
                     return cached[1]
             raw = self._get_json(SITE_API + "%s/summary?event=%s" % (match["league"], match["id"]))
             detail = shape_detail(raw, match)
+            if self._fotmob is not None:
+                add_fotmob(detail, self._fotmob.extra(match))
             with self._lock:
                 old = self._details.get(match["id"])
                 self._details[match["id"]] = (now, detail)

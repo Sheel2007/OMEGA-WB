@@ -1,7 +1,10 @@
 // Sports: one match's page, laid out like a match centre. The score across the
-// top with who scored, then three tabs: the line-ups on a pitch (each side in its
-// formation, with goals, assists, cards and substitutions marked on the players,
-// and the bench underneath), the team stats side by side, and the timeline.
+// top with who scored, then tabs: the line-ups on a pitch (each side in its
+// formation, with goals, assists, cards, substitutions and FotMob's ratings marked
+// on the players, the bench and who's out underneath), the team stats side by
+// side, the timeline, and Info (the referee's record, form, head-to-head, the best
+// rated players and FotMob's insights). Tapping a rated player opens their stats.
+// Before the line-ups are out, FotMob's predicted ones stand in for them.
 //
 // The page comes from the Pi (/api/sports/match), which keeps it fresh while the
 // match is on. The live stream says when there's a newer one (the match's
@@ -10,18 +13,26 @@ import { el, icons } from '../../ui.js';
 import {
   countdown,
   describe,
+  formText,
   hasScore,
   inkOn,
   isHalfTime,
   isLive,
   isUpcoming,
   kickoffLabel,
+  minutesText,
+  monthYear,
+  outText,
+  perMatchText,
+  ratingBand,
+  ratingText,
   scorers,
   shootoutText,
   statLeader,
   statShare,
   statusText,
   statValue,
+  versusAverage,
 } from './format.js';
 import { crest, liveBadge, setCrest } from './views.js';
 
@@ -31,6 +42,7 @@ const TABS = [
   { id: 'lineups', label: 'Line-ups' },
   { id: 'stats', label: 'Stats' },
   { id: 'timeline', label: 'Timeline' },
+  { id: 'info', label: 'Info' },
 ];
 
 const svg = {
@@ -58,6 +70,8 @@ export function createMatchPage({ sports, matchId, onBack }) {
   let lastFetch = 0;
   let retryTimer = null;
   let destroyed = false;
+  // The player whose stats are open: { fm, node, card, title, body, keys }.
+  let sheet = null;
 
   // Header: back, the competition and how the match stands
 
@@ -188,7 +202,7 @@ export function createMatchPage({ sports, matchId, onBack }) {
       return;
     }
     const hasLineups = detail.home.lines.length > 0 || detail.away.lines.length > 0;
-    const available = { lineups: true, stats: detail.stats.length > 0, timeline: true };
+    const available = { lineups: true, stats: detail.stats.length > 0, timeline: true, info: Boolean(detail.fotmob) };
     if (!available[tab]) tab = 'lineups';
     for (const [id, button] of tabButtons) {
       button.hidden = !available[id];
@@ -196,7 +210,9 @@ export function createMatchPage({ sports, matchId, onBack }) {
     }
     if (tab === 'lineups') content.replaceChildren(hasLineups ? lineups(match) : noLineups(match, now));
     else if (tab === 'stats') content.replaceChildren(stats(match));
+    else if (tab === 'info') content.replaceChildren(infoTab(match));
     else content.replaceChildren(timeline(match));
+    fillSheet();
   }
 
   function fillScorers(list, lines) {
@@ -207,6 +223,8 @@ export function createMatchPage({ sports, matchId, onBack }) {
   // Line-ups
 
   function lineups(match) {
+    const predicted = match.home.predicted || match.away.predicted;
+    const missing = match.home.out?.length > 0 || match.away.out?.length > 0;
     return el(
       'div',
       { class: 'sports-lineups' },
@@ -216,6 +234,11 @@ export function createMatchPage({ sports, matchId, onBack }) {
         teamHead(match.home, 'home'),
         teamHead(match.away, 'away'),
       ),
+      predicted &&
+        el('p', {
+          class: 'sports-lineups__note',
+          text: 'Predicted line-ups from FotMob. The real ones come out about an hour before kickoff, and this page fills in by itself.',
+        }),
       el(
         'div',
         { class: 'sports-pitch' },
@@ -229,6 +252,7 @@ export function createMatchPage({ sports, matchId, onBack }) {
         bench(match.home, 'home'),
         bench(match.away, 'away'),
       ),
+      missing && el('div', { class: 'sports-bench sports-bench--out' }, out(match.home, 'home'), out(match.away, 'away')),
     );
   }
 
@@ -273,7 +297,8 @@ export function createMatchPage({ sports, matchId, onBack }) {
       { class: 'sports-player', role: 'listitem', 'aria-label': playerLabel(player) },
       off,
       shirt,
-      el('span', { class: 'sports-player__name', text: player.name }),
+      el('span', { class: 'sports-player__label' }, el('span', { class: 'sports-player__name', text: player.name }), rating(player.rating, 'sports-player__rating')),
+      openButton(player, 'sports-player__open'),
     );
   }
 
@@ -281,12 +306,14 @@ export function createMatchPage({ sports, matchId, onBack }) {
     const rows = team.bench.map((player) =>
       el(
         'li',
-        { class: 'sports-bench__player', 'aria-label': playerLabel(player) },
+        { class: `sports-bench__player${statsFor(player.fm) ? ' sports-bench__player--open' : ''}`, 'aria-label': playerLabel(player) },
         el('span', { class: 'sports-bench__number', text: player.number ?? '' }),
         el('span', { class: 'sports-bench__name', text: player.full }),
+        rating(player.rating, 'sports-bench__rating'),
         player.goals > 0 && el('span', { class: 'sports-bench__icon', html: svg.ball }),
         (player.red || player.yellow) && card(player.red ? 'red' : 'yellow'),
         player.on && el('span', { class: 'sports-bench__on' }, el('span', { html: svg.on }), el('span', { text: player.on })),
+        openButton(player, 'sports-bench__open'),
       ),
     );
     return el(
@@ -294,7 +321,43 @@ export function createMatchPage({ sports, matchId, onBack }) {
       { class: `sports-bench__side sports-bench__side--${side}` },
       el('h3', { class: 'sports-bench__title', text: `${team.short} substitutes` }),
       rows.length ? el('ul', { class: 'sports-bench__list' }, ...rows) : el('p', { class: 'sports-bench__none', text: 'Not named yet' }),
+      team.coach && el('p', { class: 'sports-bench__coach', text: `Manager: ${team.coach}` }),
     );
+  }
+
+  // Who's injured or suspended (FotMob).
+  function out(team, side) {
+    const players = team.out ?? [];
+    return el(
+      'section',
+      { class: `sports-bench__side sports-bench__side--${side}` },
+      el('h3', { class: 'sports-bench__title', text: `${team.short} out` }),
+      players.length
+        ? el(
+            'ul',
+            { class: 'sports-out__list' },
+            ...players.map((player) =>
+              el('li', { class: 'sports-out__player' }, el('span', { class: 'sports-out__name', text: player.name }), el('span', { class: 'sports-out__why', text: outText(player) })),
+            ),
+          )
+        : el('p', { class: 'sports-bench__none', text: 'Nobody missing' }),
+    );
+  }
+
+  // A rating in FotMob's colours; screen readers get it from the player's label.
+  function rating(value, className) {
+    if (typeof value !== 'number') return null;
+    return el('span', { class: `sports-rating sports-rating--${ratingBand(value)} ${className}`, 'aria-hidden': 'true', text: ratingText(value) });
+  }
+
+  // Covers a player on the pitch or the bench: tapping them opens their stats.
+  function openButton(player, className) {
+    if (!statsFor(player.fm)) return null;
+    return el('button', { class: className, type: 'button', 'aria-label': `${player.full}: match stats`, onclick: () => openPlayer(player.fm) });
+  }
+
+  function statsFor(fm) {
+    return (fm && detail?.fotmob?.players?.[fm]) || null;
   }
 
   function noLineups(match, now) {
@@ -303,7 +366,7 @@ export function createMatchPage({ sports, matchId, onBack }) {
       'No line-ups yet',
       isUpcoming(match)
         ? `They usually come out about an hour before kickoff (${when}). This page fills in by itself.`
-        : 'ESPN didn’t publish line-ups for this match.',
+        : 'Neither ESPN nor FotMob published line-ups for this match.',
     );
   }
 
@@ -415,10 +478,263 @@ export function createMatchPage({ sports, matchId, onBack }) {
     ];
   }
 
+  // Info: the referee, form, head-to-head, the best rated and FotMob's insights.
+
+  function infoTab(match) {
+    const { referee, form, h2h, best, insights } = detail.fotmob;
+    const meetings = h2h ? h2h.home + h2h.draws + h2h.away : 0;
+    const cards = [
+      referee && refereeCard(referee),
+      (form.home.length > 0 || form.away.length > 0) && formCard(match, form),
+      h2h && (meetings > 0 || h2h.meetings.length > 0) && h2hCard(match, h2h),
+      (best.potm || best.top.home.length > 0 || best.top.away.length > 0) && bestCard(match, best),
+      insights.length > 0 && infoCard('Did you know', el('ul', { class: 'sports-insights' }, ...insights.map((text) => el('li', { class: 'sports-insights__item', text })))),
+    ].filter(Boolean);
+    if (!cards.length) return message('Nothing more yet', 'FotMob hasn’t anything else on this match yet.');
+    return el(
+      'div',
+      { class: 'sports-info' },
+      el('div', { class: 'sports-info__grid' }, ...cards),
+      el('p', { class: 'sports-info__source', text: 'Referee, form, ratings and insights from FotMob' }),
+    );
+  }
+
+  function infoCard(title, ...children) {
+    return el('section', { class: 'sports-info__card' }, el('h3', { class: 'sports-info__title', text: title }), ...children);
+  }
+
+  function refereeCard(referee) {
+    const facts = [referee.country, referee.matches != null && `${referee.matches} ${referee.league ?? ''} matches`.replace('  ', ' ')].filter(Boolean).join(' · ');
+    const totals = [
+      referee.reds != null && ['Red cards', referee.reds],
+      referee.penalties != null && ['Penalties given', referee.penalties],
+    ].filter(Boolean);
+    return infoCard(
+      'Referee',
+      el('p', { class: 'sports-ref__name', text: referee.name }),
+      facts && el('p', { class: 'sports-ref__facts', text: facts }),
+      referee.fouls && refereeStat('Fouls a match', referee.fouls),
+      referee.yellows && refereeStat('Yellow cards a match', referee.yellows),
+      totals.length > 0 &&
+        el(
+          'div',
+          { class: 'sports-ref__totals' },
+          ...totals.map(([label, value]) => el('p', { class: 'sports-ref__total' }, el('span', { class: 'sports-ref__count', text: value }), el('span', { text: label }))),
+        ),
+    );
+  }
+
+  function refereeStat(label, stat) {
+    const compared = versusAverage(stat);
+    return el(
+      'div',
+      { class: 'sports-ref__stat', role: 'group', 'aria-label': `${label}: ${perMatchText(stat.perMatch)}. ${compared}` },
+      el('p', { class: 'sports-ref__row' }, el('span', { class: 'sports-ref__label', text: label }), el('span', { class: 'sports-ref__value', text: perMatchText(stat.perMatch) })),
+      stat.fill != null &&
+        el(
+          'span',
+          { class: 'sports-ref__bar', 'aria-hidden': 'true' },
+          el('span', { class: 'sports-ref__fill', style: `transform: scaleX(${(stat.fill / 100).toFixed(3)})` }),
+          stat.mark != null && el('span', { class: 'sports-ref__mark', style: `left: ${stat.mark}%` }),
+        ),
+      compared && el('p', { class: 'sports-ref__average', text: compared }),
+    );
+  }
+
+  function formCard(match, form) {
+    return infoCard(
+      'Form',
+      ...['home', 'away'].map((side) =>
+        el(
+          'div',
+          { class: 'sports-form' },
+          el('p', { class: 'sports-form__team' }, crest(match[side], 'sports-form__crest'), el('span', { text: match[side].short })),
+          el(
+            'ol',
+            { class: 'sports-form__games', 'aria-label': `${match[side].short}’s last matches, oldest first` },
+            ...form[side].map((game) =>
+              el(
+                'li',
+                { class: 'sports-form__game', 'aria-label': formText(game) },
+                el('span', { class: `sports-form__result sports-form__result--${game.result}`, text: game.result }),
+                el('span', { class: 'sports-form__score', text: `${game.for}–${game.against}` }),
+                el('span', { class: 'sports-form__opponent', text: game.opponent }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  function h2hCard(match, h2h) {
+    const count = (value, label, side) => el('p', { class: `sports-h2h__count sports-h2h__count--${side}` }, el('span', { class: 'sports-h2h__number', text: value }), el('span', { text: label }));
+    return infoCard(
+      'Head to head',
+      el(
+        'div',
+        { class: 'sports-h2h__summary' },
+        count(h2h.home, `${match.home.short} wins`, 'home'),
+        count(h2h.draws, 'Draws', 'draw'),
+        count(h2h.away, `${match.away.short} wins`, 'away'),
+      ),
+      h2h.home + h2h.draws + h2h.away > 0 &&
+        el(
+          'span',
+          { class: 'sports-h2h__bar', 'aria-hidden': 'true' },
+          ...[
+            ['home', h2h.home],
+            ['draw', h2h.draws],
+            ['away', h2h.away],
+          ].map(([side, value]) => value > 0 && el('span', { class: `sports-h2h__part sports-h2h__part--${side}`, style: `flex-grow: ${value}` })),
+        ),
+      h2h.meetings.length > 0 &&
+        el(
+          'ul',
+          { class: 'sports-h2h__list', 'aria-label': 'Last meetings' },
+          ...h2h.meetings.map((meeting) =>
+            el(
+              'li',
+              { class: 'sports-h2h__meeting' },
+              el('span', { class: 'sports-h2h__date', text: meeting.date ? monthYear(meeting.date) : '' }),
+              el('span', { class: 'sports-h2h__teams', text: `${meeting.home} ${meeting.score[0]}–${meeting.score[1]} ${meeting.away}` }),
+              meeting.competition && el('span', { class: 'sports-h2h__comp', text: meeting.competition }),
+            ),
+          ),
+        ),
+    );
+  }
+
+  function bestCard(match, best) {
+    const row = (player) =>
+      el(
+        statsFor(player.fm) ? 'button' : 'div',
+        {
+          class: 'sports-best__player',
+          type: statsFor(player.fm) ? 'button' : null,
+          onclick: statsFor(player.fm) ? () => openPlayer(player.fm) : null,
+        },
+        rating(player.rating, 'sports-best__rating'),
+        el('span', { class: 'sports-best__name', text: player.name }),
+      );
+    return infoCard(
+      best.potm ? 'Best rated' : 'Best rated so far',
+      best.potm &&
+        el(
+          'div',
+          { class: 'sports-best__potm' },
+          el('span', { class: 'sports-best__award', text: 'Player of the match' }),
+          row(best.potm),
+        ),
+      el(
+        'div',
+        { class: 'sports-best' },
+        ...['home', 'away'].map((side) =>
+          el(
+            'div',
+            { class: 'sports-best__side' },
+            el('h4', { class: 'sports-best__team', text: match[side].short }),
+            el('ul', { class: 'sports-best__list' }, ...best.top[side].map((player) => el('li', {}, row(player)))),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // A player's stats: a sheet over the page, closed by Done, Escape or a tap outside.
+  // It stays open (and up to date) as the page refreshes.
+
+  function openPlayer(fm) {
+    closeSheet();
+    const keys = new AbortController();
+    const title = el('h2', { class: 'sports-sheet__title' });
+    const body = el('div', { class: 'sports-sheet__body' });
+    const card = el(
+      'div',
+      { class: 'sports-sheet__card', role: 'dialog', 'aria-modal': 'true', tabindex: '-1' },
+      el(
+        'header',
+        { class: 'sports-sheet__head' },
+        el('span', { class: 'sports-sheet__spacer' }),
+        title,
+        el('button', { class: 'sports-sheet__done', type: 'button', text: 'Done', onclick: closeSheet }),
+      ),
+      body,
+    );
+    const sheetNode = el(
+      'div',
+      { class: 'sports-sheet' },
+      el('button', { class: 'sports-sheet__scrim', type: 'button', tabindex: '-1', 'aria-label': 'Close', onclick: closeSheet }),
+      card,
+    );
+    node.append(sheetNode);
+    addEventListener('keydown', (event) => event.key === 'Escape' && closeSheet(), { signal: keys.signal });
+    sheet = { fm, node: sheetNode, card, title, body, keys };
+    fillSheet();
+    card.focus({ preventScroll: true });
+  }
+
+  function fillSheet() {
+    if (!sheet) return;
+    const player = statsFor(sheet.fm);
+    if (!player) {
+      closeSheet();
+      return;
+    }
+    const team = player.side ? current()[player.side] : null;
+    const potm = detail.fotmob.best.potm?.fm === sheet.fm;
+    sheet.title.textContent = player.name;
+    sheet.card.setAttribute('aria-label', `${player.name}: match stats`);
+    sheet.body.replaceChildren(
+      el(
+        'div',
+        { class: 'sports-sheet__summary' },
+        el('span', {
+          class: 'sports-player__shirt sports-sheet__shirt',
+          style: team?.color ? `--shirt: #${team.color}; --ink: ${inkOn(team.color)}` : null,
+          text: player.number ?? '',
+        }),
+        el(
+          'div',
+          { class: 'sports-sheet__who' },
+          el('p', { class: 'sports-sheet__team', text: [team?.name, player.keeper ? 'Goalkeeper' : null].filter(Boolean).join(' · ') }),
+          el('p', { class: 'sports-sheet__minutes', text: [minutesText(player.minutes), potm ? 'Player of the match' : null].filter(Boolean).join(' · ') }),
+        ),
+        typeof player.rating === 'number' &&
+          el('span', {
+            class: `sports-rating sports-rating--${ratingBand(player.rating)} sports-sheet__rating`,
+            'aria-label': `Rated ${ratingText(player.rating)}`,
+            text: ratingText(player.rating),
+          }),
+      ),
+      ...player.groups.map((group) =>
+        el(
+          'section',
+          { class: 'sports-sheet__group' },
+          el('h3', { class: 'sports-sheet__group-title', text: group.title }),
+          el(
+            'dl',
+            { class: 'sports-sheet__stats' },
+            ...group.stats.map((stat) => el('div', { class: 'sports-sheet__stat' }, el('dt', { text: stat.label }), el('dd', { text: stat.value }))),
+          ),
+        ),
+      ),
+    );
+  }
+
+  function closeSheet() {
+    if (!sheet) return;
+    const { keys, node: sheetNode } = sheet;
+    sheet = null;
+    keys.abort();
+    sheetNode.remove();
+  }
+
   // Helpers
 
   function playerLabel(player) {
     const parts = [`${player.number ? `${player.number} ` : ''}${player.full}`];
+    if (typeof player.rating === 'number') parts.push(`rated ${ratingText(player.rating)}`);
     if (player.goals) parts.push(player.goals === 1 ? 'scored' : `scored ${player.goals}`);
     if (player.ownGoals) parts.push('own goal');
     if (player.assists) parts.push(player.assists === 1 ? 'an assist' : `${player.assists} assists`);
@@ -461,6 +777,7 @@ export function createMatchPage({ sports, matchId, onBack }) {
     destroy() {
       destroyed = true;
       clearTimeout(retryTimer);
+      closeSheet();
     },
   };
 }

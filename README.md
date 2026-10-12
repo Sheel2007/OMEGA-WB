@@ -440,9 +440,21 @@ Sports off:
 { "sports": false }
 ```
 
-ESPN's scoreboard is unofficial, so if it changes, the widget shows less rather
-than breaking; player ratings aren't in it, so the line-ups mark goals, assists,
-cards and substitutions instead.
+Match pages in the Premier League, FA Cup, League Cup and Champions League also
+get what ESPN doesn't have from [FotMob](https://www.fotmob.com): the referee's
+record (fouls and yellow cards a match against their league's average, red
+cards, penalties), predicted line-ups until the real ones are out, who's injured
+or suspended, every player's rating (tap a player for their match stats), both
+teams' form, the head-to-head record, expected goals and FotMob's insights. The
+Pi reads it only when it reads that match's page from ESPN, and keeps nothing on
+the SD card. To leave FotMob out:
+
+```json
+{ "sports": { "fotmob": false } }
+```
+
+ESPN's scoreboard and FotMob's match details are both unofficial, so if either
+changes, the page shows less rather than breaking.
 
 ### Roommate Cup: email and texts
 

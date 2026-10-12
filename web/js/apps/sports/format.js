@@ -19,6 +19,7 @@ const WEEKDAY = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
 const LONG_WEEKDAY = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
 const DATE = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 const SHORT_DATE = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+const MONTH_YEAR = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' });
 
 const at = (now) => (typeof now === 'number' ? now : now.getTime());
 
@@ -330,7 +331,7 @@ export function statValue(stat, side) {
 }
 
 // Which side leads a stat (fouls and cards are better low), or null for a tie.
-const LOWER_IS_BETTER = new Set(['foulsCommitted', 'offsides', 'yellowCards', 'redCards']);
+const LOWER_IS_BETTER = new Set(['foulsCommitted', 'offsides', 'yellowCards', 'redCards', 'bigChancesMissed']);
 export function statLeader(stat) {
   if (stat.home === stat.away) return null;
   const homeAhead = stat.home > stat.away;
@@ -348,4 +349,45 @@ export function inkOn(hex) {
   const light = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
   // White's contrast against it, and black's; the better of the two.
   return 1.05 / (light + 0.05) >= (light + 0.05) / 0.05 ? '#ffffff' : '#111111';
+}
+
+// FotMob's extras on the match page (board/fotmob.py): ratings, the referee, form.
+
+// How a rating is coloured, the way FotMob does: 9 and up, 7 and up, 6 and up, below 6.
+export function ratingBand(rating) {
+  if (typeof rating !== 'number') return null;
+  return rating >= 9 ? 'top' : rating >= 7 ? 'good' : rating >= 6 ? 'ok' : 'poor';
+}
+
+export const ratingText = (rating) => rating.toFixed(1);
+
+// A referee's number a match: "20.3", "4.15".
+export const perMatchText = (value) => value.toFixed(value >= 10 ? 1 : 2);
+
+// "Below the league average of 21.2".
+export function versusAverage(stat) {
+  if (stat.average == null) return '';
+  const diff = stat.perMatch - stat.average;
+  const word = Math.abs(diff) < 0.05 ? 'Level with' : diff > 0 ? 'Above' : 'Below';
+  return `${word} the league average of ${perMatchText(stat.average)}`;
+}
+
+// One of a team's last results: "Won 2–1 at home to Chelsea".
+export function formText(game) {
+  const word = { W: 'Won', D: 'Drew', L: 'Lost' }[game.result];
+  return `${word} ${game.for}–${game.against} ${game.home ? 'at home to' : 'away at'} ${game.opponent}`;
+}
+
+// Why a player is missing: "Injured · Doubtful".
+const OUT_REASONS = { injury: 'Injured', suspension: 'Suspended', suspended: 'Suspended', international: 'Away with their country' };
+export function outText(player) {
+  const reason = player.reason ? (OUT_REASONS[player.reason.toLowerCase()] ?? `${player.reason[0].toUpperCase()}${player.reason.slice(1)}`) : 'Out';
+  return [reason, player.back].filter(Boolean).join(' · ');
+}
+
+export const monthYear = (ms) => MONTH_YEAR.format(ms);
+
+export function minutesText(minutes) {
+  if (minutes == null) return '';
+  return minutes === 1 ? '1 minute played' : `${minutes} minutes played`;
 }

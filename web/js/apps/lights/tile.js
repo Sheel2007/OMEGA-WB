@@ -34,18 +34,19 @@ function pairBlockedMessage(state) {
   return 'Zigbee2MQTT hasn’t started on the Pi yet. Plug in the dongle and run sudo ./pi/install.sh.';
 }
 
-export function togglePairing(lights) {
+// kind: 'light' for a switch, 'motion' for a motion sensor. While pairing is open, it stops it.
+export function togglePairing(lights, kind = 'light') {
   const state = lights.getState();
   if (!canPair(state)) {
     toast(pairBlockedMessage(state));
     return;
   }
-  lights.pair(!state.pairing.open).catch((err) => toast(err.message));
+  lights.pair(!state.pairing.open, kind).catch((err) => toast(err.message));
 }
 
-// Says once (on whichever screen part notices first) that a light was added or
-// pairing was refused. The first call only takes note of how things already are.
-// onName(id) opens the new light's name, from the message's "Name it" button.
+// Says once (on whichever screen part notices first) that a light or motion sensor
+// was added or pairing was refused. The first call only takes note of how things
+// already are. onName(id) opens the new device's name, from the message's "Name it" button.
 let announced = null;
 
 export function announcePairing({ found, error }, onName) {

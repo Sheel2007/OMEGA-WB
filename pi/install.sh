@@ -2,7 +2,7 @@
 # Sets up a Raspberry Pi to run the board:
 #   - starts the board server on boot
 #   - opens it full screen when the desktop logs in
-#   - keeps the screen from going to sleep
+#   - keeps the screen from going to sleep (motion sensors can still switch it off: wlopm)
 #   - sets up Zigbee for the Lights widget, if a Zigbee USB dongle is plugged in
 # Safe to run again after pulling updates.
 #
@@ -22,6 +22,8 @@ PORT="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('por
 echo "→ Installing the emoji font (and Chromium, if it's missing)"
 apt-get update -qq
 apt-get install -y -qq fonts-noto-color-emoji curl
+# Lets a motion sensor switch the screen off (Wayland desktops; X11 ones use xset).
+apt-get install -y -qq wlopm || echo "  (couldn't install wlopm; motion sensors won't be able to switch the screen off)"
 if ! command -v chromium >/dev/null && ! command -v chromium-browser >/dev/null; then
   apt-get install -y -qq chromium || apt-get install -y -qq chromium-browser
 fi

@@ -59,7 +59,7 @@ export function createWidget({ services, openApp }) {
     const next = nextLabel(nextSchedule(state.schedules, new Date()), new Date());
     const healthy = state.configured && state.connected && state.hub !== false && state.lights.length;
     // A battery running low matters more than the next schedule, so it comes first.
-    const parts = [statusLabel(state), healthy && lowBatteryLabel(state.lights), healthy && next];
+    const parts = [statusLabel(state), healthy && lowBatteryLabel([...state.lights, ...state.motion]), healthy && next];
     status.textContent = parts.filter(Boolean).join(' · ');
   }
 
@@ -83,7 +83,7 @@ export function createWidget({ services, openApp }) {
     pairButton.classList.toggle('lights-widget__stop', open || !ready);
     pairButton.setAttribute('aria-label', open ? 'Stop pairing' : 'Pair a new light');
     pairing.hidden = !open;
-    pairingText.textContent = pairingMessage(state.pairing.found);
+    pairingText.textContent = pairingMessage(state.pairing.found, state.pairing.kind);
     tick();
     if (open && !countdown) countdown = setInterval(tick, COUNTDOWN_MS);
     if (!open && countdown) {

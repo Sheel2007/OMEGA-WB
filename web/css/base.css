@@ -61,6 +61,18 @@ input {
   cursor: none !important;
 }
 
+/* Over everything while the board has switched its monitor off: the first tap only
+   wakes it. Black in every theme, because it stands for a screen that's off. */
+.screen-guard {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  cursor: none;
+}
+
 /* Board canvas: 96rem × 54rem (1920×1080 on the Pi), centred if the screen's shape differs.
    Layout containment makes it the containing block for its fixed-position children. */
 

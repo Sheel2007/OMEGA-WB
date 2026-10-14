@@ -8,6 +8,7 @@ import { createHomeEditor } from './home-editor.js';
 import { createWidgetHost } from './home.js';
 import { createPager } from './pager.js';
 import { createPhoneHome } from './phone-home.js';
+import { createScreenGuard } from './screen-guard.js';
 import { initKiosk } from './kiosk.js';
 import { createBoardMenu } from './menu.js';
 import { exitKiosk, fetchInfo } from './services/board.js';
@@ -85,7 +86,7 @@ let place = guessLocation();
 // Blocks scenery (clouds and critters): exists only while the theme is Blocks.
 let scene = null;
 let phase = 'day';
-const scenePaused = { app: false, edit: false, library: false, side: false };
+const scenePaused = { app: false, edit: false, library: false, side: false, screen: false };
 
 const sky = startSky({
   starsEl: document.querySelector('.sky__stars'),
@@ -346,6 +347,7 @@ function syncScene({ theme, scenery }) {
     scene.setPaused('edit', scenePaused.edit);
     scene.setPaused('library', scenePaused.library);
     scene.setPaused('side', scenePaused.side);
+    scene.setPaused('screen', scenePaused.screen);
     scene.setPaused('motion', reducedMotion.matches);
     scene.setPaused('compact', compact.matches);
   } else if (theme !== 'blocks' && scene) {
@@ -370,6 +372,14 @@ services.grocery.refresh();
 services.sports.refresh();
 
 if (kiosk) {
+  // A motion sensor can switch the monitor off; the scenery rests while nobody can see it.
+  createScreenGuard({
+    lights: services.lights,
+    onDark: (dark) => {
+      scenePaused.screen = dark;
+      scene?.setPaused('screen', dark);
+    },
+  });
   initKiosk({
     idleMs: IDLE_RETURN_MS,
     onIdle: () => {

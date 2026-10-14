@@ -17,6 +17,12 @@ Lights are known by their IEEE address, which survives renaming them in Zigbee2M
 at the board's latitude and longitude, or when a paired Zigbee light sensor says the
 room has gone dim. It only acts between noon and the time it stops, so it never fights
 someone who switched the lights off, and never wakes anyone up.
+
+Motion sensors pair the same way. Each can keep the board's own screen on: when
+none of them has seen anyone for a while (30 minutes, say), the monitor is switched
+off (``board.screen``), and it comes back the moment one sees someone, or someone taps
+it. Their own settings (how long they wait before reporting clear, how sensitive they
+are) are changed through Zigbee2MQTT.
 """
 import copy
 import json
@@ -69,6 +75,18 @@ DARK_FOR_MINUTES = 3
 SENSOR_STALE_HOURS = 3
 MAX_SENSORS = 16
 ILLUMINANCE = ("illuminance_lux", "illuminance")
+# Motion sensors: what Zigbee2MQTT calls seeing someone (mmWave presence sensors say "presence").
+MOTION = ("occupancy", "presence")
+MAX_MOTION = 16
+MOTION_RULE_FIELDS = ("enabled", "offAfter")
+# Minutes without motion before the screen goes off.
+DEFAULT_SCREEN_OFF_AFTER = 30
+MIN_SCREEN_OFF_AFTER = 5
+MAX_SCREEN_OFF_AFTER = 240
+# A sensor's own settings people may change, when Zigbee2MQTT says the sensor accepts them.
+MOTION_SETTINGS = ("motion_timeout", "occupancy_timeout", "detection_interval",
+                   "occupancy_sensitivity", "motion_sensitivity", "sensitivity")
+MAX_SETTING_CHOICES = 8
 
 
 class LightsUnavailable(Exception):
@@ -110,14 +128,14 @@ def settings_from(raw):
     }
 
 
-def display_name(friendly_name, light_id):
+def display_name(friendly_name, light_id, noun="Light"):
     """'bedroom_light' → 'Bedroom', 'living_room/ceiling' → 'Living room ceiling'.
 
-    Everything here is a light, so a trailing "light" only crowds the tile. A switch
-    nobody has named yet gets the end of its address.
+    Everything here is a light, so a trailing "light" only crowds the tile. A device
+    nobody has named yet gets what it is and the end of its address.
     """
     if friendly_name == light_id or not friendly_name:
-        return "Light %s" % light_id[-4:].upper()
+        return "%s %s" % (noun, light_id[-4:].upper())
     words = [w for w in re.split(r"[_/\-\s]+", friendly_name) if w]
     if len(words) > 1 and words[-1].lower() in ("light", "lights"):
         words.pop()
@@ -141,18 +159,37 @@ def topic_name(name):
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
+def _usable(device):
+    """(id, topic) for a paired, interviewed device in bridge/devices, or None."""
+    if not isinstance(device, dict) or device.get("type") == "Coordinator" or device.get("disabled"):
+        return None
+    device_id = str(device.get("ieee_address", "")).lower()
+    topic = device.get("friendly_name")
+    if not LIGHT_ID.match(device_id) or not isinstance(topic, str) or not TOPIC_SAFE.match(topic):
+        return None
+    if not device.get("interview_completed", False):
+        return None
+    return device_id, topic
+
+
+def _flat_exposes(device):
+    """Everything a device exposes, with the features of composite exposes alongside."""
+    flat = []
+    for expose in (device.get("definition") or {}).get("exposes") or []:
+        if isinstance(expose, dict):
+            flat.append(expose)
+            flat += [f for f in expose.get("features") or [] if isinstance(f, dict)]
+    return flat
+
+
 def lights_in(device_list):
     """The on/off switches in Zigbee2MQTT's bridge/devices list, as {id: {"topic", "name"}}."""
     found = {}
     for device in device_list if isinstance(device_list, list) else []:
-        if not isinstance(device, dict) or device.get("type") == "Coordinator" or device.get("disabled"):
+        usable = _usable(device)
+        if usable is None:
             continue
-        light_id = str(device.get("ieee_address", "")).lower()
-        topic = device.get("friendly_name")
-        if not LIGHT_ID.match(light_id) or not isinstance(topic, str) or not TOPIC_SAFE.match(topic):
-            continue
-        if not device.get("interview_completed", False):
-            continue
+        light_id, topic = usable
         exposes = (device.get("definition") or {}).get("exposes") or []
         switches = any(
             isinstance(e, dict)
@@ -175,28 +212,84 @@ def sensors_in(device_list):
     """
     found = {}
     for device in device_list if isinstance(device_list, list) else []:
-        if not isinstance(device, dict) or device.get("type") == "Coordinator" or device.get("disabled"):
+        usable = _usable(device)
+        if usable is None:
             continue
-        sensor_id = str(device.get("ieee_address", "")).lower()
-        topic = device.get("friendly_name")
-        if not LIGHT_ID.match(sensor_id) or not isinstance(topic, str) or not TOPIC_SAFE.match(topic):
-            continue
-        if not device.get("interview_completed", False):
-            continue
-        exposes = (device.get("definition") or {}).get("exposes") or []
-        flat = []
-        for expose in exposes:
-            if isinstance(expose, dict):
-                flat.append(expose)
-                flat += [f for f in expose.get("features") or [] if isinstance(f, dict)]
-        readings = [e for e in flat if e.get("type") == "numeric" and e.get("property") in ILLUMINANCE]
+        sensor_id, topic = usable
+        readings = [e for e in _flat_exposes(device) if e.get("type") == "numeric" and e.get("property") in ILLUMINANCE]
         if not readings:
             continue
         best = min(readings, key=lambda e: (e.get("unit") != "lx", e["property"] != "illuminance_lux"))
-        found[sensor_id] = {"topic": topic, "name": display_name(topic, sensor_id), "property": best["property"]}
+        found[sensor_id] = {"topic": topic, "name": display_name(topic, sensor_id, "Sensor"), "property": best["property"]}
         if len(found) >= MAX_SENSORS:
             break
     return found
+
+
+def motion_in(device_list):
+    """The motion sensors in bridge/devices, as {id: {"topic", "name", "property", "settings"}}.
+
+    `settings` are the ones people may change (see MOTION_SETTINGS): numbers with their
+    range, or a short list of words, as Zigbee2MQTT describes them.
+    """
+    found = {}
+    for device in device_list if isinstance(device_list, list) else []:
+        usable = _usable(device)
+        if usable is None:
+            continue
+        sensor_id, topic = usable
+        flat = _flat_exposes(device)
+        motion = next((e for e in flat if e.get("type") == "binary" and e.get("property") in MOTION), None)
+        if motion is None:
+            continue
+        found[sensor_id] = {
+            "topic": topic,
+            "name": display_name(topic, sensor_id, "Motion sensor"),
+            "property": motion["property"],
+            "settings": _settings_in(flat),
+        }
+        if len(found) >= MAX_MOTION:
+            break
+    return found
+
+
+def _settings_in(flat):
+    settings = []
+    for expose in flat:
+        prop = expose.get("property")
+        access = expose.get("access", 0)
+        if prop not in MOTION_SETTINGS or any(s["property"] == prop for s in settings):
+            continue
+        if not (_whole(access) and access & 2):
+            continue  # Zigbee2MQTT can't set it
+        setting = _valid_setting({**expose, "type": expose.get("type"), "min": expose.get("value_min"),
+                                  "max": expose.get("value_max"), "values": expose.get("values")})
+        if setting is not None:
+            settings.append(setting)
+    return settings
+
+
+def _valid_setting(raw):
+    """A setting as the board keeps it, or None if it can't be offered safely."""
+    if not isinstance(raw, dict) or raw.get("property") not in MOTION_SETTINGS:
+        return None
+    if raw.get("type") == "numeric":
+        low, high, unit = raw.get("min"), raw.get("max"), raw.get("unit")
+        if not (_whole(low) and _whole(high) and 0 <= low <= high):
+            return None
+        return {"property": raw["property"], "type": "numeric", "min": low, "max": high,
+                "unit": unit if isinstance(unit, str) and len(unit) <= 12 else None}
+    values = raw.get("values")
+    if raw.get("type") == "enum" and isinstance(values, list) and 0 < len(values) <= MAX_SETTING_CHOICES \
+            and all(isinstance(v, str) and 0 < len(v) <= 24 for v in values):
+        return {"property": raw["property"], "type": "enum", "values": list(values)}
+    return None
+
+
+def setting_accepts(setting, value):
+    if setting["type"] == "numeric":
+        return _whole(value) and setting["min"] <= value <= setting["max"]
+    return value in setting["values"]
 
 
 def sun_elevation(moment, latitude, longitude):
@@ -215,13 +308,18 @@ def sun_elevation(moment, latitude, longitude):
         math.sin(lat) * math.sin(declination) + math.cos(lat) * math.cos(declination) * math.cos(hour_angle)))
 
 
-def _pairing_event(event):
-    """What a bridge/event says about a switch that's joining: (found or None, pairing done)."""
+def _pairing_event(event, kind="light"):
+    """What a bridge/event says about a device that's joining: (found or None, pairing done).
+
+    `kind` is what's being paired ("light" or "motion"), for the name of a device that
+    hasn't said what it is yet. Whatever it turns out to be, a light or a motion sensor
+    is ready to use.
+    """
     data = event.get("data") if isinstance(event.get("data"), dict) else {}
     light_id = str(data.get("ieee_address", "")).lower()
     if not LIGHT_ID.match(light_id):
         return None, False
-    name = display_name(data.get("friendly_name"), light_id)
+    name = display_name(data.get("friendly_name"), light_id, PAIRING_NOUNS.get(kind, "Light"))
     kind, status = event.get("type"), data.get("status")
     if kind == "device_joined" or (kind == "device_interview" and status == "started"):
         return {"state": "joining", "name": name, "id": light_id}, False
@@ -230,9 +328,16 @@ def _pairing_event(event):
     if kind == "device_interview" and status == "successful":
         device = {**data, "type": "Router", "interview_completed": True}
         if lights_in([device]):
-            return {"state": "ready", "name": name, "id": light_id}, True
+            name = display_name(data.get("friendly_name"), light_id)
+            return {"state": "ready", "name": name, "id": light_id, "kind": "light"}, True
+        if motion_in([device]):
+            name = display_name(data.get("friendly_name"), light_id, "Motion sensor")
+            return {"state": "ready", "name": name, "id": light_id, "kind": "motion"}, True
         return {"state": "other", "name": name, "id": light_id}, False
     return None, False
+
+
+PAIRING_NOUNS = {"light": "Light", "motion": "Motion sensor"}
 
 
 def _payload_state(payload):
@@ -314,6 +419,19 @@ def clean_dark(raw):
     }
 
 
+def clean_motion_rule(raw):
+    """What a motion sensor does: whether it keeps the screen on, and for how long after the last motion."""
+    if not isinstance(raw, dict):
+        raise ValidationError("Send the setting as a JSON object.")
+    enabled = raw.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ValidationError("'enabled' must be true or false.")
+    off_after = raw.get("offAfter", DEFAULT_SCREEN_OFF_AFTER)
+    if not _whole(off_after) or not MIN_SCREEN_OFF_AFTER <= off_after <= MAX_SCREEN_OFF_AFTER:
+        raise ValidationError("Turn the screen off 5 minutes to 4 hours after the last motion.")
+    return {"enabled": enabled, "offAfter": off_after}
+
+
 def _light_ids(lights, message):
     if not isinstance(lights, list) or not all(isinstance(i, str) and LIGHT_ID.match(i.lower()) for i in lights):
         raise ValidationError(message)
@@ -365,7 +483,7 @@ class Lights(JsonStore):
     label = "lights"
 
     def __init__(self, path=None, *, mqtt=None, zone=None, location=None, feed=None, clock=None, epoch_ms=None,
-                 client_factory=MqttClient):
+                 screen=None, client_factory=MqttClient):
         self._mqtt = mqtt
         self._zone = zone
         # {"latitude", "longitude"}: where the sun is worked out for "When it gets dark".
@@ -374,8 +492,14 @@ class Lights(JsonStore):
         self._sun_times = None  # (date, {level: "HH:MM" or None}): when it gets dark today, by the sun
         self._wall_clock = clock or self._local_now
         self._epoch_ms = epoch_ms or (lambda: int(time.time() * 1000))
-        # Whether new switches may join, until when (epoch ms), and how the newest one is getting on.
-        self._pairing = {"open": False, "until": None, "found": None, "error": None}
+        # Whether new devices may join, until when (epoch ms), what's being paired
+        # ("light" or "motion"), and how the newest one is getting on.
+        self._pairing = {"open": False, "until": None, "kind": "light", "found": None, "error": None}
+        # Motion sensors, in memory only: id -> {"occupied", "at", "atMs", "clearAt", "values"}.
+        self._motion_live = {}
+        # The board's monitor (board.screen.Screen), switched off when the motion sensors see nobody.
+        self._screen = screen
+        self._screen_awake_at = self._wall_clock()  # the last motion, tap or test that counts as someone there
         self._raw = {}         # id -> "ON"/"OFF" as the switch last reported it
         self._online = {}      # id -> bool, when Zigbee2MQTT reports availability
         self._hub = None       # Zigbee2MQTT itself: True/False, None until it says
@@ -397,6 +521,8 @@ class Lights(JsonStore):
                 on_disconnect=self.handle_disconnect,
                 on_message=self.handle_message,
             )
+        if screen is not None:
+            screen.on_change = self._screen_changed
 
     def _local_now(self):
         return datetime.now(self._zone).replace(tzinfo=None)
@@ -406,6 +532,8 @@ class Lights(JsonStore):
     def start(self):
         if self._client is None or self._thread is not None:
             return
+        if self._screen is not None:
+            self._screen.start()
         self._client.start()
         self._thread = threading.Thread(target=self._schedule_loop, name="light-schedules", daemon=True)
         self._thread.start()
@@ -414,6 +542,11 @@ class Lights(JsonStore):
         self._stop.set()
         if self._client is not None:
             self._client.stop()
+        if self._screen is not None:
+            self._screen.stop()
+            # Never leave the board dark when it stops.
+            if not self._screen.on:
+                self._screen.set(True)
 
     def _schedule_loop(self):
         last = self._wall_clock()
@@ -436,6 +569,10 @@ class Lights(JsonStore):
                 self.check_dark(now)
             except Exception:
                 log.exception("Lights: couldn't turn the lights on for the dark")
+            try:
+                self.check_screen(now)
+            except Exception:
+                log.exception("Lights: couldn't switch the screen")
             # A clock that went back just waits; _fired stops a minute running twice.
             last = now
 
@@ -672,18 +809,23 @@ class Lights(JsonStore):
                 devices = json.loads(payload)
             except ValueError:
                 return
-            found, sensors = lights_in(devices), sensors_in(devices)
+            found, sensors, motion = lights_in(devices), sensors_in(devices), motion_in(devices)
             with self._changed:
-                if found != self._devices or sensors != self._sensors:
+                if found != self._devices or sensors != self._sensors or motion != self._motion:
                     self._devices = found
                     self._sensors = sensors
+                    self._motion = motion
                     for gone in set(self._raw) - set(found):
                         self._raw.pop(gone, None)
                         self._online.pop(gone, None)
-                    for gone in set(self._battery) - set(found):
+                    for gone in set(self._battery) - set(found) - set(motion):
                         self._battery.pop(gone, None)
                     for gone in set(self._lux) - set(sensors):
                         self._lux.pop(gone, None)
+                    for gone in set(self._motion_live) - set(motion):
+                        self._motion_live.pop(gone, None)
+                    for gone in set(self._motion_rules) - set(motion):
+                        self._motion_rules.pop(gone, None)
                     self._commit()
             self._follow()
             return
@@ -697,36 +839,38 @@ class Lights(JsonStore):
             return
         availability = rest.endswith("/availability")
         name = rest[: -len("/availability")] if availability else rest
-        with self._changed:
-            light_id = next((i for i, d in self._devices.items() if d["topic"] == name), None)
-            sensor_id = next((i for i, d in self._sensors.items() if d["topic"] == name), None)
-            if sensor_id is not None and not availability:
-                try:
-                    report = json.loads(payload)
-                except ValueError:
-                    return
-                if isinstance(report, dict):
-                    self._note_lux(sensor_id, report.get(self._sensors[sensor_id]["property"]))
-            if light_id is None:
-                return
-            if availability:
-                state = _payload_state(payload)
-                if state in ("online", "offline") and self._online.get(light_id) != (state == "online"):
-                    self._online[light_id] = state == "online"
-                    self._announce()
-                return
+        report = None
+        if not availability:
             try:
                 report = json.loads(payload)
             except ValueError:
                 return
             if not isinstance(report, dict):
                 return
-            state = report.get("state")
-            if state in ("ON", "OFF") and self._raw.get(light_id) != state:
-                self._raw[light_id] = state
-                self._note_on(light_id)
-                self._announce()
-            self._note_battery(light_id, report.get("battery"))
+        wake = False
+        with self._changed:
+            light_id = next((i for i, d in self._devices.items() if d["topic"] == name), None)
+            sensor_id = next((i for i, d in self._sensors.items() if d["topic"] == name), None)
+            motion_id = next((i for i, d in self._motion.items() if d["topic"] == name), None)
+            # The light level first: a motion report often carries the reading to judge it by.
+            if sensor_id is not None and report is not None:
+                self._note_lux(sensor_id, report.get(self._sensors[sensor_id]["property"]))
+            if motion_id is not None and report is not None:
+                wake = self._note_motion(motion_id, report)
+            if light_id is not None and availability:
+                state = _payload_state(payload)
+                if state in ("online", "offline") and self._online.get(light_id) != (state == "online"):
+                    self._online[light_id] = state == "online"
+                    self._announce()
+            elif light_id is not None:
+                state = report.get("state")
+                if state in ("ON", "OFF") and self._raw.get(light_id) != state:
+                    self._raw[light_id] = state
+                    self._note_on(light_id)
+                    self._announce()
+                self._note_battery(light_id, report.get("battery"))
+        if wake:
+            self._screen.set(True)
 
     def _note_battery(self, light_id, level):
         """Keeps a battery-powered switch's charge (percent). Call with self._changed held.
@@ -752,7 +896,7 @@ class Lights(JsonStore):
                 return
             wanted = {}
             # Sensors only report; they're never asked (most sleep on batteries).
-            for device in self._sensors.values():
+            for device in [*self._sensors.values(), *self._motion.values()]:
                 wanted["%s/%s" % (base, device["topic"])] = None
             for device in self._devices.values():
                 wanted["%s/%s" % (base, device["topic"])] = device["topic"]
@@ -769,10 +913,14 @@ class Lights(JsonStore):
 
     # Pairing
 
-    def pair(self, open_):
-        """Lets new switches join for a few minutes (or stops that early)."""
+    def pair(self, open_, kind="light"):
+        """Lets a new switch (or motion sensor) join for a few minutes, or stops that early."""
         if not isinstance(open_, bool):
             raise ValidationError("'open' must be true or false.")
+        if kind is None:
+            kind = "light"
+        if kind not in PAIRING_NOUNS:
+            raise ValidationError("Pair a light or a motion sensor.")
         with self._changed:
             self._require_hub()
             if self._hub is not True:
@@ -785,6 +933,7 @@ class Lights(JsonStore):
             self._pairing = {
                 "open": open_,
                 "until": self._epoch_ms() + PAIR_SECONDS * 1000 if open_ else None,
+                "kind": kind if open_ else self._pairing["kind"],
                 "found": None if open_ else self._pairing["found"],
                 "error": None,
             }
@@ -812,7 +961,7 @@ class Lights(JsonStore):
                 if data.get("status") == "error":
                     pairing.update(open=False, until=None, error=str(data.get("error") or "Zigbee2MQTT couldn't start pairing."))
             elif pairing["open"]:
-                found, close = _pairing_event(data)
+                found, close = _pairing_event(data, pairing["kind"])
                 if found is not None:
                     pairing["found"] = found
             if pairing != self._pairing:
@@ -845,7 +994,7 @@ class Lights(JsonStore):
             return {"state": self._state()}
 
     def rename(self, light_id, raw_name):
-        """Names a light on the board, and asks Zigbee2MQTT to call it the same.
+        """Names a light (or a sensor) on the board, and asks Zigbee2MQTT to call it the same.
 
         The board's name is what every screen shows, kept by address so it survives
         anything Zigbee2MQTT does. Zigbee2MQTT's own name (its page, its MQTT topic) is
@@ -853,14 +1002,15 @@ class Lights(JsonStore):
         """
         name = clean_name(raw_name)
         with self._changed:
-            device = self._devices.get(light_id)
+            kinds = (self._devices, self._motion, self._sensors)
+            device = next((k[light_id] for k in kinds if light_id in k), None)
             if device is None:
-                raise NotFound("That light isn't paired with the board any more.")
+                raise NotFound("That isn't paired with the board any more.")
             if self._names.get(light_id) != name:
                 self._names[light_id] = name
                 self._commit()
             wanted = topic_name(name)
-            taken = {d["topic"] for i, d in self._devices.items() if i != light_id}
+            taken = {d["topic"] for k in kinds for i, d in k.items() if i != light_id}
             ask = self._connected and wanted and wanted != device["topic"] and wanted not in taken
             old = device["topic"]
             state = self._state()
@@ -881,6 +1031,137 @@ class Lights(JsonStore):
                 self._note_on(light_id)
                 self._commit()
             return {"state": self._state()}
+
+    # Motion sensors
+
+    def set_motion(self, sensor_id, raw):
+        """Changes what a motion sensor does (see clean_motion_rule)."""
+        if not isinstance(raw, dict):
+            raise ValidationError("Send the changes as a JSON object.")
+        with self._changed:
+            if sensor_id not in self._motion:
+                raise NotFound("That motion sensor isn't paired with the board any more.")
+            current = self._motion_rules.get(sensor_id) or clean_motion_rule({})
+            cleaned = clean_motion_rule({**current, **{k: raw[k] for k in MOTION_RULE_FIELDS if k in raw}})
+            if cleaned != current:
+                self._motion_rules[sensor_id] = cleaned
+                self._commit()
+            return {"state": self._state()}
+
+    def set_motion_setting(self, sensor_id, prop, value):
+        """Changes one of the sensor's own settings, through Zigbee2MQTT.
+
+        A sensor on batteries only listens when it wakes, so the value shown is put
+        right by the sensor's next report if it didn't take it.
+        """
+        with self._changed:
+            device = self._motion.get(sensor_id)
+            if device is None:
+                raise NotFound("That motion sensor isn't paired with the board any more.")
+            setting = next((s for s in device["settings"] if s["property"] == prop), None)
+            if setting is None:
+                raise ValidationError("That sensor doesn't have that setting.")
+            if not setting_accepts(setting, value):
+                raise ValidationError("Pick one of the sensor's own choices.")
+            self._require_hub()
+            topic = "%s/%s/set" % (self._mqtt["base_topic"], device["topic"])
+        if not self._client.publish(topic, json.dumps({prop: value})):
+            raise LightsUnavailable("Can't reach the sensor right now. Try again in a moment.")
+        with self._changed:
+            live = self._motion_live_for(sensor_id)
+            if live["values"].get(prop) != value:
+                live["values"][prop] = value
+                self._announce()
+            return {"state": self._state()}
+
+    def check_screen(self, now):
+        """Switches the screen off once every sensor that keeps it on has seen nobody for long enough.
+
+        Turning every one of them off (or unpairing them) brings a dark screen back.
+        """
+        if self._screen is None:
+            return
+        with self._changed:
+            rules = [(i, r) for i, r in self._motion_rules.items() if r["enabled"] and i in self._motion]
+            if not rules:
+                wanted = None if self._screen.on else True
+            else:
+                lives = [self._motion_live.get(i) or {} for i, _ in rules]
+                if any(live.get("occupied") for live in lives):
+                    wanted = None
+                else:
+                    last = max([self._screen_awake_at] + [live.get("clearAt") or live.get("at") or self._screen_awake_at
+                                                          for live in lives])
+                    quiet = now >= last + timedelta(minutes=max(r["offAfter"] for _, r in rules))
+                    wanted = False if quiet and self._screen.on else None
+        if wanted is not None:
+            if not wanted:
+                log.info("Lights: no motion for a while, switching the screen off")
+            self._screen.set(wanted)
+
+    def screen_wake(self):
+        """Someone tapped the dark screen: on again, and the wait starts afresh."""
+        screen = self._require_screen()
+        with self._changed:
+            self._screen_awake_at = self._wall_clock()
+        if not screen.set(True):
+            raise LightsUnavailable(screen.status()["error"] or "Couldn't switch the screen on.")
+        return {"state": self.snapshot()}
+
+    def screen_test(self):
+        """Switches the screen off for a few seconds and on again, to show it works on this Pi."""
+        screen = self._require_screen()
+        worked = screen.test()
+        with self._changed:
+            self._screen_awake_at = self._wall_clock()
+        if not worked:
+            raise LightsUnavailable(screen.status()["error"] or "Couldn't switch the screen off.")
+        return {"state": self.snapshot()}
+
+    def _require_screen(self):
+        if self._screen is None:
+            raise LightsUnavailable("Switching the screen off is turned off in config.json (\"screen\": false).")
+        return self._screen
+
+    def _screen_changed(self):
+        with self._changed:
+            self._announce()
+
+    def _motion_live_for(self, sensor_id):
+        """Call with self._changed held."""
+        return self._motion_live.setdefault(sensor_id, {
+            "occupied": None, "at": None, "atMs": None, "clearAt": None, "values": {},
+        })
+
+    def _note_motion(self, sensor_id, report):
+        """Keeps a motion sensor's report. Call with self._changed held; True if the screen should come on."""
+        device = self._motion[sensor_id]
+        live = self._motion_live_for(sensor_id)
+        now = self._wall_clock()
+        changed = False
+        self._note_battery(sensor_id, report.get("battery"))
+        for setting in device["settings"]:
+            value = report.get(setting["property"])
+            if value is not None and setting_accepts(setting, value) and live["values"].get(setting["property"]) != value:
+                live["values"][setting["property"]] = value
+                changed = True
+        seen = report.get(device["property"])
+        wake = False
+        if isinstance(seen, bool):
+            if seen:
+                live["at"], live["atMs"] = now, self._epoch_ms()
+                rule = self._motion_rules.get(sensor_id)
+                if self._screen is not None and rule and rule["enabled"]:
+                    self._screen_awake_at = now
+                    wake = not self._screen.on
+            elif live["occupied"] is not False:
+                live["clearAt"] = now
+            if live["occupied"] != seen:
+                live["occupied"] = seen
+                changed = True
+        if changed:
+            self._announce()
+        return wake
 
     # Schedules
 
@@ -979,6 +1260,8 @@ class Lights(JsonStore):
         self._sensors = {}     # light sensors: id -> {"topic", "name", "property"}
         self._dark = clean_dark({})
         self._dark_ran = None  # the local minute "When it gets dark" last switched lights on
+        self._motion = {}        # motion sensors: id -> {"topic", "name", "property", "settings"}
+        self._motion_rules = {}  # id -> what it does (clean_motion_rule)
 
     def _state(self):
         lights = []
@@ -1009,6 +1292,22 @@ class Lights(JsonStore):
              for i, d in self._sensors.items()),
             key=lambda sensor: (sensor["name"].lower(), sensor["id"]),
         )
+        motion = []
+        for sensor_id, device in self._motion.items():
+            live = self._motion_live.get(sensor_id) or {}
+            values = live.get("values") or {}
+            motion.append({
+                "id": sensor_id,
+                "name": self._names.get(sensor_id) or device["name"],
+                # True while it sees someone, False once clear, None until it first reports.
+                "occupied": live.get("occupied"),
+                "lastMotion": live.get("atMs"),
+                "battery": self._battery.get(sensor_id, {}).get("level"),
+                "batteryAt": self._battery.get(sensor_id, {}).get("at"),
+                "rule": copy.deepcopy(self._motion_rules.get(sensor_id) or clean_motion_rule({})),
+                "settings": [{**s, "value": values.get(s["property"])} for s in device["settings"]],
+            })
+        motion.sort(key=lambda sensor: (sensor["name"].lower(), sensor["id"]))
         return {
             "version": self._version,
             "configured": self._mqtt is not None,
@@ -1018,6 +1317,9 @@ class Lights(JsonStore):
             "schedules": copy.deepcopy(self._schedules),
             "pairing": copy.deepcopy(self._pairing),
             "sensors": sensors,
+            "motion": motion,
+            # The board's monitor: {"on", "testing", "method", "problem", "error"}, or None when that's turned off.
+            "screen": self._screen.status() if self._screen is not None else None,
             "dark": {
                 **copy.deepcopy(self._dark),
                 # What decides it right now: "sensor", "sun", or None (no location and no sensor).
@@ -1040,6 +1342,8 @@ class Lights(JsonStore):
             "sensors": {sensor_id: dict(sensor) for sensor_id, sensor in self._sensors.items()},
             "dark": self._dark,
             "darkRan": self._dark_ran,
+            "motion": {sensor_id: copy.deepcopy(device) for sensor_id, device in self._motion.items()},
+            "motionRules": self._motion_rules,
         }
 
     def _from_disk(self, data):
@@ -1074,6 +1378,15 @@ class Lights(JsonStore):
         self._dark = clean_dark(data.get("dark") or {})
         ran = data.get("darkRan")
         self._dark_ran = ran if isinstance(ran, str) and MINUTE_STAMP.match(ran) else None
+        self._motion = {}
+        for sensor_id, device in (data.get("motion") or {}).items():
+            if LIGHT_ID.match(sensor_id) and isinstance(device, dict) and isinstance(device.get("topic"), str) \
+                    and isinstance(device.get("name"), str) and device.get("property") in MOTION:
+                settings = [_valid_setting(s) for s in device.get("settings") or []]
+                self._motion[sensor_id] = {"topic": device["topic"], "name": device["name"],
+                                           "property": device["property"], "settings": [s for s in settings if s]}
+        self._motion_rules = {i: clean_motion_rule(r) for i, r in (data.get("motionRules") or {}).items()
+                              if LIGHT_ID.match(i) and isinstance(r, dict)}
 
 
 def _valid_watch(raw):

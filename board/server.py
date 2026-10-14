@@ -251,6 +251,10 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/lights/swap": "lights_swap",
         "/api/lights/pair": "lights_pair",
         "/api/lights/rename": "lights_rename",
+        "/api/lights/motion": "lights_motion",
+        "/api/lights/motion/setting": "lights_motion_setting",
+        "/api/lights/screen/test": "lights_screen_test",
+        "/api/lights/screen/wake": "lights_screen_wake",
         "/api/lights/dark": "lights_dark",
         "/api/lights/schedules/add": "lights_schedule_add",
         "/api/lights/schedules/update": "lights_schedule_update",
@@ -623,7 +627,19 @@ class BoardHandler(SimpleHTTPRequestHandler):
         return self.server.lights.set_dark(body)
 
     def lights_pair(self, body):
-        return self.server.lights.pair(body.get("open"))
+        return self.server.lights.pair(body.get("open"), body.get("kind"))
+
+    def lights_motion(self, body):
+        return self.server.lights.set_motion(body.get("id"), body)
+
+    def lights_motion_setting(self, body):
+        return self.server.lights.set_motion_setting(body.get("id"), body.get("property"), body.get("value"))
+
+    def lights_screen_test(self, body):
+        return self.server.lights.screen_test()
+
+    def lights_screen_wake(self, body):
+        return self.server.lights.screen_wake()
 
     def lights_schedule_add(self, body):
         return self.server.lights.add_schedule(body, schedule_id=body.get("id"))

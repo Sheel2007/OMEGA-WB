@@ -1020,6 +1020,102 @@
   color: var(--text-2);
 }
 
+/* Motion sensors: under the lights, with + to pair one. */
+
+.lights-app__sensors {
+  margin-top: 2.4rem;
+}
+
+.lights-app__sensors-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.lights-app__sensors-head .lights-app__subtitle {
+  flex: 1;
+  min-width: 0;
+}
+
+.lights-app__sensors-empty {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* While pairing (or when it can't start), + becomes a quiet ×. */
+.lights-app__add--quiet {
+  background: var(--fill-strong);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.lights-app__add--quiet:active {
+  background: var(--fill);
+}
+
+/* Test Screen Off: the button in the sensors' header, and the one in a sensor's sheet. */
+.lights-app__sensors-head .lights-app__pair {
+  padding-right: 1.2rem;
+}
+
+.lights-app__pair[aria-disabled="true"],
+.motion-sheet__test[aria-disabled="true"] {
+  opacity: 0.6;
+}
+
+.motion-sheet__test {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: var(--hit);
+  border-radius: var(--radius-control);
+  border: var(--control-border);
+  background: var(--fill);
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.motion-sheet__test:active {
+  background: var(--fill-strong);
+}
+
+/* A sensor isn't a switch: its tile opens its settings, and its icon lights up while it sees someone. */
+.light-grid--app .light-tile--sensor .light-tile__toggle {
+  min-height: 8.5rem;
+}
+
+.light-tile--motion .light-tile__icon,
+.motion-sheet__status--active .light-tile__icon {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.motion-sheet__status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0;
+  padding: 0 0.4rem;
+  font-size: var(--fs-item);
+  font-weight: 700;
+}
+
+.motion-sheet__status .light-tile__icon {
+  width: 3.4rem;
+  height: 3.4rem;
+}
+
+.motion-sheet__heading {
+  margin: 0.6rem 0 0;
+  font-size: var(--fs-item);
+  font-weight: 750;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lights-sheet__card {
     animation: none;

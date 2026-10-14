@@ -12,6 +12,7 @@ from board.lights import (
     display_name,
     due,
     lights_in,
+    motion_in,
     sensors_in,
     settings_from,
     sun_elevation,
@@ -310,7 +311,7 @@ class PairingTest(unittest.TestCase):
         self.assertFalse(lights.snapshot()["pairing"]["open"])
         state = lights.pair(True)["state"]
         self.assertEqual(lights._client.published[-1], ("zigbee2mqtt/bridge/request/permit_join", {"time": 254}))
-        self.assertEqual(state["pairing"], {"open": True, "until": 1_000_000 + 254_000, "found": None, "error": None})
+        self.assertEqual(state["pairing"], {"open": True, "until": 1_000_000 + 254_000, "kind": "light", "found": None, "error": None})
 
         lights.handle_message("zigbee2mqtt/bridge/info", b'{"permit_join": true, "permit_join_end": 1200000, "config": {}}')
         self.assertEqual(lights.snapshot()["pairing"]["until"], 1_200_000, "Zigbee2MQTT's own end time wins")
@@ -752,6 +753,216 @@ class WhenItGetsDarkTest(unittest.TestCase):
             self.assertEqual((dark["enabled"], dark["lights"], dark["level"]), (True, [BEDROOM], "late"))
             again.check_dark(datetime(2026, 10, 10, 19, 30))
             self.assertEqual(self.on_messages(again), [], "a restart doesn't switch them on twice in one evening")
+
+
+MOTION = "0x00124b00bbbb0005"
+
+
+def motion_sensor(ieee=MOTION, name="hall_motion", extra=()):
+    """Like Sonoff's SNZB-03P: occupancy, battery, dim or bright, and a timeout Zigbee2MQTT can set."""
+    return light_sensor(ieee, name, [
+        {"type": "binary", "property": "occupancy", "value_on": True, "value_off": False, "access": 1},
+        {"type": "numeric", "property": "battery", "unit": "%", "access": 1},
+        {"type": "enum", "property": "illumination", "values": ["dim", "bright"], "access": 1},
+        {"type": "numeric", "property": "motion_timeout", "unit": "s", "value_min": 5, "value_max": 60, "access": 7},
+        *extra,
+    ])
+
+
+WITH_MOTION = DEVICES + [motion_sensor()]
+
+
+class FakeScreen:
+    """Stands in for board.screen.Screen: records what it's asked to do."""
+
+    def __init__(self, works=True):
+        self.on = True
+        self.works = works
+        self.calls = []
+        self.on_change = None
+
+    def status(self):
+        return {"on": self.on, "testing": False, "method": "wlopm", "problem": None,
+                "error": None if self.works else "wlopm couldn't switch the screen off: no output"}
+
+    def start(self):
+        self.calls.append("start")
+
+    def stop(self):
+        self.calls.append("stop")
+
+    def set(self, on):
+        self.calls.append(on)
+        if self.works:
+            self.on = on
+            self.on_change and self.on_change()
+        return self.works
+
+    def test(self, seconds=5):
+        self.calls.append("test")
+        return self.works
+
+
+class MotionTest(unittest.TestCase):
+    def hallway(self, works=True, **rule):
+        """9 PM, and the hall sensor keeping the screen on for 30 minutes after the last motion."""
+        clock = Clock(2026, 10, 10, 21, 0)
+        screen = FakeScreen(works)
+        lights = connected_lights(clock=clock, devices=WITH_MOTION, screen=screen)
+        lights.set_motion(MOTION, {"enabled": True, **rule})
+        return lights, clock, screen
+
+    def motion(self, lights, seen, **more):
+        lights.handle_message("zigbee2mqtt/hall_motion", json.dumps({"occupancy": seen, **more}).encode())
+
+    def test_sensors_are_found_with_the_settings_people_can_change(self):
+        found = motion_in(WITH_MOTION)
+        self.assertEqual(set(found), {"0x0000000000000004", MOTION})
+        self.assertEqual(found[MOTION], {
+            "topic": "hall_motion", "name": "Hall motion", "property": "occupancy",
+            "settings": [{"property": "motion_timeout", "type": "numeric", "min": 5, "max": 60, "unit": "s"}],
+        })
+        presence = motion_in([motion_sensor(name=MOTION, extra=[
+            {"type": "enum", "property": "occupancy_sensitivity", "values": ["low", "medium", "high"], "access": 7},
+            {"type": "numeric", "property": "detection_interval", "value_min": 2, "value_max": 65535, "access": 1},
+        ])])[MOTION]
+        self.assertEqual(presence["name"], "Motion sensor 0005", "unnamed, it says what it is")
+        self.assertEqual([s["property"] for s in presence["settings"]], ["motion_timeout", "occupancy_sensitivity"],
+                         "a setting Zigbee2MQTT can only read is left out")
+        self.assertEqual(motion_in(DEVICES[:3]), {})
+
+    def test_a_motion_sensor_pairs_like_a_switch(self):
+        lights = connected_lights()
+        lights.pair(True, "motion")
+        self.assertEqual(lights.snapshot()["pairing"]["kind"], "motion")
+        new = {"ieee_address": "0x00124b00aaaa0009", "friendly_name": "0x00124b00aaaa0009"}
+        lights.handle_message("zigbee2mqtt/bridge/event", json.dumps({"type": "device_joined", "data": new}).encode())
+        self.assertEqual(lights.snapshot()["pairing"]["found"]["name"], "Motion sensor 0009")
+        done = {**new, "status": "successful", "definition": motion_sensor()["definition"]}
+        lights.handle_message("zigbee2mqtt/bridge/event", json.dumps({"type": "device_interview", "data": done}).encode())
+        found = lights.snapshot()["pairing"]["found"]
+        self.assertEqual((found["state"], found["kind"]), ("ready", "motion"))
+        self.assertEqual(lights._client.published[-1], ("zigbee2mqtt/bridge/request/permit_join", {"time": 0}))
+        with self.assertRaises(ValidationError):
+            lights.pair(True, "toaster")
+
+    def test_reports_reach_every_screen(self):
+        lights = connected_lights(clock=Clock(2026, 10, 10, 21, 0), devices=WITH_MOTION)
+        self.assertIn("zigbee2mqtt/hall_motion", lights._client.subscribed)
+        self.assertNotIn(("zigbee2mqtt/hall_motion/get", {"state": ""}), lights._client.published, "it sleeps")
+        sensor = next(m for m in lights.snapshot()["motion"] if m["id"] == MOTION)
+        self.assertIsNone(sensor["occupied"])
+        self.assertEqual(sensor["rule"], {"enabled": False, "offAfter": 30})
+        self.motion(lights, True, battery=64, motion_timeout=30)
+        sensor = next(m for m in lights.snapshot()["motion"] if m["id"] == MOTION)
+        self.assertEqual((sensor["occupied"], sensor["lastMotion"], sensor["battery"]), (True, 1_000_000, 64))
+        self.assertEqual(sensor["settings"][0]["value"], 30)
+        self.assertIsNone(lights.snapshot()["screen"], "no screen to switch on this board")
+        self.assertEqual([t for t, _ in lights._client.published if t.endswith("/set")], [], "motion switches no lights")
+
+    def test_the_screen_goes_off_after_no_motion_and_on_again_for_motion(self):
+        lights, clock, screen = self.hallway()
+        self.motion(lights, True)
+        lights.check_screen(clock.at(2026, 10, 10, 22, 0))
+        self.assertEqual(screen.calls, [], "someone's still there")
+        self.motion(lights, False)
+        lights.check_screen(clock.at(2026, 10, 10, 22, 29))
+        self.assertEqual(screen.calls, [])
+        lights.check_screen(clock.at(2026, 10, 10, 22, 30))
+        self.assertEqual(screen.calls, [False], "30 minutes after it went quiet")
+        self.assertFalse(lights.snapshot()["screen"]["on"], "every screen hears it's off")
+        lights.check_screen(clock.at(2026, 10, 10, 22, 31))
+        self.assertEqual(screen.calls, [False], "only once")
+
+        self.motion(lights, True)
+        self.assertEqual(screen.calls, [False, True], "straight back on")
+        self.motion(lights, True)
+        self.assertEqual(screen.calls, [False, True])
+
+    def test_it_waits_from_the_start_when_nobody_has_moved(self):
+        lights, clock, screen = self.hallway(offAfter=10)
+        lights.check_screen(clock.at(2026, 10, 10, 21, 9))
+        self.assertEqual(screen.calls, [])
+        lights.check_screen(clock.at(2026, 10, 10, 21, 10))
+        self.assertEqual(screen.calls, [False])
+
+    def test_a_tap_wakes_the_screen_and_restarts_the_wait(self):
+        lights, clock, screen = self.hallway()
+        lights.check_screen(clock.at(2026, 10, 10, 21, 30))
+        clock.at(2026, 10, 10, 23, 0)
+        self.assertTrue(lights.screen_wake()["state"]["screen"]["on"])
+        lights.check_screen(clock.at(2026, 10, 10, 23, 29))
+        self.assertEqual(screen.calls, [False, True])
+        lights.check_screen(clock.at(2026, 10, 10, 23, 30))
+        self.assertEqual(screen.calls, [False, True, False])
+
+    def test_a_sensor_without_the_rule_does_not_wake_it(self):
+        lights, clock, screen = self.hallway()
+        lights.check_screen(clock.at(2026, 10, 10, 21, 30))
+        lights.handle_message("zigbee2mqtt/hall_sensor", b'{"occupancy": true}')
+        self.assertEqual(screen.calls, [False])
+
+    def test_switching_the_rule_off_brings_a_dark_screen_back(self):
+        lights, clock, screen = self.hallway()
+        lights.check_screen(clock.at(2026, 10, 10, 21, 30))
+        lights.set_motion(MOTION, {"enabled": False})
+        lights.check_screen(clock.at(2026, 10, 10, 21, 31))
+        self.assertEqual(screen.calls, [False, True])
+
+    def test_the_test_button_and_what_goes_wrong(self):
+        lights, _, screen = self.hallway()
+        self.assertEqual(lights.screen_test()["state"]["screen"]["method"], "wlopm")
+        self.assertEqual(screen.calls, ["test"])
+        broken, _, _ = self.hallway(works=False)
+        with self.assertRaisesRegex(LightsUnavailable, "no output"):
+            broken.screen_test()
+        with self.assertRaisesRegex(LightsUnavailable, "turned off"):
+            connected_lights().screen_test()
+
+    def test_starting_and_stopping_never_leave_it_dark(self):
+        lights = Lights(mqtt=settings_from(True), screen=FakeScreen(), client_factory=FakeClient)
+        lights.start()
+        lights._screen.on = False
+        lights.stop()
+        self.assertEqual(lights._screen.calls, ["start", "stop", True])
+
+    def test_the_sensors_own_settings_go_through_zigbee2mqtt(self):
+        lights = connected_lights(devices=WITH_MOTION)
+        state = lights.set_motion_setting(MOTION, "motion_timeout", 15)["state"]
+        self.assertEqual(lights._client.published[-1], ("zigbee2mqtt/hall_motion/set", {"motion_timeout": 15}))
+        self.assertEqual(next(m for m in state["motion"] if m["id"] == MOTION)["settings"][0]["value"], 15)
+        for prop, value in (("motion_timeout", 61), ("motion_timeout", "15"), ("sensitivity", "high")):
+            with self.assertRaises(ValidationError):
+                lights.set_motion_setting(MOTION, prop, value)
+        with self.assertRaises(NotFound):
+            lights.set_motion_setting(BEDROOM, "motion_timeout", 15)
+        lights.handle_disconnect()
+        with self.assertRaises(LightsUnavailable):
+            lights.set_motion_setting(MOTION, "motion_timeout", 30)
+
+    def test_rules_are_checked_and_survive_a_restart_with_the_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "lights.json")
+            lights = connected_lights(path, devices=WITH_MOTION)
+            for bad in ({"offAfter": 4}, {"offAfter": 241}, {"offAfter": True}, {"enabled": "yes"}):
+                with self.assertRaises(ValidationError):
+                    lights.set_motion(MOTION, bad)
+            with self.assertRaises(NotFound):
+                lights.set_motion(BEDROOM, {"enabled": True})
+            lights.set_motion(MOTION, {"enabled": True, "offAfter": 60})
+            lights.rename(MOTION, "Front Door")
+            self.assertEqual(lights._client.published[-1][1], {"from": "hall_motion", "to": "front_door", "homeassistant_rename": False})
+            again = Lights(path)
+            sensor = next(m for m in again.snapshot()["motion"] if m["id"] == MOTION)
+            self.assertEqual(sensor["name"], "Front Door")
+            self.assertEqual(sensor["rule"], {"enabled": True, "offAfter": 60})
+            self.assertEqual(sensor["settings"][0]["max"], 60)
+
+    def test_a_sensor_taken_out_of_zigbee2mqtt_goes_with_its_rule(self):
+        lights, _, _ = self.hallway()
+        lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
+        self.assertNotIn(MOTION, [m["id"] for m in lights.snapshot()["motion"]])
+        self.assertEqual(lights._motion_rules, {})
 
 
 class PersistenceTest(unittest.TestCase):

@@ -19,6 +19,7 @@ from board.grocery_images import Photos, ProductImages
 from board.grocery_texts import GroceryTexts
 from board.kiosk import Kiosk
 from board.lights import Lights, settings_from as lights_settings_from
+from board.screen import Screen, settings_from as screen_settings_from
 from board.notes import NotesBoard
 from board.notify import Notifier, settings_from as notify_settings_from
 from board.products import ProductLookup
@@ -134,12 +135,15 @@ def main():
         zone=zone,
         feed=feed,
     )
+    screen = screen_settings_from(config.get("screen"))
     lights = Lights(
         os.path.join(args.data, "lights.json"),
         mqtt=lights_settings_from(config.get("lights")),
         zone=zone,
         location=location,
         feed=feed,
+        # The board's own monitor, which motion sensors can switch off when nobody's around.
+        screen=Screen(screen) if screen is not None else None,
     )
     currency = currency_from(config)
     store_products = store_products_from(config, args.data)

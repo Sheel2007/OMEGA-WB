@@ -153,19 +153,23 @@ export function pairingCountdown(until, now = Date.now()) {
   return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
 }
 
-// What to do while pairing is open, or how the switch that's joining is getting on.
-export function pairingMessage(found) {
+// What to do while pairing is open, or how the device that's joining is getting on.
+// `kind` is what's being paired: 'light' (a switch) or 'motion' (a motion sensor).
+export function pairingMessage(found, kind = 'light') {
+  const motion = kind === 'motion';
   switch (found?.state) {
     case 'joining':
-      return 'Found a switch. Setting it up…';
+      return motion ? 'Found a sensor. Setting it up…' : 'Found a switch. Setting it up…';
     case 'failed':
       return `${found.name} didn’t finish setting up. Hold its button again.`;
     case 'other':
-      return `${found.name} joined, but it isn’t an on/off switch.`;
+      return `${found.name} joined, but it isn’t ${motion ? 'a motion sensor' : 'an on/off switch'}.`;
     case 'ready':
       return `${found.name} is ready.`;
     default:
-      return 'Hold the new switch’s button for about 30 seconds, until its light blinks fast. Then let go.';
+      return motion
+        ? 'Hold the button on the new sensor (a pin may be needed) for about 5 seconds, until its light blinks. Then let go.'
+        : 'Hold the new switch’s button for about 30 seconds, until its light blinks fast. Then let go.';
   }
 }
 
@@ -183,18 +187,21 @@ export function lowBatteryLabel(lights) {
   return low.length === 1 ? `${low[0].name} battery low` : `${low.length} batteries low`;
 }
 
+// "just now", "4 min ago", "2 hr ago", "3 days ago", since `at` (epoch ms).
+export function agoLabel(at, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - at) / 60000));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 48 * 60) return `${Math.round(minutes / 60)} hr ago`;
+  return `${Math.round(minutes / (24 * 60))} days ago`;
+}
+
 // "Battery 22% — replace soon · reported 2 hr ago", or '' for a switch without one.
 export function batteryLabel(light, now = Date.now()) {
   if (light.battery == null) return '';
   const level = `Battery ${light.battery}%${isBatteryLow(light) ? ' — replace soon' : ''}`;
   if (!light.batteryAt) return level;
-  const minutes = Math.max(0, Math.floor((now - light.batteryAt) / 60000));
-  let ago;
-  if (minutes < 1) ago = 'just now';
-  else if (minutes < 60) ago = `${minutes} min ago`;
-  else if (minutes < 48 * 60) ago = `${Math.round(minutes / 60)} hr ago`;
-  else ago = `${Math.round(minutes / (24 * 60))} days ago`;
-  return `${level} · reported ${ago}`;
+  return `${level} · reported ${agoLabel(light.batteryAt, now)}`;
 }
 
 // What a light's tile says under its name.
@@ -253,4 +260,74 @@ export function darkSummary(dark, lights, sensors, now = new Date()) {
   const sensor = dark.using === 'sensor' && sensors.find((s) => s.id === dark.sensor);
   const when = sensor ? `${darkLevelLabel(dark.level, true)}, by ${sensor.name}` : sunLevelLabel(dark.level, dark);
   return [ran || 'Turn on', lightsLabel(dark.lights, lights), when, `Until ${untilLabel(dark.until)}`].join(' · ');
+}
+
+// Motion sensors
+
+// How long without motion before the screen goes off, in minutes.
+export const SCREEN_OFF_AFTER = [10, 15, 30, 60];
+// Matches TEST_SECONDS in board/screen.py.
+export const SCREEN_TEST_SECONDS = 5;
+
+// What a motion sensor's tile says: "Motion now", "Motion 4 min ago", or that it hasn't reported.
+export function motionStateLabel(sensor, now = Date.now()) {
+  if (sensor.occupied) return 'Motion now';
+  if (sensor.lastMotion) return `Motion ${agoLabel(sensor.lastMotion, now)}`;
+  return sensor.occupied === false ? 'No motion yet' : 'Waiting for a report';
+}
+
+// What it does, in a line.
+export function motionSummary(rule) {
+  if (!rule.enabled) return 'Doesn’t switch the screen off';
+  return `Screen off after ${durationLabel(rule.offAfter)} without motion`;
+}
+
+// Whether the board can switch its screen off here, and if not, what to do about it.
+export function screenStatusLabel(screen) {
+  if (!screen) return 'Switching the screen off is turned off in config.json.';
+  if (screen.testing) return 'Testing: the screen goes off for a few seconds…';
+  if (screen.problem) return screen.problem;
+  if (screen.error) return screen.error;
+  return `Ready: the board switches the screen off with ${screen.method}.`;
+}
+
+// The sensor's own settings, by Zigbee2MQTT's name for them.
+const SETTING_LABELS = {
+  motion_timeout: 'Says it’s clear after',
+  occupancy_timeout: 'Says it’s clear after',
+  detection_interval: 'Time between detections',
+  occupancy_sensitivity: 'Sensitivity',
+  motion_sensitivity: 'Sensitivity',
+  sensitivity: 'Sensitivity',
+};
+
+export function settingLabel(setting) {
+  return SETTING_LABELS[setting.property] ?? setting.property.replace(/_/g, ' ');
+}
+
+const SECOND_STEPS = [5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600];
+const MAX_CHOICES = 6;
+
+// The choices offered for a setting: a few round numbers in its range (and whatever it's
+// set to now), or its own words.
+export function settingChoices(setting) {
+  if (setting.type === 'enum') return [...setting.values];
+  let steps = SECOND_STEPS.filter((v) => v >= setting.min && v <= setting.max);
+  if (steps.length > MAX_CHOICES) {
+    const every = (steps.length - 1) / (MAX_CHOICES - 1);
+    steps = Array.from({ length: MAX_CHOICES }, (_, i) => steps[Math.round(i * every)]);
+  }
+  if (!steps.length) steps = [setting.min, setting.max];
+  if (Number.isInteger(setting.value) && setting.value >= setting.min && setting.value <= setting.max) steps.push(setting.value);
+  return [...new Set(steps)].sort((a, b) => a - b);
+}
+
+// "30 sec", "1 min 30 sec", "2 min"; "40 cm" for other units; "Medium" for words.
+export function settingValueLabel(setting, value) {
+  if (setting.type === 'enum') return String(value).charAt(0).toUpperCase() + String(value).slice(1).replace(/_/g, ' ');
+  if (setting.unit && !['s', 'sec', 'seconds'].includes(setting.unit)) return `${value} ${setting.unit}`;
+  const minutes = Math.floor(value / 60);
+  const seconds = value % 60;
+  if (!minutes) return `${seconds} sec`;
+  return seconds ? `${minutes} min ${seconds} sec` : durationLabel(minutes);
 }

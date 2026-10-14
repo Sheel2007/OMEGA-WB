@@ -1,5 +1,6 @@
 // LightsService: the ceiling lights (Zigbee switches, reached through Zigbee2MQTT on
-// the Pi) and the schedules that switch them. The server owns both and pushes them to
+// the Pi), the schedules that switch them, and the motion sensors paired with them,
+// which can switch the board's own screen off when nobody's around. The server owns both and pushes them to
 // every screen over the live connection; a tap shows up here straight away.
 import { getJson, newId, postJson } from './http.js';
 import { createSyncedState } from './synced-state.js';
@@ -12,8 +13,10 @@ const EMPTY = {
   hub: null,
   lights: [],
   schedules: [],
-  pairing: { open: false, until: null, found: null, error: null },
+  pairing: { open: false, until: null, kind: 'light', found: null, error: null },
   sensors: [],
+  motion: [],
+  screen: null,
   dark: { enabled: false, lights: [], level: 'sunset', until: '23:00', sensor: null, using: null, sunTimes: null, ranAt: null },
 };
 // Matches PAIR_SECONDS in board/lights.py.
@@ -45,6 +48,7 @@ export function createLightsService({ live }) {
     getSchedules: () => synced.state.schedules,
     getDark: () => synced.state.dark,
     getSensors: () => synced.state.sensors,
+    getMotion: () => synced.state.motion,
     subscribe: synced.subscribe,
     refresh: synced.refresh,
 
@@ -69,12 +73,30 @@ export function createLightsService({ live }) {
       });
     },
 
-    // What every screen calls this light. Zigbee2MQTT is asked to use a tidy version of it too.
+    // What every screen calls this light (or motion sensor). Zigbee2MQTT is asked to use a tidy version of it too.
     renameLight(id, name) {
       const tidy = name.trim().replace(/\s+/g, ' ');
       return synced.mutate('rename', { id, name: tidy }, (state) => {
-        const light = state.lights.find((l) => l.id === id);
-        if (light) light.name = tidy;
+        const device = state.lights.find((l) => l.id === id) ?? state.motion.find((m) => m.id === id);
+        if (device) device.name = tidy;
+        return state;
+      });
+    },
+
+    // What a motion sensor does: changes: { enabled (keeps the screen on), offAfter: minutes without motion }.
+    setMotion(id, changes) {
+      return synced.mutate('motion', { ...changes, id }, (state) => {
+        const sensor = state.motion.find((m) => m.id === id);
+        if (sensor) sensor.rule = { ...sensor.rule, ...changes };
+        return state;
+      });
+    },
+
+    // One of the sensor's own settings (like how long it waits to say it's clear), sent through Zigbee2MQTT.
+    setMotionSetting(id, property, value) {
+      return synced.mutate('motion/setting', { id, property, value }, (state) => {
+        const setting = state.motion.find((m) => m.id === id)?.settings.find((s) => s.property === property);
+        if (setting) setting.value = value;
         return state;
       });
     },
@@ -88,10 +110,34 @@ export function createLightsService({ live }) {
       });
     },
 
-    // Lets a new switch join through Zigbee2MQTT for a few minutes, or stops that early.
-    pair(open) {
-      return synced.mutate('pair', { open }, (state) => {
-        state.pairing = { open, until: open ? Date.now() + PAIR_MS : null, found: open ? null : state.pairing.found, error: null };
+    // Switches the board's screen off for a few seconds and on again. Resolves once it's back on.
+    testScreen() {
+      // Dark here straight away: this screen hears nothing else until the test is over.
+      return synced.mutate('screen/test', {}, (state) => {
+        if (state.screen) state.screen = { ...state.screen, on: false, testing: true };
+        return state;
+      });
+    },
+
+    // Someone tapped the dark screen.
+    wakeScreen() {
+      return synced.mutate('screen/wake', {}, (state) => {
+        if (state.screen) state.screen.on = true;
+        return state;
+      });
+    },
+
+    // Lets a new switch (kind 'light') or motion sensor ('motion') join through
+    // Zigbee2MQTT for a few minutes, or stops that early.
+    pair(open, kind = 'light') {
+      return synced.mutate('pair', { open, kind }, (state) => {
+        state.pairing = {
+          open,
+          until: open ? Date.now() + PAIR_MS : null,
+          kind: open ? kind : state.pairing.kind,
+          found: open ? null : state.pairing.found,
+          error: null,
+        };
         return state;
       });
     },

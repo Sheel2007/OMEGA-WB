@@ -166,6 +166,31 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 
   Until it's named, a light goes by its Zigbee2MQTT name (`bedroom_light` shows
   as **Bedroom**), and a new switch is "Light" plus the end of its address.
+
+  - **Motion sensors** — under the lights in the app. Tap + next to **Motion
+    Sensors**, then hold the sensor's pairing button (on some it's a pinhole)
+    for about 5 seconds until its light blinks. Any Zigbee sensor that reports `occupancy` (or `presence`) works.
+    Each sensor's tile says whether it sees someone now, or how long ago it
+    last did, and warns when its battery is low. Tap it to:
+    - rename it (the "added" message has **Name it** too);
+    - switch on **Turn the screen off when nobody's around** and pick how long
+      without motion first (10 min to 1 hr, 30 min to start with). The monitor
+      goes dark, but the Pi and the board keep running, and it comes back on
+      the moment a sensor sees someone. Tap the dark screen and it wakes too;
+      that first tap only wakes it, so it can't switch a light by accident.
+      With more than one sensor switched on, the screen stays on while any of
+      them sees someone;
+    - change the sensor's own settings, when Zigbee2MQTT says it has them: how
+      long it waits before saying it's clear, sensitivity. A sensor on batteries
+      only listens when it wakes, so wave at it if a change doesn't stick.
+
+    **Test Screen Off** (next to + above the sensors, and in each sensor's
+    card) switches the screen off for 5 seconds and back on, so you can check
+    it works on the Pi. Under the button, the card says how the board does it
+    (`wlopm` on Raspberry Pi OS's Wayland desktop, `xset` on an older X11 one),
+    or what's missing. `sudo ./pi/install.sh` installs `wlopm`. If your monitor
+    needs something else, put your own commands in `config.json`:
+    `"screen": {"off": "...", "on": "..."}` (`"screen": false` turns it off).
 - **Roommate Cup:** open it and tap **Roommates** to sign everyone up: a name and
   an email, a phone number, or both. There are no passwords, and screens only ever
   show part of each address and number.
@@ -245,7 +270,7 @@ Restart after changing settings: `sudo systemctl restart widget-board`.
 
 Notes and any calendar events kept on the board itself are saved on the Pi in
 `data/notes.json` and `data/calendar.json`.
-Light schedules and swapped switches are in `data/lights.json`.
+Light schedules, swapped switches and what each motion sensor does are in `data/lights.json`.
 
 ### Reaching the board when you're out
 
@@ -601,7 +626,14 @@ smooth there you can keep the parameter, but the copy looks the same.
   screen comes back on or the Wi-Fi returns — give it a second. If it doesn't,
   the board's address has probably changed; see the DHCP reservation note above.
 - **The screen still goes to sleep.** Turn off Screen Blanking in
-  Raspberry Pi Configuration → Display.
+  Raspberry Pi Configuration → Display. (A motion sensor set to switch the
+  screen off does that on purpose; it comes back on for motion or a tap.)
+- **Test Screen Off says the desktop needs wlopm.** Run `sudo apt install wlopm`
+  (or `sudo ./pi/install.sh` again), then try the test again.
+- **The test worked but the monitor shows "No signal" instead of going dark.**
+  Some monitors do that before they go to sleep; most settle after a few
+  seconds. If yours never sleeps, set your own `screen` commands in
+  `config.json` (for example with `ddcutil`, if the monitor supports it).
 - **The Weather widget says to add your location.** Put `latitude` and
   `longitude` in `config.json` (see Settings) and restart the server.
 - **"Can't reach the weather service."** The Pi is offline, or Open-Meteo is

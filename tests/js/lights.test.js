@@ -15,6 +15,8 @@ import {
   untilLabel,
   lightsLabel,
   lightStateLabel,
+  motionStateLabel,
+  motionSummary,
   nextLabel,
   pairingCountdown,
   pairingMessage,
@@ -22,7 +24,11 @@ import {
   nextSchedule,
   repeatLabel,
   scheduleSummary,
+  screenStatusLabel,
   setPeriod,
+  settingChoices,
+  settingLabel,
+  settingValueLabel,
   statusLabel,
   stepHour,
   stepMinute,
@@ -121,6 +127,54 @@ test('pairing counts down in minutes and seconds, and says how the new switch is
   assert.equal(pairingMessage({ state: 'ready', name: 'Light 0009' }), 'Light 0009 is ready.');
   assert.match(pairingMessage({ state: 'failed', name: 'Light 0009' }), /didn’t finish setting up/);
   assert.match(pairingMessage({ state: 'other', name: 'Hall sensor' }), /isn’t an on\/off switch/);
+
+  assert.match(pairingMessage(null, 'motion'), /Hold the button on the new sensor/);
+  assert.equal(pairingMessage({ state: 'joining', name: 'Motion sensor 0009' }, 'motion'), 'Found a sensor. Setting it up…');
+  assert.match(pairingMessage({ state: 'other', name: 'Plug' }, 'motion'), /isn’t a motion sensor/);
+});
+
+test('a motion sensor says what it sees and what it does', () => {
+  const now = 10_000_000;
+  assert.equal(motionStateLabel({ occupied: true, lastMotion: now }, now), 'Motion now');
+  assert.equal(motionStateLabel({ occupied: false, lastMotion: now - 4 * 60_000 }, now), 'Motion 4 min ago');
+  assert.equal(motionStateLabel({ occupied: false, lastMotion: null }, now), 'No motion yet');
+  assert.equal(motionStateLabel({ occupied: null, lastMotion: null }, now), 'Waiting for a report');
+
+  const rule = { enabled: true, offAfter: 30 };
+  assert.equal(motionSummary(rule), 'Screen off after 30 min without motion');
+  assert.equal(motionSummary({ ...rule, offAfter: 60 }), 'Screen off after 1 hr without motion');
+  assert.equal(motionSummary({ ...rule, enabled: false }), 'Doesn’t switch the screen off');
+});
+
+test('the screen says whether the board can switch it off here', () => {
+  const ready = { on: true, testing: false, method: 'wlopm', problem: null, error: null };
+  assert.equal(screenStatusLabel(ready), 'Ready: the board switches the screen off with wlopm.');
+  assert.match(screenStatusLabel({ ...ready, method: null, problem: 'The Pi’s desktop needs wlopm…' }), /needs wlopm/);
+  assert.match(screenStatusLabel({ ...ready, error: 'wlopm couldn’t switch the screen off: no output' }), /no output/);
+  assert.match(screenStatusLabel({ ...ready, testing: true }), /^Testing/);
+  assert.match(screenStatusLabel(null), /turned off in config\.json/);
+});
+
+test('a sensor’s own settings offer a few round choices', () => {
+  const timeout = { property: 'motion_timeout', type: 'numeric', min: 5, max: 60, unit: 's', value: 25 };
+  assert.equal(settingLabel(timeout), 'Says it’s clear after');
+  const choices = settingChoices(timeout);
+  assert.ok(choices.includes(25), 'what it’s set to now');
+  assert.ok(choices.includes(5) && choices.includes(60), 'both ends of its range');
+  assert.ok(choices.length <= 7);
+  assert.deepEqual(choices, [...choices].sort((a, b) => a - b));
+  assert.deepEqual(settingChoices({ ...timeout, min: 1, max: 3, value: null }), [1, 3], 'a range with no round numbers');
+  assert.equal(settingValueLabel(timeout, 30), '30 sec');
+  assert.equal(settingValueLabel(timeout, 90), '1 min 30 sec');
+  assert.equal(settingValueLabel(timeout, 300), '5 min');
+  assert.equal(settingValueLabel(timeout, 3600), '1 hr');
+  assert.deepEqual(settingChoices({ ...timeout, min: 15, max: 65535, value: 60 }), [15, 30, 60, 120, 300, 1800, 3600]);
+  assert.equal(settingValueLabel({ ...timeout, unit: 'cm' }, 40), '40 cm');
+
+  const sensitivity = { property: 'occupancy_sensitivity', type: 'enum', values: ['low', 'medium', 'high'], value: 'medium' };
+  assert.equal(settingLabel(sensitivity), 'Sensitivity');
+  assert.deepEqual(settingChoices(sensitivity), ['low', 'medium', 'high']);
+  assert.equal(settingValueLabel(sensitivity, 'medium'), 'Medium');
 });
 
 test('a Turn off schedule that turns lights off again says so', () => {

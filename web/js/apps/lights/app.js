@@ -1,7 +1,8 @@
-// Lights: the full-screen app. The lights as big buttons on the left, the schedules
-// that switch them on the right (with "When it gets dark" above them), and a sheet
-// for adding or changing a schedule, for the dark setting, or for a light's own
-// settings (swapping On and Off).
+// Lights: the full-screen app. The lights as big buttons on the left with the motion
+// sensors under them, the schedules that switch them on the right (with "When it gets
+// dark" above them), and a sheet for adding or changing a schedule, for the dark
+// setting, for a light's own settings (swapping On and Off), or for a motion sensor
+// (switching the board's screen off when nobody's around, and the sensor's own settings).
 import { createKeyboard } from '../../keyboard.js';
 import { animateLayout, el, icons, reconcile, toast } from '../../ui.js';
 import {
@@ -18,13 +19,21 @@ import {
   durationLabel,
   DAY_LETTERS,
   DAY_NAMES,
+  motionStateLabel,
+  motionSummary,
   nextLabel,
   nextSchedule,
   pairingCountdown,
   pairingMessage,
   repeatLabel,
+  SCREEN_OFF_AFTER,
+  SCREEN_TEST_SECONDS,
+  screenStatusLabel,
   scheduleSummary,
   setPeriod,
+  settingChoices,
+  settingLabel,
+  settingValueLabel,
   statusLabel,
   stepHour,
   stepMinute,
@@ -60,6 +69,10 @@ const moonIcon =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
 const chevronUp =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 15l6.5-6.5 6.5 6.5"/></svg>';
+const motionIcon =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/><path d="M8.3 8.3a5.2 5.2 0 0 0 0 7.4M15.7 8.3a5.2 5.2 0 0 1 0 7.4M5.3 5.3a9.5 9.5 0 0 0 0 13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg>';
+const screenIcon =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8.5 21h7M12 17v4"/></svg>';
 const chevronDown =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 9l6.5 6.5L18.5 9"/></svg>';
 
@@ -68,6 +81,7 @@ export function mount(root, { services, kiosk }) {
   let firstRender = true;
   let sheet = null;
   let countdown = null;
+  let testingScreen = false;
 
   // The lights
 
@@ -89,6 +103,37 @@ export function mount(root, { services, kiosk }) {
     { class: 'lights-app__pairing' },
     el('p', { class: 'lights-app__pairing-title' }, 'Pairing ', pairingTime),
     pairingText,
+  );
+
+  // Motion sensors: a tile each, under the lights, + to pair one, and a button that
+  // switches the screen off for a moment to show the board can.
+
+  const screenTestLabel = el('span');
+  const screenTest = el(
+    'button',
+    { class: 'lights-app__pair lights-app__pair--quiet', type: 'button', onclick: () => testScreen() },
+    el('span', { class: 'lights-app__pair-icon', html: screenIcon }),
+    screenTestLabel,
+  );
+
+  const sensorGrid = el('ul', { class: 'light-grid light-grid--app', 'aria-label': 'Motion sensors' });
+  const sensorPair = el('button', { class: 'lights-app__add', type: 'button', onclick: () => togglePairing(lights, 'motion') });
+  const sensorEmpty = el('p', {
+    class: 'lights-app__sensors-empty',
+    text: 'Tap + to pair one. It can switch the board’s screen off when nobody’s around, and back on when someone comes in.',
+  });
+  const sensors = el(
+    'section',
+    { class: 'lights-app__sensors', 'aria-label': 'Motion sensors' },
+    el(
+      'header',
+      { class: 'lights-app__sensors-head' },
+      el('h2', { class: 'lights-app__subtitle', text: 'Motion Sensors' }),
+      screenTest,
+      sensorPair,
+    ),
+    sensorGrid,
+    sensorEmpty,
   );
 
   // The schedules
@@ -133,7 +178,7 @@ export function mount(root, { services, kiosk }) {
         el('div', { class: 'lights-app__heading' }, el('h1', { class: 'lights-app__title', text: name }), meta),
         pairButton,
       ),
-      el('div', { class: 'lights-app__scroll' }, pairing, grid, notice),
+      el('div', { class: 'lights-app__scroll' }, pairing, grid, notice, sensors),
     ),
     el(
       'section',
@@ -238,6 +283,72 @@ export function mount(root, { services, kiosk }) {
     pairingTime.textContent = pairingCountdown(lights.getState().pairing.until);
   }
 
+  function createSensorTile() {
+    const node = el('li', { class: 'light-tile light-tile--sensor' });
+    node.append(
+      el(
+        'button',
+        { class: 'light-tile__toggle', type: 'button', onclick: () => openMotion(node.dataset.key) },
+        el('span', { class: 'light-tile__icon', html: motionIcon }),
+        el(
+          'span',
+          { class: 'light-tile__text' },
+          el('span', { class: 'light-tile__name' }),
+          el('span', { class: 'light-tile__state' }, el('span', { class: 'light-tile__state-text' }), el('span', { class: 'light-tile__battery' })),
+        ),
+      ),
+    );
+    return node;
+  }
+
+  function updateSensorTile(node, sensor) {
+    const button = node.firstChild;
+    const [name, state] = button.lastChild.children;
+    const [stateText, battery] = state.children;
+    const words = motionStateLabel(sensor);
+    node.classList.toggle('light-tile--motion', sensor.occupied === true);
+    name.textContent = sensor.name;
+    stateText.textContent = words;
+    const low = isBatteryLow(sensor);
+    battery.hidden = !low;
+    if (low) {
+      battery.innerHTML = `${batteryIcon}<span>${Number(sensor.battery)}%</span>`;
+      battery.setAttribute('aria-label', `Battery low, ${sensor.battery}%`);
+    }
+    button.setAttribute('aria-label', `${sensor.name}: ${words}. ${motionSummary(sensor.rule)}`);
+  }
+
+  // Off for a few seconds, then on again. The answer comes once it's back on.
+  function testScreen() {
+    if (testingScreen || lights.getState().screen?.testing) return;
+    testingScreen = true;
+    render(lights.getState());
+    lights
+      .testScreen()
+      .then(
+        () => toast(`The screen went off for ${SCREEN_TEST_SECONDS} seconds and came back on.`),
+        (err) => toast(err.message),
+      )
+      .finally(() => {
+        testingScreen = false;
+        render(lights.getState());
+      });
+  }
+
+  function renderSensors(state) {
+    const open = canPair(state) && state.pairing.open;
+    sensors.hidden = !(state.configured && state.connected) && !state.motion.length;
+    sensorPair.innerHTML = open ? icons.close : icons.plus;
+    sensorPair.classList.toggle('lights-app__add--quiet', open || !canPair(state));
+    sensorPair.setAttribute('aria-label', open ? 'Stop pairing' : 'Pair a motion sensor');
+    const testing = testingScreen || Boolean(state.screen?.testing);
+    screenTestLabel.textContent = testing ? 'Testing…' : 'Test Screen Off';
+    screenTest.setAttribute('aria-disabled', String(testing));
+    reconcile(sensorGrid, state.motion, (sensor) => sensor.id, createSensorTile, updateSensorTile);
+    sensorGrid.hidden = !state.motion.length;
+    sensorEmpty.hidden = state.motion.length > 0;
+  }
+
   function renderPairing(state) {
     const ready = canPair(state);
     const open = ready && state.pairing.open;
@@ -246,23 +357,26 @@ export function mount(root, { services, kiosk }) {
     // Still shown when pairing can't start, so a tap can say what's missing.
     pairButton.classList.toggle('lights-app__pair--quiet', open || !ready);
     pairing.hidden = !open;
-    pairingText.textContent = pairingMessage(state.pairing.found);
+    pairingText.textContent = pairingMessage(state.pairing.found, state.pairing.kind);
     tick();
     if (open && !countdown) countdown = setInterval(tick, COUNTDOWN_MS);
     if (!open && countdown) {
       clearInterval(countdown);
       countdown = null;
     }
-    announcePairing(state.pairing, (id) => openLight(id, { rename: true }));
+    announcePairing(state.pairing, (id) => openDevice(id, { rename: true }));
   }
 
   function render(state) {
     renderPairing(state);
     const shown = state.configured ? state.lights : [];
-    meta.textContent = [statusLabel(state), state.connected && lowBatteryLabel(state.lights)].filter(Boolean).join(' · ');
+    meta.textContent = [statusLabel(state), state.connected && lowBatteryLabel([...state.lights, ...state.motion])]
+      .filter(Boolean)
+      .join(' · ');
     showNext(state);
     showNotice(state);
     renderDark(state);
+    renderSensors(state);
     const apply = () => {
       reconcile(
         grid,
@@ -563,14 +677,15 @@ export function mount(root, { services, kiosk }) {
   // A light's own settings: its name, switching it, and swapping On and Off for a
   // switch paired the other way round. `rename` opens it ready to type a name.
 
-  function openLight(lightId, { rename = false } = {}) {
-    const light = lights.getLights().find((l) => l.id === lightId);
-    if (!light) return;
-    const nameInput = el('input', {
+  // The name at the top of a light's or a sensor's sheet. Done (or Enter) keeps a new
+  // name; tapping outside the sheet leaves the old one.
+
+  function nameEditor(value, onDone) {
+    const input = el('input', {
       class: 'light-sheet__name-input',
       type: 'text',
       name: 'light-name',
-      value: light.name,
+      value,
       maxlength: '40',
       autocomplete: 'off',
       autocapitalize: 'words',
@@ -578,23 +693,48 @@ export function mount(root, { services, kiosk }) {
       'aria-label': 'Name',
       // The board brings its own keyboard; the system one would cover half the screen.
       inputmode: kiosk ? 'none' : null,
-      onkeydown: (event) => event.key === 'Enter' && (event.preventDefault(), done()),
+      onkeydown: (event) => event.key === 'Enter' && (event.preventDefault(), onDone()),
     });
-    const nameField = el(
-      'label',
-      { class: 'light-sheet__name' },
-      el('span', { class: 'light-sheet__name-label', text: 'Name' }),
-      nameInput,
-    );
+    const field = el('label', { class: 'light-sheet__name' }, el('span', { class: 'light-sheet__name-label', text: 'Name' }), input);
     const keyboard = kiosk
       ? createKeyboard({
-          input: nameInput,
+          input,
           enterLabel: 'Done',
-          onEnter: done,
+          onEnter: onDone,
           onToggle: (open) => document.documentElement.classList.toggle('is-typing', open),
         })
       : null;
     if (keyboard) root.append(keyboard.node);
+    return {
+      field,
+      focus() {
+        input.select();
+        if (keyboard) keyboard.show();
+        else input.focus();
+      },
+      // Closes the sheet, then renames if the name changed. `current` is the name now.
+      save(id, current) {
+        const name = input.value.trim().replace(/\s+/g, ' ');
+        closeSheet();
+        if (!current || !name || name === current) return;
+        lights.renameLight(id, name).catch((err) => toast(err.message));
+      },
+      destroy() {
+        keyboard?.destroy();
+        document.documentElement.classList.remove('is-typing');
+      },
+    };
+  }
+
+  function openDevice(id, options) {
+    if (lights.getMotion().some((m) => m.id === id)) openMotion(id, options);
+    else openLight(id, options);
+  }
+
+  function openLight(lightId, { rename = false } = {}) {
+    const light = lights.getLights().find((l) => l.id === lightId);
+    if (!light) return;
+    const names = nameEditor(light.name, done);
     const stateText = el('span', { class: 'light-sheet__state' });
     const power = el(
       'button',
@@ -637,13 +777,8 @@ export function mount(root, { services, kiosk }) {
       swap.setAttribute('aria-checked', String(now.swapped));
     }
 
-    // Done keeps a new name; tapping outside the sheet leaves the old one.
     function done() {
-      const now = lights.getLights().find((l) => l.id === lightId);
-      const name = nameInput.value.trim().replace(/\s+/g, ' ');
-      closeSheet();
-      if (!now || !name || name === now.name) return;
-      lights.renameLight(lightId, name).catch((err) => toast(err.message));
+      names.save(lightId, lights.getLights().find((l) => l.id === lightId)?.name);
     }
 
     function swapOnOff() {
@@ -658,32 +793,146 @@ export function mount(root, { services, kiosk }) {
 
     openSheet({
       title: light.name,
-      content: el('div', { class: 'light-sheet' }, nameField, power, battery, swap),
+      content: el('div', { class: 'light-sheet' }, names.field, power, battery, swap),
       primary: { label: 'Done', onClick: done },
       cancel: false,
       refresh: paint,
-      onClose: () => {
-        keyboard?.destroy();
-        document.documentElement.classList.remove('is-typing');
-      },
+      onClose: names.destroy,
     });
     paint();
-    if (rename) {
-      nameInput.select();
-      if (keyboard) keyboard.show();
-      else nameInput.focus();
+    if (rename) names.focus();
+  }
+
+  // A motion sensor: its name, what it's seeing, which lights it switches on (and when
+  // they go off again), and its own settings. Changes apply straight away, like a switch.
+
+  function openMotion(sensorId, { rename = false } = {}) {
+    const sensor = lights.getMotion().find((m) => m.id === sensorId);
+    if (!sensor) return;
+    const names = nameEditor(sensor.name, done);
+    const statusText = el('span', { class: 'motion-sheet__status-text' });
+    const status = el('p', { class: 'motion-sheet__status' }, el('span', { class: 'light-tile__icon', html: motionIcon }), statusText);
+    const batteryText = el('span');
+    const battery = el('p', { class: 'light-sheet__battery' }, el('span', { class: 'light-sheet__battery-icon', html: batteryIcon }), batteryText);
+    const enable = el(
+      'button',
+      { class: 'light-sheet__swap', type: 'button', role: 'switch', onclick: () => change({ enabled: !current()?.rule.enabled }) },
+      el(
+        'span',
+        { class: 'light-sheet__swap-text' },
+        el('span', { class: 'light-sheet__swap-title', text: 'Turn the screen off when nobody’s around' }),
+        el('span', {
+          class: 'light-sheet__swap-help',
+          text: 'The board’s screen goes dark when this sensor hasn’t seen anyone for a while, and comes back on as soon as it does (or someone taps the screen). The Pi keeps running.',
+        }),
+      ),
+      el('span', { class: 'lights-switch__track' }),
+    );
+    const offChips = el('div', { class: 'chip-row' });
+    const rule = el(
+      'div',
+      { class: 'schedule-editor' },
+      group('Turn it off after', offChips, el('p', { class: 'schedule-editor__hint', text: 'With no motion for this long.' })),
+    );
+    const testText = el('span');
+    const test = el(
+      'button',
+      { class: 'motion-sheet__test', type: 'button', onclick: () => testScreen() },
+      el('span', { class: 'lights-app__pair-icon', html: screenIcon }),
+      testText,
+    );
+    const screenHint = el('p', { class: 'schedule-editor__hint' });
+    const screen = el('div', { class: 'schedule-editor' }, test, screenHint);
+    const settingList = el('div', { class: 'schedule-editor' });
+    const settings = el(
+      'div',
+      { class: 'schedule-editor motion-sheet__settings' },
+      el('p', { class: 'motion-sheet__heading', text: 'Sensor' }),
+      settingList,
+      el('p', {
+        class: 'schedule-editor__hint',
+        text: 'A sensor on batteries only listens when it wakes. If a change doesn’t stick, wave at the sensor and pick it again.',
+      }),
+    );
+
+    const current = () => lights.getMotion().find((m) => m.id === sensorId);
+
+    function change(changes) {
+      lights.setMotion(sensorId, changes).catch((err) => toast(err.message));
     }
+
+    function pickSetting(setting, value) {
+      lights.setMotionSetting(sensorId, setting.property, value).catch((err) => toast(err.message));
+    }
+
+    function paint() {
+      const state = lights.getState();
+      const now = current();
+      if (!now) return closeSheet();
+      statusText.textContent = motionStateLabel(now);
+      status.classList.toggle('motion-sheet__status--active', now.occupied === true);
+      battery.hidden = now.battery == null;
+      battery.classList.toggle('light-sheet__battery--low', isBatteryLow(now));
+      batteryText.textContent = batteryLabel(now);
+      enable.setAttribute('aria-checked', String(now.rule.enabled));
+      rule.hidden = !now.rule.enabled;
+      choiceChips(offChips, [...new Set([...SCREEN_OFF_AFTER, now.rule.offAfter])].sort((a, b) => a - b), {
+        label: durationLabel,
+        pressed: (minutes) => now.rule.offAfter === minutes,
+        pick: (minutes) => change({ offAfter: minutes }),
+      });
+      const testing = testingScreen || Boolean(state.screen?.testing);
+      testText.textContent = testing ? 'Testing…' : `Test: Screen Off for ${SCREEN_TEST_SECONDS} Seconds`;
+      test.setAttribute('aria-disabled', String(testing));
+      screenHint.textContent = screenStatusLabel(state.screen);
+      settings.hidden = !now.settings.length;
+      reconcile(
+        settingList,
+        now.settings,
+        (setting) => setting.property,
+        (setting) => group(settingLabel(setting), el('div', { class: 'chip-row' })),
+        (node, setting) => {
+          node.firstChild.textContent = settingLabel(setting);
+          choiceChips(node.lastChild, settingChoices(setting), {
+            label: (value) => settingValueLabel(setting, value),
+            pressed: (value) => setting.value === value,
+            pick: (value) => pickSetting(setting, value),
+          });
+        },
+      );
+    }
+
+    function done() {
+      names.save(sensorId, current()?.name);
+    }
+
+    openSheet({
+      title: sensor.name,
+      content: el('div', { class: 'light-sheet' }, names.field, status, battery, enable, rule, screen, settings),
+      primary: { label: 'Done', onClick: done },
+      cancel: false,
+      refresh: paint,
+      onClose: names.destroy,
+    });
+    paint();
+    if (rename) names.focus();
   }
 
   const unsubscribe = lights.subscribe(render);
-  const clock = setInterval(() => showNext(lights.getState()), STATUS_REFRESH_MS);
+  // "Next: Off at 11:00 PM" and "Motion 4 min ago" move on as the minutes pass.
+  const clock = setInterval(() => {
+    const state = lights.getState();
+    showNext(state);
+    renderSensors(state);
+    sheet?.refresh();
+  }, STATUS_REFRESH_MS);
   render(lights.getState());
 
   return {
     intent(action) {
       if (action === 'add') openSchedule();
-      // From "Name it" on the message that says a new light was added.
-      else if (action?.startsWith('name-')) openLight(action.slice('name-'.length), { rename: true });
+      // From "Name it" on the message that says a new light or sensor was added.
+      else if (action?.startsWith('name-')) openDevice(action.slice('name-'.length), { rename: true });
     },
     unmount() {
       unsubscribe();

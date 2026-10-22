@@ -315,22 +315,23 @@ def by_id(snapshot):
 
 
 class FollowsTest(unittest.TestCase):
-    def test_the_board_follows_arsenal_spurs_maryland_men_and_the_champions_league(self):
+    def test_the_board_follows_arsenal_spurs_chelsea_maryland_men_and_the_champions_league(self):
         follows = sports.follows_from(None)
-        self.assertEqual([t["id"] for t in follows.teams], ["arsenal", "tottenham", "maryland"])
-        self.assertEqual(follows.teams[2]["leagues"], ("usa.ncaa.m.1",))
+        self.assertEqual([t["id"] for t in follows.teams], ["arsenal", "tottenham", "chelsea", "maryland"])
+        self.assertEqual(follows.teams[2]["espn"], "363")
+        self.assertEqual(follows.teams[3]["leagues"], ("usa.ncaa.m.1",))
         self.assertEqual([c["id"] for c in follows.competitions], ["ucl"])
         self.assertEqual(follows.tables, ("eng.1", "uefa.champions", "big-ten"))
         self.assertEqual(set(follows.teams[0]["leagues"]), {"eng.1", "eng.fa", "eng.league_cup", "uefa.champions"})
 
     def test_the_womens_team_instead(self):
         follows = sports.follows_from({"maryland": "women"})
-        self.assertEqual(follows.teams[2]["espn"], "20341")
+        self.assertEqual(follows.teams[3]["espn"], "20341")
         self.assertEqual(follows.big_ten, "wsoc")
 
     def test_a_typo_falls_back_to_the_mens_team_and_false_follows_nothing(self):
         with self.assertLogs("board.sports", level="WARNING"):
-            self.assertEqual(sports.follows_from({"maryland": "both"}).teams[2]["espn"], "5617")
+            self.assertEqual(sports.follows_from({"maryland": "both"}).teams[3]["espn"], "5617")
         off = sports.follows_from(False)
         self.assertEqual((off.teams, off.competitions, off.tables), ((), (), ()))
 

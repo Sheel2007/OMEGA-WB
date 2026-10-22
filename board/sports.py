@@ -1,7 +1,7 @@
 """Sports: fixtures, live scores, tables and match pages for the teams the board follows.
 
-The board follows Arsenal and Tottenham (Premier League, FA Cup, League Cup and
-Champions League), Maryland's soccer team in the Big Ten, and every Champions
+The board follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League
+Cup and Champions League), Maryland's soccer team in the Big Ten, and every Champions
 League match. None of it needs an account:
 
 - ESPN's public scoreboard API (site.api.espn.com) has the fixtures, live scores,
@@ -118,6 +118,7 @@ ENGLISH_LEAGUES = ("eng.1", "eng.fa", "eng.league_cup", "uefa.champions")
 TEAMS = (
     {"id": "arsenal", "name": "Arsenal", "espn": "359", "leagues": ENGLISH_LEAGUES, "table": "eng.1"},
     {"id": "tottenham", "name": "Tottenham", "espn": "367", "leagues": ENGLISH_LEAGUES, "table": "eng.1"},
+    {"id": "chelsea", "name": "Chelsea", "espn": "363", "leagues": ENGLISH_LEAGUES, "table": "eng.1"},
 )
 # Maryland's men's or women's team ("maryland" in config.json; men's unless it says otherwise).
 MARYLAND = {

@@ -56,7 +56,7 @@
   "_spotify": "Optional. Shows what's playing on one Spotify account. Make an app at developer.spotify.com/dashboard, tick 'Web API', and add the redirect URI http://127.0.0.1:8080/api/spotify/done (with your port if it isn't 8080). Paste its Client ID here (no secret needed), then tap Connect on the Spotify widget on the board's own screen.",
   "spotify": { "client_id": "your spotify client id" },
 
-  "_sports": "Optional. The Sports widget follows Arsenal and Tottenham (Premier League, FA Cup, League Cup, Champions League), Maryland soccer in the Big Ten, and every Champions League match, from ESPN and bigten.org (no account needed). 'maryland' is \"men\" (the default) or \"women\". Match pages also get the referee's record, predicted line-ups, injuries, player ratings and stats from FotMob; 'fotmob': false leaves that out. \"sports\": false turns it all off.",
+  "_sports": "Optional. The Sports widget follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League Cup, Champions League), Maryland soccer in the Big Ten, and every Champions League match, from ESPN and bigten.org (no account needed). 'maryland' is \"men\" (the default) or \"women\". Match pages also get the referee's record, predicted line-ups, injuries, player ratings and stats from FotMob; 'fotmob': false leaves that out. \"sports\": false turns it all off.",
   "sports": { "maryland": "men" },
 
   "_calendars": "Read-only, and needs no account: each calendar's 'Secret address in iCal format'. Use these instead of (or as well as) the Google account above.",

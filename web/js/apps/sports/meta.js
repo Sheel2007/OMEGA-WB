@@ -1,6 +1,6 @@
 export const id = 'sports';
 export const name = 'Sports';
-export const description = 'Arsenal, Tottenham, Maryland and the Champions League';
+export const description = 'Arsenal, Tottenham, Chelsea, Maryland and the Champions League';
 // No widget: Sports is the page before page 1 (page.js), with a strip under the
 // clock on game days (game-day.js). The app itself has every match and table.
 export const iconBackground = 'var(--icon-sports)';

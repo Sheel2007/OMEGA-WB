@@ -29,8 +29,8 @@ It has eight widgets, and a Sports page:
   fits the gap beside the clock, and grows to show the artist, album and how far
   through the song it is.
 
-**Sports** follows Arsenal and Tottenham (Premier League, FA Cup, League Cup and
-Champions League), Maryland soccer in the Big Ten, and every Champions League
+**Sports** follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League
+Cup and Champions League), Maryland soccer in the Big Ten, and every Champions League
 match. It isn't a widget: swipe right on the first home page (or tap the little
 football before the page dots) and the Sports page slides in, with the match
 that matters most right now, what's coming up, the latest results and a table.

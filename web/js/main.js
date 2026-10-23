@@ -1,6 +1,7 @@
 // Starts the board: services, wallpaper, clock, widgets, apps and the menu.
 import { createAppHost } from './app-host.js';
 import { createAppLibrary } from './app-library.js';
+import { blockDigitsFont, FONT_FAMILY as BLOCK_DIGITS, UNICODE_RANGE as BLOCK_DIGITS_RANGE } from './block-font.js';
 import { blockClockMarkup } from './block-text.js';
 import { backdropCss, wallpaperCss } from './apple-wallpaper.js';
 import { APPS, DEFAULT_WIDGETS, WIDGETS_SINCE } from './apps/index.js';
@@ -53,6 +54,17 @@ if (params.get('glass') === 'live') document.documentElement.dataset.glass = 'li
 // ?at=19:30 previews the board at another time of day.
 const fixedTime = parseTimeOverride(params.get('at'));
 const now = () => fixedTime ?? new Date();
+
+// The Blocks theme's digits (block-font.js), built here rather than downloaded.
+// Its fonts list this first, for 0-9 only; if it can't load, the pixel font's
+// own digits show instead.
+try {
+  const digits = new FontFace(BLOCK_DIGITS, blockDigitsFont(), { unicodeRange: BLOCK_DIGITS_RANGE, weight: '100 900' });
+  document.fonts.add(digits);
+  digits.load().catch(() => document.fonts.delete(digits));
+} catch {
+  // A browser without FontFace keeps the pixel font's digits.
+}
 
 // Services: the only code that talks to the server or to storage.
 

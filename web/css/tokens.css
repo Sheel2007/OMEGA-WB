@@ -227,8 +227,11 @@ html {
    at night (sky.js sets data-night). */
 :root[data-theme="blocks"] {
   color-scheme: light;
-  --font-display: "Pixelify Sans", "Figtree", ui-sans-serif, sans-serif;
-  --font-body: "Pixelify Sans", "Figtree", ui-sans-serif, sans-serif;
+  /* "Blocks Digits" (block-font.js, added by main.js) covers 0-9 only, so every
+     number is drawn in the clock's square block digits and the rest in the pixel
+     font, whose own digits smear from across the room. */
+  --font-display: "Blocks Digits", "Pixelify Sans", "Figtree", ui-sans-serif, sans-serif;
+  --font-body: "Blocks Digits", "Pixelify Sans", "Figtree", ui-sans-serif, sans-serif;
   --font-title: var(--font-display);
   --display-stretch: 100%;
 

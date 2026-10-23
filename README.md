@@ -574,7 +574,8 @@ web/
                         moves the others (pure, tested)
   js/pager.js           swiping between pages; home-editor.js: edit mode
   js/scene/             Blocks critters, seasonal land and falling weather (art, what
-                        they do, the low-rate ticker); js/block-text.js: the Blocks clock
+                        they do, the low-rate ticker); js/block-text.js: the Blocks clock;
+                        js/block-font.js: the same digits as a font, for every Blocks number
   js/menu.js            the top-right menu
   js/sky.js             sun position and the wallpaper colours
   js/apple-wallpaper.js the Glass wallpaper and the copy of it its cards show;

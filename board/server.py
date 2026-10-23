@@ -103,6 +103,9 @@ class BoardServer(ThreadingHTTPServer):
     daemon_threads = True
     block_on_close = False
     allow_reuse_address = True
+    # A page asks for its few dozen scripts all at once. Python's default queue of 5
+    # waiting connections overflows, and one refused script leaves the board blank.
+    request_queue_size = 128
 
     def __init__(self, address, *, notes, calendar, calendar_sources, google, feed, weather, kiosk,
                  lights, roommate_games, grocery, products, store_products, product_images, photos, spotify=None,

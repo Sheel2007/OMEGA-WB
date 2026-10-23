@@ -630,5 +630,12 @@ class ServerTest(unittest.TestCase):
         return events
 
 
+class ConnectionQueueTest(unittest.TestCase):
+    def test_room_for_a_page_asking_for_all_its_scripts_at_once(self):
+        # With Python's default of 5, about one page load in ten lost a script to a
+        # refused connection and the board came up blank.
+        self.assertGreaterEqual(BoardServer.request_queue_size, 64)
+
+
 if __name__ == "__main__":
     unittest.main()

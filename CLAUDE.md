@@ -63,6 +63,7 @@ The screen is a fixed wall/counter monitor viewed from 3 to 10 feet away.
 ```bash
 python3 run.py      # http://localhost:8080 (add ?kiosk=1 for kiosk behaviour, ?at=19:30 to fake the time)
 npm test            # Python unittest + node --test, no packages needed
+pi/dev.sh           # run this folder on the Pi (over SSH/Tailscale) as a test board on :8081, beside the real one
 ```
 
 - Each app lives in `web/js/apps/<id>/` (`meta.js` with `id`, `name`, `description`, `widgetSize`, `widgetSizes`, icon; `widget.js`; `app.js` if it opens full screen; `index.js` re-exporting them) with styles in `web/css/apps/<id>.css`. Register it in `web/js/apps/index.js`.

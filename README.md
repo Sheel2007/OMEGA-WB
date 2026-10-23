@@ -563,7 +563,8 @@ web/
   js/sky.js             sun position and the wallpaper colours
   js/apple-wallpaper.js the Glass wallpaper and the copy of it its cards show;
                         glass.js lines that copy up behind each card
-pi/                     Raspberry Pi install script, kiosk launcher, service file
+pi/                     Raspberry Pi install script, kiosk launcher, service file,
+                        dev.sh for trying changes on the Pi
 tests/                  unit tests (Python unittest + node --test)
 ```
 
@@ -584,6 +585,45 @@ Make a folder `web/js/apps/<id>/` like `notes/`:
 
 Add its styles in `web/css/apps/<id>.css`, link that file in `index.html`, and
 list the app in `web/js/apps/index.js`. It then shows up in **Add widget**.
+
+### Trying your changes on the Pi
+
+`pi/dev.sh` copies this folder, uncommitted changes and all, to the Pi and runs it
+there as a test board on port 8081, next to the real one. It goes over SSH, so with
+Tailscale (see "Reaching the board when you're out") it works from anywhere.
+
+Once, before the first time:
+
+1. Put your laptop on the Pi's Tailscale network: sign in to Tailscale with the
+   account the Pi uses, or have its owner invite you. `tailscale status` should list
+   the Pi as `roommates`.
+2. On the Pi, turn SSH on: `sudo raspi-config nonint do_ssh 0`.
+3. On your laptop, tell the script the Pi's user name and give the Pi your SSH key,
+   so it stops asking for the password:
+
+   ```bash
+   echo 'export WIDGET_BOARD_PI=<user>@roommates' >> ~/.zshrc && source ~/.zshrc
+   ssh-keygen -t ed25519            # only if you don't have a key yet
+   ssh-copy-id "$WIDGET_BOARD_PI"
+   ```
+
+Then, from this folder:
+
+```bash
+pi/dev.sh          # copy this folder over and (re)start the test board
+pi/dev.sh logs     # follow its log (Ctrl+C to stop following)
+pi/dev.sh stop     # stop it
+```
+
+Open `http://roommates:8081` on anything that's on Tailscale. On the Pi's own screen,
+exit to the desktop and open `http://localhost:8081/?kiosk=1` in Chromium.
+
+The test board uses the real board's `config.json`, except that it never switches
+the monitor off or on, and keeps its own data in `~/widget-board-dev` on the Pi. So
+it starts with an empty grocery list and notes, isn't signed in to Google or Spotify,
+and has no Roommate Cup, grocery texts or light schedules to run. It can still switch
+the real lights. It stops when the Pi restarts; the real board doesn't notice any of
+it.
 
 ### Checking the Blocks scenery on the Pi
 

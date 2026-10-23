@@ -23,6 +23,13 @@ export function nextVisitDelay(random, { first = false } = {}) {
   return Math.round(between(random, first ? FIRST_VISIT_MS : VISIT_EVERY_MS));
 }
 
+// Who comes out next: anyone from this part of the day's list except whoever
+// came last, so the same one never visits twice running.
+export function pickCritter(random, pool, last = null) {
+  const choices = pool.length > 1 ? pool.filter((name) => name !== last) : pool;
+  return choices[Math.min(choices.length - 1, Math.floor(random() * choices.length))];
+}
+
 function walk(from, to, start, speed) {
   const duration = (Math.abs(to - from) / speed) * 1000;
   return { from, to, start, end: start + duration, frameMs: speed === RUN_SPEED ? RUN_FRAME_MS : WALK_FRAME_MS };

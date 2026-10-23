@@ -1,15 +1,19 @@
-// The Blocks theme's moving parts: drifting clouds and an occasional critter.
+// The Blocks theme's moving parts: drifting clouds, an occasional critter (an
+// animal by day, a monster at night), and whatever is falling: rain or snow when
+// it's really raining or snowing, gusts of petals or leaves in spring and autumn.
 //
 // Cheap on the Pi by design (measured: a looping CSS steps() animation keeps
 // Chromium producing ~60 frames/s even when nothing changes; this doesn't):
 // - one setTimeout ticker writes only `transform`, on elements that are already
 //   their own compositor layers, so nothing is ever repainted;
 // - it ticks once a second for clouds, 8 times a second while a critter is on
-//   stage, and not at all while paused (app open, editing, hidden tab, reduced
-//   motion, phone layout, or "Moving scenery" turned off).
+//   stage or rain is falling, 4 times a second for snow or a gust, and not at all
+//   while paused (app open, editing, hidden tab, reduced motion, phone layout, or
+//   "Moving scenery" turned off).
 import { haptic, el } from '../ui.js';
-import { CRITTER_FOR_PHASE, CRITTERS, FRAMES, SIZE, spriteSheetSvg } from './critters.js';
-import { cloudX, critterAt, nextVisitDelay, planVisit } from './director.js';
+import { CRITTERS, CRITTERS_FOR_PHASE, FRAMES, SIZE, spriteSheetSvg } from './critters.js';
+import { cloudX, critterAt, nextVisitDelay, pickCritter, planVisit } from './director.js';
+import { FADE_MS, fallArt, fallOffset, FALLS, planGust, tickDelay, TILE } from './fall.js';
 
 const CLOUD_TICK_MS = 1000;
 const CRITTER_TICK_MS = 125;
@@ -20,13 +24,17 @@ const CLOUD_DRIFT = [
   { start: 0.95, speed: 8 },
 ];
 const STAY_MS = 10 * 60 * 1000;
+// Pauses that hide the falling layer as well as stopping it (nothing would see it,
+// or there should be no motion at all); the rest just freeze it where it is.
+const HIDE_FALL_FOR = new Set(['setting', 'motion', 'compact', 'app', 'screen', 'hidden']);
 
 function remToPx(value) {
   return parseFloat(value) * parseFloat(getComputedStyle(document.documentElement).fontSize);
 }
 
 // params: the page's URL parameters. ?critter=now sends one straight away,
-// ?critter=stay keeps it on stage for ten minutes (for measuring).
+// ?critter=stay keeps it on stage for ten minutes (for measuring), and
+// ?critter=<name> (say ?critter=spider) sends that one, for checking the art.
 export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [], params, random = Math.random }) {
   const lifetime = new AbortController();
   const pauses = new Set();
@@ -41,11 +49,26 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   critter.hidden = true;
   sceneEl.append(critter);
 
+  // In front of the land, behind the widgets: a window onto one big sheet of the
+  // repeating tile, which slides and wraps after a tile.
+  const fallSheet = el('div', { class: 'sky__fall-sheet' });
+  const fall = el('div', { class: 'sky__fall', 'aria-hidden': 'true' }, fallSheet);
+  fall.hidden = true;
+  fall.style.setProperty('--fall-tile', `calc(${TILE} * var(--px))`);
+  skyEl.append(fall);
+
   let runMs = 0;
   let lastTick = performance.now();
   let timer = null;
   let visit = null;
-  let nextVisitAt = params.get('critter') ? 0 : nextVisitDelay(random, { first: true });
+  let lastCritter = null;
+  const asked = params.get('critter');
+  const only = Object.hasOwn(CRITTERS, asked ?? '') ? asked : null;
+  let nextVisitAt = asked ? 0 : nextVisitDelay(random, { first: true });
+  let fallKind = null;
+  let gust = null; // { endsAt, hideAt } while petals or leaves are blowing past
+  let nextGust = null; // { at, lasts }
+  let step = artPixel();
 
   // Only touch the DOM when a value actually changes.
   function setTransform(node, value) {
@@ -60,7 +83,6 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
 
   function drawClouds() {
     const width = skyEl.clientWidth;
-    const step = artPixel();
     clouds.forEach((cloud, i) => {
       const drift = CLOUD_DRIFT[i % CLOUD_DRIFT.length];
       const cloudWidth = cloud.offsetWidth;
@@ -75,9 +97,10 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   }
 
   function startVisit() {
-    const name = CRITTER_FOR_PHASE[getPhase()] ?? 'cat';
+    const name = only ?? pickCritter(random, CRITTERS_FOR_PHASE[getPhase()] ?? CRITTERS_FOR_PHASE.day, lastCritter);
+    lastCritter = name;
     const size = artPixel() * SIZE;
-    const stay = params.get('critter') === 'stay';
+    const stay = asked === 'stay' || only !== null;
     const plan = planVisit(random, {
       width: sceneEl.clientWidth,
       size,
@@ -110,12 +133,58 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     setTransform(strip, `translate3d(${-column * size}px, ${-row * size}px, 0)`);
   }
 
+  const gusty = () => fallKind !== null && FALLS[fallKind].gusts;
+
+  function fallShown() {
+    if (!fallKind || [...pauses].some((reason) => HIDE_FALL_FOR.has(reason))) return false;
+    return !gusty() || gust !== null;
+  }
+
+  // Petals and leaves come in gusts: fade in, blow past for a while, fade out,
+  // then nothing (and no layer at all) until the next one.
+  function updateGust() {
+    if (!gusty()) return;
+    if (!gust && runMs >= nextGust.at) {
+      gust = { endsAt: runMs + nextGust.lasts, hideAt: runMs + nextGust.lasts + FADE_MS };
+      fall.classList.remove('sky__fall--out');
+      fall.classList.add('sky__fall--in');
+    } else if (gust && runMs >= gust.hideAt) {
+      gust = null;
+      fall.classList.remove('sky__fall--in', 'sky__fall--out');
+      const next = planGust(random);
+      nextGust = { at: runMs + next.in, lasts: next.lasts };
+    } else if (gust && runMs >= gust.endsAt) {
+      fall.classList.replace('sky__fall--in', 'sky__fall--out');
+    }
+  }
+
+  function untilGustChanges() {
+    if (!gusty()) return Infinity;
+    if (!gust) return Math.max(0, nextGust.at - runMs);
+    return Math.max(0, (runMs < gust.endsAt ? gust.endsAt : gust.hideAt) - runMs);
+  }
+
+  function drawFall() {
+    const shown = fallShown();
+    if (fall.hidden === shown) fall.hidden = !shown;
+    if (!shown) return;
+    const { x, y } = fallOffset(runMs, FALLS[fallKind]);
+    setTransform(fallSheet, `translate3d(${x * step}px, ${y * step}px, 0)`);
+  }
+
   function schedule() {
     clearTimeout(timer);
     timer = null;
     if (pauses.size) return;
-    const untilVisit = Math.max(0, nextVisitAt - runMs);
-    timer = setTimeout(tick, visit ? CRITTER_TICK_MS : Math.min(CLOUD_TICK_MS, untilVisit));
+    const delay = tickDelay({
+      visit: visit !== null,
+      untilVisit: Math.max(0, nextVisitAt - runMs),
+      fallTickMs: fallShown() ? FALLS[fallKind].tickMs : null,
+      untilChange: untilGustChanges(),
+      cloudTickMs: CLOUD_TICK_MS,
+      critterTickMs: CRITTER_TICK_MS,
+    });
+    timer = setTimeout(tick, delay);
   }
 
   function tick() {
@@ -125,6 +194,8 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     drawClouds();
     if (!visit && runMs >= nextVisitAt) startVisit();
     if (visit) drawCritter();
+    updateGust();
+    drawFall();
     schedule();
   }
 
@@ -140,7 +211,25 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     } else if (!now && was) {
       lastTick = performance.now();
       tick();
+      return;
     }
+    drawFall();
+  }
+
+  // What's falling now: 'rain', 'snow', 'petals', 'leaves' or null (see fall.js).
+  function setFall(kind) {
+    const next = Object.hasOwn(FALLS, kind ?? '') ? kind : null;
+    if (next === fallKind) return;
+    fallKind = next;
+    gust = null;
+    fall.classList.remove('sky__fall--in', 'sky__fall--out');
+    if (fallKind) {
+      fallSheet.style.backgroundImage = fallArt(fallKind);
+      const first = planGust(random, { first: true });
+      nextGust = { at: runMs + first.in, lasts: first.lasts };
+    }
+    drawFall();
+    if (!pauses.size) schedule();
   }
 
   // Tap the critter: it jumps and a sparkle pops out (one-shot, no loop).
@@ -157,16 +246,19 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   coin.addEventListener('animationend', () => critter.classList.remove('critter--jump'), { signal: lifetime.signal });
 
   document.addEventListener('visibilitychange', () => setPaused('hidden', document.hidden), { signal: lifetime.signal });
+  addEventListener('resize', () => (step = artPixel()), { signal: lifetime.signal });
   if (document.hidden) pauses.add('hidden');
   drawClouds();
   schedule();
 
   return {
     setPaused,
+    setFall,
     destroy() {
       clearTimeout(timer);
       lifetime.abort();
       critter.remove();
+      fall.remove();
       clouds.forEach((cloud) => cloud.style.removeProperty('transform'));
     },
   };

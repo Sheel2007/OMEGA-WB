@@ -1,14 +1,14 @@
 /* Blocks theme scenery: an original blocky world (no game's real art).
    Everything here is static pixel art, painted once; the only things that move
-   are clouds and the visiting critters, and only by transform (see
-   web/js/scene/blocks-scene.js). One art pixel is --px (6px on the board). */
+   are the clouds, the visiting critters and anything falling (rain, snow, petals
+   or leaves), and only by transform (see web/js/scene/blocks-scene.js). One art
+   pixel is --px (6px on the board). */
 
 :root {
   --px: 0.3rem;
   --floor-h: calc(16 * var(--px));
-  --art-floor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Cpath fill='%235fa83a' d='M0 0h2v1h-2zM3 0h3v1h-3zM7 0h4v1h-4zM12 0h2v1h-2zM15 0h1v1h-1zM0 1h1v1h-1zM2 1h3v1h-3zM6 1h2v1h-2zM9 1h6v1h-6zM0 2h3v1h-3zM4 2h6v1h-6zM11 2h1v1h-1zM13 2h3v1h-3zM0 3h1v1h-1zM2 3h2v1h-2zM6 3h2v1h-2zM9 3h2v1h-2zM13 3h2v1h-2z'/%3E%3Cpath fill='%237cc24c' d='M2 0h1v1h-1zM11 0h1v1h-1zM5 1h1v1h-1zM15 1h1v1h-1zM10 2h1v1h-1z'/%3E%3Cpath fill='%234c8f2c' d='M6 0h1v1h-1zM14 0h1v1h-1zM1 1h1v1h-1zM8 1h1v1h-1zM3 2h1v1h-1zM12 2h1v1h-1zM5 3h1v1h-1zM11 3h1v1h-1z'/%3E%3Cpath fill='%238a5a2b' d='M1 3h1v1h-1zM4 3h1v1h-1zM8 3h1v1h-1zM12 3h1v1h-1zM15 3h1v1h-1zM0 4h3v1h-3zM4 4h3v1h-3zM8 4h4v1h-4zM13 4h3v1h-3zM0 5h1v1h-1zM2 5h4v1h-4zM7 5h3v1h-3zM11 5h5v1h-5zM0 6h4v1h-4zM5 6h3v1h-3zM9 6h5v1h-5zM15 6h1v1h-1zM1 7h9v1h-9zM11 7h3v1h-3zM15 7h1v1h-1zM0 8h2v1h-2zM3 8h1v1h-1zM5 8h2v1h-2zM8 8h4v1h-4zM13 8h3v1h-3zM0 9h9v1h-9zM10 9h6v1h-6zM0 10h1v1h-1zM2 10h2v1h-2zM5 10h3v1h-3zM9 10h3v1h-3zM13 10h2v1h-2zM0 11h6v1h-6zM7 11h7v1h-7zM15 11h1v1h-1zM1 12h3v1h-3zM5 12h4v1h-4zM10 12h1v1h-1zM12 12h4v1h-4zM0 13h3v1h-3zM4 13h4v1h-4zM9 13h7v1h-7zM0 14h2v1h-2zM3 14h3v1h-3zM7 14h5v1h-5zM13 14h1v1h-1zM15 14h1v1h-1zM0 15h9v1h-9zM10 15h6v1h-6z'/%3E%3Cpath fill='%236e4520' d='M3 4h1v1h-1zM12 4h1v1h-1zM6 5h1v1h-1zM8 6h1v1h-1zM14 6h1v1h-1zM0 7h1v1h-1zM4 8h1v1h-1zM12 8h1v1h-1zM9 9h1v1h-1zM1 10h1v1h-1zM15 10h1v1h-1zM6 11h1v1h-1zM4 12h1v1h-1zM11 12h1v1h-1zM8 13h1v1h-1zM2 14h1v1h-1zM14 14h1v1h-1zM9 15h1v1h-1z'/%3E%3Cpath fill='%23a06c38' d='M7 4h1v1h-1zM1 5h1v1h-1zM10 5h1v1h-1zM4 6h1v1h-1zM10 7h1v1h-1zM14 7h1v1h-1zM2 8h1v1h-1zM7 8h1v1h-1zM4 10h1v1h-1zM8 10h1v1h-1zM12 10h1v1h-1zM14 11h1v1h-1zM0 12h1v1h-1zM9 12h1v1h-1zM3 13h1v1h-1zM6 14h1v1h-1zM12 14h1v1h-1z'/%3E%3C/svg%3E");
-  --art-hill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 9' shape-rendering='crispEdges'%3E%3Cpath fill='%234f9a2f' d='M12 0h8v1h-8zM12 1h1v1h-1zM14 1h3v1h-3zM18 1h2v1h-2zM8 2h16v1h-16zM8 3h2v1h-2zM11 3h5v1h-5zM17 3h3v1h-3zM21 3h3v1h-3zM4 4h24v1h-24zM4 5h1v1h-1zM6 5h4v1h-4zM11 5h4v1h-4zM16 5h6v1h-6zM23 5h3v1h-3zM27 5h1v1h-1zM0 6h32v1h-32zM0 7h2v1h-2zM3 7h2v1h-2zM6 7h7v1h-7zM14 7h4v1h-4zM19 7h4v1h-4zM24 7h4v1h-4zM29 7h3v1h-3zM0 8h9v1h-9zM10 8h22v1h-22z'/%3E%3Cpath fill='%236db540' d='M13 1h1v1h-1zM16 3h1v1h-1zM10 5h1v1h-1zM22 5h1v1h-1zM2 7h1v1h-1zM13 7h1v1h-1zM23 7h1v1h-1z'/%3E%3Cpath fill='%233d7f22' d='M17 1h1v1h-1zM10 3h1v1h-1zM20 3h1v1h-1zM5 5h1v1h-1zM15 5h1v1h-1zM26 5h1v1h-1zM5 7h1v1h-1zM18 7h1v1h-1zM28 7h1v1h-1zM9 8h1v1h-1z'/%3E%3C/svg%3E");
-  --art-tree: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' shape-rendering='crispEdges'%3E%3Cpath fill='%233f8a2a' d='M2 0h6v1h-6zM1 1h2v1h-2zM4 1h5v1h-5zM0 2h6v1h-6zM7 2h3v1h-3zM0 3h1v1h-1zM2 3h8v1h-8zM0 4h4v1h-4zM5 4h3v1h-3zM9 4h1v1h-1zM1 5h8v1h-8z'/%3E%3Cpath fill='%235aa83a' d='M3 1h1v1h-1zM6 2h1v1h-1zM1 3h1v1h-1zM4 4h1v1h-1zM8 4h1v1h-1z'/%3E%3Cpath fill='%237a4e24' d='M4 6h2v1h-2zM4 7h1v1h-1zM4 8h2v1h-2zM5 9h1v1h-1z'/%3E%3Cpath fill='%235c3a1a' d='M5 7h1v1h-1zM4 9h1v1h-1z'/%3E%3C/svg%3E");
+  /* --art-floor, --art-hill, --art-tree and --art-flora are the season's land,
+     set on <html> by main.js from web/js/scene/scenery-art.js. */
   --art-cloud: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 4' shape-rendering='crispEdges'%3E%3Cpath fill='%23ffffff' d='M6 0h8v1h-8zM3 1h16v1h-16zM0 2h24v1h-24z'/%3E%3Cpath fill='%23dfe6f2' d='M0 3h24v1h-24z'/%3E%3C/svg%3E");
   --art-sun: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Cpath fill='%23f4b400' d='M0 0h8v1h-8zM0 1h1v1h-1zM7 1h1v1h-1zM0 2h1v1h-1zM7 2h1v1h-1zM0 3h1v1h-1zM7 3h1v1h-1zM0 4h1v1h-1zM7 4h1v1h-1zM0 5h1v1h-1zM7 5h1v1h-1zM0 6h1v1h-1zM7 6h1v1h-1zM0 7h8v1h-8z'/%3E%3Cpath fill='%23ffd23f' d='M1 1h6v1h-6zM1 2h1v1h-1zM6 2h1v1h-1zM1 3h1v1h-1zM6 3h1v1h-1zM1 4h1v1h-1zM6 4h1v1h-1zM1 5h1v1h-1zM6 5h1v1h-1zM1 6h6v1h-6z'/%3E%3Cpath fill='%23fff3b0' d='M2 2h4v1h-4zM2 3h4v1h-4zM2 4h4v1h-4zM2 5h4v1h-4z'/%3E%3C/svg%3E");
   --art-sparkle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%23f4b400' d='M3 0h1v1h-1zM3 1h1v1h-1zM2 2h1v1h-1zM4 2h1v1h-1zM0 3h2v1h-2zM5 3h2v1h-2zM2 4h1v1h-1zM4 4h1v1h-1zM3 5h1v1h-1zM3 6h1v1h-1z'/%3E%3Cpath fill='%23ffd23f' d='M3 2h1v1h-1zM2 3h1v1h-1zM4 3h1v1h-1zM3 4h1v1h-1z'/%3E%3Cpath fill='%23fff8d0' d='M3 3h1v1h-1z'/%3E%3C/svg%3E");
@@ -114,20 +114,23 @@
   opacity: 0.3;
 }
 
-/* Floor, hills and trees along the bottom. */
+/* Floor, hills, trees and the season's flowers or leaves along the bottom. The
+   flora strip's lowest two rows sit in the turf, so it shows below the widgets. */
 .sky__scenery {
   position: absolute;
   inset: 0;
   image-rendering: pixelated;
-  background-image: var(--art-tree), var(--art-tree), var(--art-hill), var(--art-hill), var(--art-floor);
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat-x;
+  background-image: var(--art-flora), var(--art-tree), var(--art-tree), var(--art-hill), var(--art-hill), var(--art-floor);
+  background-repeat: repeat-x, no-repeat, no-repeat, no-repeat, no-repeat, repeat-x;
   background-size:
+    calc(48 * var(--px)) calc(5 * var(--px)),
     calc(20 * var(--px)) calc(20 * var(--px)),
     calc(20 * var(--px)) calc(20 * var(--px)),
     calc(64 * var(--px)) calc(18 * var(--px)),
     calc(48 * var(--px)) calc(13.5 * var(--px)),
     var(--floor-h) var(--floor-h);
   background-position:
+    left bottom calc(var(--floor-h) - 2 * var(--px)),
     left 26rem bottom var(--floor-h),
     right 20rem bottom var(--floor-h),
     left 2rem bottom var(--floor-h),
@@ -135,12 +138,56 @@
     left bottom;
 }
 
-/* Night: the land goes dark too (a flat overlay, no filters). */
-:root[data-night="true"] .sky__scenery::after {
-  content: "";
+/* At night the land is drawn in darker colours (scenery-art.js), not covered
+   over, so the sun, moon and stars keep theirs. */
+
+/* Falling rain, snow, petals or leaves (web/js/scene/fall.js): a window onto one
+   sheet of the repeating tile, one tile bigger than the screen each way, which
+   the scene's ticker slides by transform and wraps after a tile. Only there while
+   something is falling, so it costs nothing (not even a layer) otherwise. */
+/* --fall-tile, the tile's size, is set by the scene from fall.js. */
+.sky__fall {
   position: absolute;
   inset: 0;
-  background: rgb(6 10 34 / 0.55);
+  overflow: hidden;
+  contain: strict;
+  pointer-events: none;
+}
+
+.sky__fall-sheet {
+  position: absolute;
+  top: calc(-1 * var(--fall-tile));
+  left: calc(-1 * var(--fall-tile));
+  right: 0;
+  bottom: 0;
+  background-size: var(--fall-tile) var(--fall-tile);
+  image-rendering: pixelated;
+  will-change: transform;
+}
+
+:root[data-night="true"] .sky__fall {
+  opacity: 0.6;
+}
+
+/* A gust of petals or leaves fades in and out (one-shot, in a few steps). */
+.sky__fall--in {
+  animation: fall-in 1.5s steps(6) both;
+}
+
+.sky__fall--out {
+  animation: fall-out 1.5s steps(6) both;
+}
+
+@keyframes fall-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fall-out {
+  to {
+    opacity: 0;
+  }
 }
 
 /* Visiting critters (web/js/scene/). They walk along the top of the floor,
@@ -234,6 +281,7 @@
 
   .sky__scenery {
     background-position:
+      left bottom calc(var(--floor-h) - 2 * var(--px)),
       left 1rem bottom var(--floor-h),
       right 1rem bottom var(--floor-h),
       left -4rem bottom var(--floor-h),

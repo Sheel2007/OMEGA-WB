@@ -1,8 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CRITTER_FOR_PHASE, CRITTERS, FRAMES, frameGrid, SIZE, spriteSheetSvg } from '../../web/js/scene/critters.js';
-import { cloudX, critterAt, nextVisitDelay, planVisit } from '../../web/js/scene/director.js';
+import { contrastRatio } from '../../web/js/color.js';
+import { ANIMALS, CRITTERS, CRITTERS_FOR_PHASE, FRAMES, frameGrid, MONSTERS, SIZE, spriteSheetSvg } from '../../web/js/scene/critters.js';
+import { cloudX, critterAt, nextVisitDelay, pickCritter, planVisit } from '../../web/js/scene/director.js';
 import { seededRandom } from '../../web/js/random.js';
+import { blocksBands, skyFor } from '../../web/js/sky.js';
+import { landColours } from '../../web/js/scene/scenery-art.js';
+import { SEASONS } from '../../web/js/scene/seasons.js';
+
+test('every critter is drawn exactly 16 wide, patches included', () => {
+  for (const def of Object.values(CRITTERS)) {
+    assert.equal(def.base.length, SIZE, `${def.name} rows`);
+    for (const line of def.base) assert.equal(line.length, SIZE, `${def.name}: "${line}"`);
+    for (const frame of FRAMES.slice(1)) {
+      for (const [row, line] of Object.entries(def[frame] ?? {})) {
+        assert.ok(Number(row) >= 0 && Number(row) < SIZE, `${def.name} ${frame} row ${row}`);
+        assert.equal(line.length, SIZE, `${def.name} ${frame} row ${row}: "${line}"`);
+      }
+    }
+  }
+});
 
 test('every critter frame is a 16 × 16 grid using only its own colours', () => {
   for (const def of Object.values(CRITTERS)) {
@@ -27,9 +44,68 @@ test('sprite sheets are small, crisp SVGs with a mirrored row', () => {
   }
 });
 
-test('a critter for every part of the day', () => {
-  assert.deepEqual(Object.keys(CRITTER_FOR_PHASE).sort(), ['dawn', 'day', 'dusk', 'night']);
-  for (const name of Object.values(CRITTER_FOR_PHASE)) assert.ok(CRITTERS[name], name);
+test('animals by day, monsters at night', () => {
+  assert.deepEqual(Object.keys(CRITTERS_FOR_PHASE).sort(), ['dawn', 'day', 'dusk', 'night']);
+  for (const [phase, pool] of Object.entries(CRITTERS_FOR_PHASE)) {
+    assert.ok(pool.length >= 2, `${phase} has a choice`);
+    for (const name of pool) assert.ok(CRITTERS[name], name);
+  }
+  assert.deepEqual(CRITTERS_FOR_PHASE.night, MONSTERS);
+  for (const phase of ['dawn', 'day', 'dusk']) assert.deepEqual(CRITTERS_FOR_PHASE[phase], ANIMALS);
+  assert.deepEqual([...ANIMALS, ...MONSTERS].sort(), Object.keys(CRITTERS).sort(), 'every critter comes out at some point');
+});
+
+test('the same critter never visits twice running, and everyone gets a turn', () => {
+  const random = seededRandom(11);
+  for (const pool of [ANIMALS, MONSTERS]) {
+    let last = null;
+    const seen = new Set();
+    for (let i = 0; i < 200; i++) {
+      const name = pickCritter(random, pool, last);
+      assert.ok(pool.includes(name));
+      assert.notEqual(name, last);
+      seen.add(name);
+      last = name;
+    }
+    assert.deepEqual([...seen].sort(), [...pool].sort());
+  }
+  assert.equal(pickCritter(random, ['solo'], 'solo'), 'solo', 'a list of one still works');
+});
+
+// What's behind a critter as it walks along the top of the floor: the lowest sky
+// band, or a hill or tree in any season, drawn darker once it's dark.
+function backdrops(fromElevation, toElevation) {
+  const colours = new Set();
+  for (let elevation = fromElevation; elevation <= toElevation; elevation += 0.5) {
+    const sky = skyFor('blocks', elevation);
+    colours.add(blocksBands(sky)[4]);
+    for (const season of SEASONS) for (const land of landColours(season, { night: sky.night })) colours.add(land);
+  }
+  return [...colours];
+}
+
+// Some colour that covers at least 15% of the critter has to stand out (3:1) from
+// whatever is behind it: the dark outline by day, the light body once it's dark.
+function standsOut(def, backdrop) {
+  const counts = new Map();
+  let total = 0;
+  for (const ch of frameGrid(def, 'idle').join('')) {
+    if (ch === '.') continue;
+    counts.set(ch, (counts.get(ch) ?? 0) + 1);
+    total++;
+  }
+  return [...counts].some(([ch, n]) => n / total >= 0.15 && contrastRatio(def.palette[ch], backdrop) >= 3);
+}
+
+test('every critter stands out from the sky and hills whenever it can be out', () => {
+  const when = { animals: [-6, 90], monsters: [-20, -6] };
+  for (const [names, [from, to]] of [[ANIMALS, when.animals], [MONSTERS, when.monsters]]) {
+    for (const name of names) {
+      for (const backdrop of backdrops(from, to)) {
+        assert.ok(standsOut(CRITTERS[name], backdrop), `${name} is lost against ${backdrop}`);
+      }
+    }
+  }
 });
 
 const stage = { width: 1920, size: 96, avoid: [{ left: 800, right: 1120 }] };

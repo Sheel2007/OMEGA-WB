@@ -169,6 +169,54 @@
   vertical-align: 0.1em;
 }
 
+/* Blocks draws the time in blocks instead (block-text.js), which read from across
+   the room where the pixel font's digits smear. The text above stays as it was: it's
+   what screen readers read, and what shows if a locale's time can't be drawn. */
+.clock__blocks {
+  display: none;
+}
+
+[data-theme="blocks"] .clock__blocks:not(:empty) {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--clock-cell);
+}
+
+[data-theme="blocks"] .clock__blocks:not(:empty) ~ :is(.clock__hm, .clock__period) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.block-text {
+  --cell: var(--clock-cell);
+  flex: none;
+  width: calc(var(--block-w) * var(--cell));
+  height: calc(var(--block-h) * var(--cell));
+}
+
+/* Half size, and lifted so its letters sit on the same line as the time's digits
+   (each drawing has one block of edge and shadow under it, of its own size). */
+.block-text--small {
+  --cell: var(--clock-cell-sm);
+  margin-bottom: calc(var(--clock-cell) - var(--clock-cell-sm));
+}
+
+.block-text__shadow {
+  fill: var(--clock-shadow);
+}
+
+.block-text__edge {
+  fill: var(--clock-edge);
+}
+
+.block-text__face {
+  fill: var(--sky-text);
+}
+
 /* Widget card. Each widget adds its own block class; the host adds .widget--<size>
    and sets its grid area. */
 
@@ -651,6 +699,12 @@
 
   [data-theme="blocks"] .clock__time {
     font-size: min(18vw, 6rem);
+  }
+
+  /* 8px blocks: the widest time still fits a 320px phone. */
+  [data-theme="blocks"] .clock {
+    --clock-cell: 0.5rem;
+    --clock-cell-sm: 0.25rem;
   }
 
   /* On a phone a widget is a preview you tap, so it's as tall as whatever it holds

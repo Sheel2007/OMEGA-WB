@@ -270,6 +270,12 @@ html {
   /* A hard outline all round, so white text reads over sky, clouds or sun. */
   --sky-text-shadow: 0.25rem 0 0 #1d1d1d, -0.25rem 0 0 #1d1d1d, 0 0.25rem 0 #1d1d1d, 0 -0.25rem 0 #1d1d1d, 0.5rem 0.5rem 0 #1d1d1d;
   --sky-text-shadow-sm: 0.1rem 0 0 #1d1d1d, -0.1rem 0 0 #1d1d1d, 0 0.1rem 0 #1d1d1d, 0 -0.1rem 0 #1d1d1d;
+  /* The clock is drawn in blocks (block-text.js): 12px each on the board, the AM/PM
+     half that, white with a one-block dark edge and a soft block of shadow. */
+  --clock-cell: 0.6rem;
+  --clock-cell-sm: 0.3rem;
+  --clock-edge: #1d1d1d;
+  --clock-shadow: rgb(0 0 0 / 0.35);
 
   --icon-notes: #d99a0b;
   --icon-weather: #3d6cf0;

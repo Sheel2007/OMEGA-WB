@@ -19,7 +19,8 @@ The target device is a Raspberry Pi 4 running 24/7 in an ambient room.
 - **FORBIDDEN (GPU Killers):**
   - Do NOT use heavy CSS blurs (`backdrop-filter: blur(...)`) across large surfaces or full-page containers. Emulate frosted glass using semi-transparent solid hex/RGBA colors (`rgba(255, 255, 255, 0.85)` or `#1c1c1e`) instead of hardware-intensive blur filters. The Glass theme's cards show a pre-made copy of its wallpaper instead (`apple-wallpaper.js` makes it, `glass.js` lines it up); live blur there is only behind the `?glass=live` test switch.
   - Do NOT use continuous unthrottled canvas animations, unoptimized SVG filters, or multi-layered `box-shadow` animations.
-  - Ambient motion (the Blocks scenery) runs on one low-rate `setTimeout` ticker that only writes `transform` on elements already promoted with `will-change`, and stops completely when paused. Do NOT use looping CSS animations for it: measured in Chromium, an infinite `steps()` animation keeps the compositor producing ~60 frames/s even when it only changes once a second. One-shot CSS animations (a tap reaction, a page settling) are fine.
+  - Ambient motion (the Blocks scenery) runs on one low-rate `setTimeout` ticker that only writes `transform` on elements already promoted with `will-change`, and stops completely when paused. Do NOT use looping CSS animations for it: measured in Chromium, an infinite `steps()` animation keeps the compositor producing ~60 frames/s even when it only changes once a second. One-shot CSS animations (a tap reaction, a page settling, a gust fading in) are fine.
+  - Falling weather (`web/js/scene/fall.js`) is one repeating tile on one layer, moved by that same ticker: rain 8 times a second, snow 4, and petals or leaves only in short gusts every few minutes. The layer is removed (`hidden`) whenever nothing is falling, so it costs no GPU memory then. Don't add per-particle elements or a canvas.
 - **Memory & Lifecycle Safety:**
   - Every `setInterval`, `setTimeout`, and event listener must be strictly bounded and cleanable. Never introduce unbounded memory arrays or persistent event listener leaks that could cause Chromium to crash over days of uptime.
   - Keep the DOM light. Virtualize or truncate list items if they exceed 100 elements.
@@ -76,4 +77,14 @@ pi/dev.sh           # run this folder on the Pi (over SSH/Tailscale) as a test b
 - Pure logic lives in node-testable modules (layout, swipe maths, sky, critter director, game rules); DOM modules can't be imported in node because `ui.js` touches `matchMedia`.
 - A game's state is only `{ kind, vsComputer, moves }` and everything else is replayed from it, which is how a saved game is checked. Blackjack deals cards, so it also carries a `seed` its decks are shuffled from — never store the dealt cards. A rules module can opt out of the shared frame with `MODES: false` (no sides to pick) and `UNDO: false`, and reword the panel with `headline()`, `scoreText()` and `summaryText()`.
 - Themes are `data-theme="light|dark|blocks|apple"` on `<html>` (Blocks also sets `data-night`). `apple` is shown as "Glass" in the menu; its overrides live in `web/css/apple.css`, it uses the bundled Inter (`web/fonts/inter/`, no CDN) and it lays pages out in iOS widget units (`LAYOUTS.apple` in `widget-layout.js`: a 4 × 2 grid, small 1 × 1, medium 2 × 1, large 2 × 2). `SettingsService` keeps a separate `applePages` arrangement so switching themes never reshuffles the board layout. Colors come from tokens in `web/css/tokens.css`; never hard-code a color in a component that should change with the theme. Game boards use their own fixed colors, checked for 3:1 contrast.
-- **Copyright:** the Blocks theme is an original blocky world. Its critters (cat, fox, slime blob, robot) are our own pixel art. Don't copy Mojang/Minecraft (or Nintendo) characters, mobs, textures, fonts or names, and don't use trademarked game names in the UI ("Four in a Row", not the brand name).
+- **Copyright:** the Blocks theme is an original blocky world. Its critters (pig, cow, sheep, chicken and wolf by day; zombie, skeleton, spider and slime at night), seasonal land and clock digits are our own pixel art. Don't copy Mojang/Minecraft (or Nintendo) characters, mobs, textures, fonts or names, and don't use trademarked game names in the UI ("Four in a Row", not the brand name). Because the line-up is the kind of creature that game has too, the designs must stay clearly our own:
+  - Every critter is a side profile.
+  - Zombie: not green-skinned, and no teal shirt or purple trousers.
+  - Skeleton: carries a lantern, not a bow.
+  - Spider: a round, striped, light-violet body with yellow-green eyes, not a black box with red eyes.
+  - Slime: a dome, not a cube.
+  - Wolf: no collar.
+  - Chicken: a round russet hen, not a white box.
+  - Cow: tan, with a bell.
+  - No creatures that only exist in that game (no Creeper, Enderman, etc.).
+  - The clock's digits are square-cornered segments, not that game's font.

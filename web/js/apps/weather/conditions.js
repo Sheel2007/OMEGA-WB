@@ -33,6 +33,15 @@ const CODES = new Map([
 
 const NIGHT_LABELS = { Sunny: 'Clear', 'Mostly sunny': 'Mostly clear' };
 
+// What's coming down, for the Blocks scenery: 'rain' (drizzle and storms too),
+// 'snow', or null when nothing is.
+export function precipitation(code) {
+  const kind = CODES.get(code)?.[1];
+  if (kind === 'drizzle' || kind === 'rain' || kind === 'storm') return 'rain';
+  if (kind === 'snow') return 'snow';
+  return null;
+}
+
 export function describeWeather(code, isDay = true) {
   const [label, kind] = CODES.get(code) ?? ['Cloudy', 'cloud'];
   if (kind === 'clear') return { label: isDay ? label : NIGHT_LABELS[label], icon: isDay ? 'sun' : 'moon' };

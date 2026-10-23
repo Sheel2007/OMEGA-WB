@@ -43,10 +43,11 @@ While a followed team is playing, the Sports app opens straight onto that match.
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
 theme (Auto, Light, Dark, **Blocks**, a blocky pixel world whose sky follows
-the real time of day, with a cat, fox, slime or robot wandering by depending on
-the hour, or **Glass**, an iPadOS-style look with frosted cards over a soft
-purple wallpaper, Inter type and iOS-shaped widgets), adds and removes widgets,
-and on the board itself exits full screen. Each screen remembers its own theme,
+the real time of day and whose land follows the real season, with farm animals
+wandering by in the daytime and monsters at night, and rain or snow falling when
+it really is raining or snowing at home, or **Glass**, an iPadOS-style look
+with frosted cards over a soft purple wallpaper, Inter type and iOS-shaped
+widgets), adds and removes widgets, and on the board itself exits full screen. Each screen remembers its own theme,
 and Glass keeps its own widget arrangement, so switching back leaves the other
 layout as it was.
 
@@ -238,8 +239,19 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     when it's on `https://` (Tailscale can give the Pi an address like that; see
     `hostname`). On plain `http://` on the home Wi-Fi, **Scan** takes a photo
     instead and reads the code from it.
-- **Blocks theme:** tap the visiting critter and it jumps. If you'd rather have a
-  still picture, turn off **Moving scenery** in the menu.
+- **Blocks theme:**
+  - **Clock:** drawn in blocks, so every digit has its own shape from across
+    the room.
+  - **Visitors:** a pig, cow, sheep, chicken or wolf wanders by in the
+    daytime; a zombie, skeleton, spider or slime comes out at night. Tap one
+    and it jumps.
+  - **Seasons:** the land follows the real season: blossom and flowers in
+    spring, green in summer, orange trees, leaf piles and pumpkins in autumn,
+    snow in winter. South of the equator it's the other way round.
+  - **Falling weather:** rain or snow falls while it's actually raining or
+    snowing at home (this needs your latitude and longitude in `config.json`).
+    Otherwise petals blow past now and then in spring, and leaves in autumn.
+  - **Still picture:** turn off **Moving scenery** in the menu.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
   screen. These choices are saved separately on each screen, so your phone can
   look different from the board.
@@ -528,7 +540,10 @@ npm test                       # Python + JS tests (no packages needed)
 
 Add `?at=19:30` to the URL to preview the board at another time of day, and
 `?critter=now` (or `?critter=stay`) to bring a Blocks critter out straight away
-(or keep it on screen, for measuring). `?glass=live` gives the Glass theme a real
+(or keep it on screen, for measuring). `?critter=spider` (or any critter's name)
+brings out that one and keeps it there. `?season=winter` dresses the Blocks land
+for another season, and `?weather=rain`, `snow` or `none` sets what's falling
+instead of the real weather. `?glass=live` gives the Glass theme a real
 `backdrop-filter` blur instead of its pre-made one, to compare on the Pi.
 
 The rules for working on the board (Pi performance limits, the 1920×1080
@@ -549,7 +564,7 @@ board/                  server: JSON stores, HTTP API + live updates, weather,
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks / Glass themes
-  css/scene.css         the Blocks scenery (pixel art) and critters
+  css/scene.css         the Blocks scenery (pixel art), critters and falling weather
   css/apple.css         the Glass theme's cards, clock, app library and fonts
   fonts/inter/          Inter (SIL Open Font License), used by the Glass theme
   js/main.js            starts everything
@@ -558,7 +573,8 @@ web/
   js/widget-layout.js   where widgets go, how big they are, and how a drag or resize
                         moves the others (pure, tested)
   js/pager.js           swiping between pages; home-editor.js: edit mode
-  js/scene/             Blocks critters (art, what they do, the low-rate ticker)
+  js/scene/             Blocks critters, seasonal land and falling weather (art, what
+                        they do, the low-rate ticker); js/block-text.js: the Blocks clock
   js/menu.js            the top-right menu
   js/sky.js             sun position and the wallpaper colours
   js/apple-wallpaper.js the Glass wallpaper and the copy of it its cards show;
@@ -627,15 +643,22 @@ it.
 
 ### Checking the Blocks scenery on the Pi
 
-The moving scenery is built to cost almost nothing: it only moves things that
-are already drawn (no repainting), ticks once a second for the clouds and 8
-times a second while a critter is visiting, and stops completely while an app is
-open. On a laptop it uses about 0.2% of one core for clouds and under 1% during
-a visit. To check on the Pi itself:
+The moving scenery is built to cost almost nothing. It only moves things that
+are already drawn, so nothing is repainted, and it stops completely while an app
+is open. How often it ticks:
+
+| What's moving | Ticks per second |
+|---|---|
+| Clouds | 1 |
+| Snow, or a gust of petals or leaves | 4 |
+| Rain, or a visiting critter | 8 |
+
+On a laptop that's under 1% of one core even in rain. To check on the Pi itself:
 
 1. Leave the board on Blocks for an hour, then run `vcgencmd get_throttled`
    (should print `throttled=0x0`) and `vcgencmd measure_temp`, and compare the
-   temperature with an hour on Light.
+   temperature with an hour on Light. Do one of the hours with `?weather=rain`
+   in the address, the busiest case.
 2. Run `top` and watch the `chromium` processes for a few minutes on Blocks and
    on Light. They should be within a few percent of each other.
 3. If either looks worse, turn off **Moving scenery** in the menu: Blocks then

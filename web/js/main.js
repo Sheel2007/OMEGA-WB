@@ -1,6 +1,7 @@
 // Starts the board: services, wallpaper, clock, widgets, apps and the menu.
 import { createAppHost } from './app-host.js';
 import { createAppLibrary } from './app-library.js';
+import { blockClockMarkup } from './block-text.js';
 import { backdropCss, wallpaperCss } from './apple-wallpaper.js';
 import { APPS, DEFAULT_WIDGETS, WIDGETS_SINCE } from './apps/index.js';
 import { createGlass } from './glass.js';
@@ -28,6 +29,10 @@ import { createSportsPage } from './apps/sports/page.js';
 import { createSidePage } from './side-page.js';
 import { createWeatherService } from './services/weather.js';
 import { createBlocksScene } from './scene/blocks-scene.js';
+import { precipitation } from './apps/weather/conditions.js';
+import { fallFor, parseWeather } from './scene/fall.js';
+import { sceneryVars } from './scene/scenery-art.js';
+import { parseSeason, seasonAt } from './scene/seasons.js';
 import { dayPhase, guessLocation, parseTimeOverride, startSky } from './sky.js';
 import { icons, reducedMotion, toast } from './ui.js';
 
@@ -88,6 +93,48 @@ let scene = null;
 let phase = 'day';
 const scenePaused = { app: false, edit: false, library: false, side: false, screen: false };
 
+// The Blocks land is dressed for the real season (?season=winter previews
+// another), and drawn darker at night. Declared before startSky(), whose first
+// paint calls dressLand().
+const fixedSeason = parseSeason(params.get('season'));
+let season = null;
+let landDressedFor = null;
+
+// What falls past it: rain or snow while it really is raining or snowing at home
+// (from the forecast, only fetched while the Blocks scene is up), otherwise the
+// season's petals or leaves. ?weather=rain, snow or none previews it.
+const fixedWeather = parseWeather(params.get('weather'));
+// A forecast this old says nothing about now (the server keeps its last one when
+// it can't reach Open-Meteo).
+const WEATHER_STALE_MS = 60 * 60 * 1000;
+let fallingNow = null;
+let stopWeather = null;
+
+function updateFall() {
+  const wet = fixedWeather ? (fixedWeather === 'none' ? null : fixedWeather) : fallingNow;
+  scene?.setFall(fallFor({ season, precipitation: wet }));
+}
+
+function onWeather({ forecast }) {
+  const code = forecast?.current?.code;
+  const updated = Date.parse(forecast?.updated ?? '');
+  const fresh = !Number.isFinite(updated) || Date.now() - updated < WEATHER_STALE_MS;
+  fallingNow = fresh && Number.isInteger(code) ? precipitation(code) : null;
+  updateFall();
+}
+
+function dressLand() {
+  const root = document.documentElement;
+  season = fixedSeason ?? seasonAt(now(), place.latitude);
+  const night = root.dataset.night === 'true';
+  const key = `${season} ${night}`;
+  if (key === landDressedFor) return;
+  landDressedFor = key;
+  root.dataset.season = season;
+  for (const [name, value] of Object.entries(sceneryVars(season, { night }))) root.style.setProperty(name, value);
+  updateFall();
+}
+
 const sky = startSky({
   starsEl: document.querySelector('.sky__stars'),
   getLocation: () => place,
@@ -95,6 +142,7 @@ const sky = startSky({
   mode: services.settings.getTheme(),
   onPaint: (sun) => {
     phase = dayPhase(sun);
+    dressLand();
   },
 });
 info.then((details) => {
@@ -113,6 +161,8 @@ const dateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 
 const clockTime = document.querySelector('.clock__time');
 const clockHM = clockTime.querySelector('.clock__hm');
 const clockPeriod = clockTime.querySelector('.clock__period');
+// The Blocks theme's clock, drawn in blocks; CSS shows it only on that theme.
+const clockBlocks = clockTime.querySelector('.clock__blocks');
 const clockDate = document.querySelector('.clock__date');
 const statusTime = document.querySelector('.statusbar__time');
 
@@ -138,6 +188,9 @@ function tick() {
   if (statusTime.textContent !== label) {
     clockHM.textContent = time;
     clockPeriod.textContent = period;
+    // Fixed markup from block-text.js's own glyphs (the time itself never goes in);
+    // empty, so the text shows instead, if this locale writes the time some other way.
+    clockBlocks.innerHTML = blockClockMarkup(time, period);
     statusTime.textContent = label;
     clockTime.setAttribute('datetime', date.toISOString());
     clockDate.textContent = dateFormat.format(date);
@@ -350,7 +403,13 @@ function syncScene({ theme, scenery }) {
     scene.setPaused('screen', scenePaused.screen);
     scene.setPaused('motion', reducedMotion.matches);
     scene.setPaused('compact', compact.matches);
+    updateFall();
+    // Phones never show it, and ?weather= has already said what's falling.
+    if (!compact.matches && !fixedWeather) stopWeather = services.weather.subscribe(onWeather);
   } else if (theme !== 'blocks' && scene) {
+    stopWeather?.();
+    stopWeather = null;
+    fallingNow = null;
     scene.destroy();
     scene = null;
   }

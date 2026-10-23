@@ -1,5 +1,5 @@
-// The top-right menu: theme, adding and removing widgets, and (on the kiosk)
-// leaving full screen.
+// The top-right menu: theme, Zen mode, adding and removing widgets, and (on the
+// kiosk) leaving full screen.
 import { appIcon, el, icons } from './ui.js';
 
 const THEMES = [
@@ -13,7 +13,7 @@ const THEMES = [
 // How long "Tap again to exit" waits for the second tap.
 const EXIT_CONFIRM_MS = 4000;
 
-export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true, onExit, onAddWidget, onRemoveWidget, onEditHome }) {
+export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true, onExit, onAddWidget, onRemoveWidget, onEditHome, onZen }) {
   let open = false;
   let whileOpen = null;
   let confirmTimer = null;
@@ -55,6 +55,20 @@ export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true,
     el('span', { class: 'board-menu__item-label', text: 'Moving scenery' }),
     el('span', { class: 'board-menu__switch', 'aria-hidden': 'true' }),
   );
+  // Clears the widgets away to sit with the Blocks world (the Zen app).
+  const zenButton = el(
+    'button',
+    {
+      class: 'board-menu__item',
+      type: 'button',
+      onclick: () => {
+        close();
+        onZen();
+      },
+    },
+    el('span', { class: 'board-menu__item-icon', html: icons.zen }),
+    el('span', { class: 'board-menu__item-label', text: 'Zen mode' }),
+  );
   const exitLabel = el('span', { class: 'board-menu__item-label', text: 'Exit to desktop' });
   const exitButton = kiosk
     ? el(
@@ -70,6 +84,7 @@ export function createBoardMenu({ settings, apps, kiosk, widgetsEditable = true,
     el('h2', { class: 'board-menu__heading', id: 'board-menu-theme', text: 'Theme' }),
     el('div', { class: 'theme-picker', role: 'radiogroup', 'aria-labelledby': 'board-menu-theme' }, themeButtons),
     sceneryButton,
+    zenButton,
     widgetsEditable
       ? el(
           'button',

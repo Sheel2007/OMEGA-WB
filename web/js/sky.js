@@ -173,6 +173,31 @@ export function celestial({ elevation, hourAngle, noonElevation = 60 }) {
   };
 }
 
+// The sun part way (t, 0 to 1) from one position to another, like a time-lapse:
+// going 'forward' the hour angle only ever increases (the sun sets in the west and
+// rises in the east); 'shortest' takes whichever way round is quicker (back to the
+// real sky). The elevation follows the arc a real sun would,
+// sin(elevation) = a + b cos(hour angle), fitted through both ends.
+export function sunBetween(from, to, t, { direction = 'forward' } = {}) {
+  const k = clamp(t, 0, 1);
+  const travel = direction === 'forward' ? norm360(to.hourAngle - from.hourAngle) : norm180(to.hourAngle - from.hourAngle);
+  const hourAngle = norm180(from.hourAngle + travel * k);
+  const c1 = Math.cos(from.hourAngle * RAD);
+  const c2 = Math.cos(to.hourAngle * RAD);
+  const s1 = Math.sin(from.elevation * RAD);
+  const s2 = Math.sin(to.elevation * RAD);
+  const noonElevation = from.noonElevation + (to.noonElevation - from.noonElevation) * k;
+  let elevation = from.elevation + (to.elevation - from.elevation) * k;
+  if (Math.abs(c1 - c2) > 0.05) {
+    const b = (s1 - s2) / (c1 - c2);
+    const a = s1 - b * c1;
+    // A real sun's arc has b > 0 (it's highest at noon); anything else, go straight.
+    if (b > 0) elevation = Math.asin(clamp(a + b * Math.cos(hourAngle * RAD), -1, 1)) / RAD;
+  }
+  if (k === 1) return { ...to };
+  return { elevation, hourAngle, noonElevation };
+}
+
 export function dayPhase({ elevation, hourAngle }) {
   if (elevation < NIGHT_BELOW) return 'night';
   if (elevation >= DAY_FROM) return 'day';
@@ -197,10 +222,18 @@ export function startSky({ root = document.documentElement, starsEl, getLocation
   if (starsEl) starsEl.style.boxShadow = starField();
   const lifetime = new AbortController();
   let timer = null;
+  // Zen mode can put the sun somewhere else for a while (a sunset, a starry night).
+  let sunOverride = null;
+  let painted = null;
+
+  function realSun() {
+    const { latitude, longitude } = getLocation();
+    return solarPosition(getTime(), latitude, longitude);
+  }
 
   function paint() {
-    const { latitude, longitude } = getLocation();
-    const sun = FIXED_SUN[mode] ?? solarPosition(getTime(), latitude, longitude);
+    const sun = FIXED_SUN[mode] ?? sunOverride ?? realSun();
+    painted = sun;
     const sky = skyFor(mode, sun.elevation);
     const glow = glowPosition(sun);
     const style = root.style;
@@ -244,6 +277,14 @@ export function startSky({ root = document.documentElement, starsEl, getLocation
 
   return {
     repaint: paint,
+    // Where the sun is drawn now, and where the real one is.
+    currentSun: () => painted,
+    realSun,
+    // Draws the sky with the sun here instead of the real one (null: the real one again).
+    setSun(sun) {
+      sunOverride = sun;
+      paint();
+    },
     setMode(next) {
       mode = THEME_MODES.includes(next) ? next : 'auto';
       paint();

@@ -28,6 +28,9 @@ export const icons = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg>',
   sparkle:
     '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 3h2v4h-2zM11 17h2v4h-2zM3 11h4v2H3zM17 11h4v2h-4zM9 9h6v6H9z"/></svg>',
+  // A square sun sitting on the horizon (Zen mode).
+  zen:
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 9h8v7H8zM11 3h2v4h-2zM3.5 10h3v2h-3zM17.5 10h3v2h-3zM2 17h20v2.5H2z"/></svg>',
   undo:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
   minus:

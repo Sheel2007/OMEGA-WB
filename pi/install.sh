@@ -3,6 +3,7 @@
 #   - starts the board server on boot
 #   - opens it full screen when the desktop logs in
 #   - keeps the screen from going to sleep (motion sensors can still switch it off: wlopm)
+#   - sends sound to the screen's speakers (for Zen mode)
 #   - sets up Zigbee for the Lights widget, if a Zigbee USB dongle is plugged in
 # Safe to run again after pulling updates.
 #
@@ -65,6 +66,23 @@ Icon=${APP_DIR}/web/icon.svg
 Categories=Utility;
 EOF
 chown "$RUN_USER:$RUN_USER" "${APPS_DIR}/widget-board.desktop"
+
+echo "→ Sending sound to the screen"
+# Zen mode's ambient sounds should come out of the screen's speakers (HDMI), not
+# the Pi's headphone jack, which Raspberry Pi OS picks by default. PipeWire keeps
+# the choice. Needs the desktop to be logged in (it's the desktop user's sound).
+RUN_UID="$(id -u "$RUN_USER")"
+if [ -S "/run/user/${RUN_UID}/pipewire-0" ] && command -v wpctl >/dev/null; then
+  as_user() { sudo -u "$RUN_USER" XDG_RUNTIME_DIR="/run/user/${RUN_UID}" "$@"; }
+  HDMI_SINK="$(as_user wpctl status | sed -n '/Sinks:/,/Sources:/p' | grep -m1 'HDMI' | grep -oE '[0-9]+\.' | head -1 | tr -d .)"
+  if [ -n "$HDMI_SINK" ]; then
+    as_user wpctl set-default "$HDMI_SINK" && echo "  (the screen's speakers)"
+  else
+    echo "  (this screen doesn't take sound over HDMI, so it stays on the headphone jack)"
+  fi
+else
+  echo "  (log in to the desktop, then run this again to send sound to the screen)"
+fi
 
 echo "→ Keeping the screen awake"
 if command -v raspi-config >/dev/null; then

@@ -24,6 +24,8 @@ const CLOUD_DRIFT = [
   { start: 0.95, speed: 8 },
 ];
 const STAY_MS = 10 * 60 * 1000;
+// How long a visitor called from Zen mode stays (always finite: see planVisit's blinks).
+const SUMMON_MS = 3 * 60 * 1000;
 // Pauses that hide the falling layer as well as stopping it (nothing would see it,
 // or there should be no motion at all); the rest just freeze it where it is.
 const HIDE_FALL_FOR = new Set(['setting', 'motion', 'compact', 'app', 'screen', 'hidden']);
@@ -96,16 +98,18 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     return sheets.get(name);
   }
 
-  function startVisit() {
+  // lingerMs: stay this long once it's walked in (a summoned visitor, or the dev
+  // ?critter= modes); otherwise it plans its own dash or short visit.
+  function startVisit({ lingerMs } = {}) {
     const name = only ?? pickCritter(random, CRITTERS_FOR_PHASE[getPhase()] ?? CRITTERS_FOR_PHASE.day, lastCritter);
     lastCritter = name;
     const size = artPixel() * SIZE;
-    const stay = asked === 'stay' || only !== null;
+    const stay = lingerMs ?? (asked === 'stay' || only !== null ? STAY_MS : null);
     const plan = planVisit(random, {
       width: sceneEl.clientWidth,
       size,
       avoid: getAvoid(),
-      ...(stay ? { kind: 'visit', lingerMs: STAY_MS } : {}),
+      ...(stay ? { kind: 'visit', lingerMs: stay } : {}),
     });
     strip.style.backgroundImage = sheetFor(name);
     critter.setAttribute('aria-label', `A ${CRITTERS[name].name} passing by`);
@@ -216,6 +220,18 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     drawFall();
   }
 
+  // Calls a visitor now (Zen mode), who walks in and stays a while. Someone already
+  // out stays as they are. False while the scenery is paused.
+  function summon({ lingerMs = SUMMON_MS } = {}) {
+    if (pauses.size) return false;
+    if (!visit) {
+      startVisit({ lingerMs });
+      drawCritter();
+      schedule();
+    }
+    return true;
+  }
+
   // What's falling now: 'rain', 'snow', 'petals', 'leaves' or null (see fall.js).
   function setFall(kind) {
     const next = Object.hasOwn(FALLS, kind ?? '') ? kind : null;
@@ -254,6 +270,7 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   return {
     setPaused,
     setFall,
+    summon,
     destroy() {
       clearTimeout(timer);
       lifetime.abort();

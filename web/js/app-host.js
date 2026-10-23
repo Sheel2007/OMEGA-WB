@@ -7,6 +7,10 @@ const CLOSE_MS = 380;
 const REDUCED_OPEN_MS = 150;
 const REDUCED_CLOSE_MS = 120;
 
+// An app with `immersive: true` in its meta (Zen) opens without the Home bar or
+// the panel behind it: the home screen fades its widgets away but the world
+// stays, and html.is-immersive says so to CSS. Its own controls take it home.
+//
 // onChange(appId | null) is called when an app opens or closes.
 // closeTo(appId): what a closing app shrinks back into (its widget, if it's on
 // screen), or nothing for a plain fade.
@@ -75,15 +79,21 @@ export function createAppHost({ layer, apps, context, onChange, closeTo = () => 
     if (current) closeApp({ animate: false });
 
     const body = el('div', { class: 'app-shell__body' });
-    layer.replaceChildren(
-      el(
-        'div',
-        { class: 'app-shell__bar' },
-        el('button', { class: 'app-shell__home', type: 'button', onclick: goHome, html: `${icons.home}<span>Home</span>` }),
-      ),
-      body,
-      homeIndicator(),
-    );
+    if (app.immersive) {
+      layer.replaceChildren(body);
+    } else {
+      layer.replaceChildren(
+        el(
+          'div',
+          { class: 'app-shell__bar' },
+          el('button', { class: 'app-shell__home', type: 'button', onclick: goHome, html: `${icons.home}<span>Home</span>` }),
+        ),
+        body,
+        homeIndicator(),
+      );
+    }
+    layer.classList.toggle('app-shell--immersive', Boolean(app.immersive));
+    root.classList.toggle('is-immersive', Boolean(app.immersive));
     layer.dataset.app = app.id;
     layer.hidden = false;
     layer.getAnimations().forEach((animation) => animation.cancel());
@@ -93,7 +103,7 @@ export function createAppHost({ layer, apps, context, onChange, closeTo = () => 
     onChange?.(app.id);
     root.classList.add('is-app-open');
     layer.style.transformOrigin = '0 0';
-    layer.animate(zoomFrames(pendingOrigin), {
+    layer.animate(app.immersive ? zoomFrames(null) : zoomFrames(pendingOrigin), {
       duration: reducedMotion.matches ? REDUCED_OPEN_MS : OPEN_MS,
       easing: 'cubic-bezier(.2,.85,.25,1)',
     });
@@ -105,7 +115,7 @@ export function createAppHost({ layer, apps, context, onChange, closeTo = () => 
     const { app, instance } = current;
     current = null;
     onChange?.(null);
-    root.classList.remove('is-app-open');
+    root.classList.remove('is-app-open', 'is-immersive');
     instance.closeKeyboard?.();
     const finish = () => {
       instance.unmount();
@@ -119,7 +129,7 @@ export function createAppHost({ layer, apps, context, onChange, closeTo = () => 
       instance.unmount();
       return;
     }
-    const origin = closeTo(app.id);
+    const origin = app.immersive ? null : closeTo(app.id);
     const frames = zoomFrames(origin)
       .reverse()
       .map((frame, i, all) => ({ ...frame, offset: 1 - (frame.offset ?? (all.length - 1 - i) / (all.length - 1)) }));

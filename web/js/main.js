@@ -122,7 +122,16 @@ const WEATHER_STALE_MS = 60 * 60 * 1000;
 let fallingNow = null;
 let stopWeather = null;
 
+// Zen mode (apps/zen) shows the moving Blocks world on its own, whatever this
+// screen's theme, and can set what falls (undefined: leave it to the weather).
+let zenOpen = false;
+let zenFall = undefined;
+
 function updateFall() {
+  if (zenFall !== undefined) {
+    scene?.setFall(zenFall);
+    return;
+  }
   const wet = fixedWeather ? (fixedWeather === 'none' ? null : fixedWeather) : fallingNow;
   scene?.setFall(fallFor({ season, precipitation: wet }));
 }
@@ -163,7 +172,6 @@ info.then((details) => {
     sky.repaint();
   }
 });
-services.settings.subscribe(({ theme }) => sky.setMode(theme));
 
 // Clock and status bar
 
@@ -230,8 +238,19 @@ const appHost = createAppHost({
   apps: APPS,
   context,
   onChange: (appId) => {
-    scenePaused.app = Boolean(appId);
+    const wasZen = zenOpen;
+    zenOpen = appId === 'zen';
+    // Zen is the one app that wants the world moving behind it.
+    scenePaused.app = Boolean(appId) && !zenOpen;
     scene?.setPaused('app', scenePaused.app);
+    if (zenOpen !== wasZen) {
+      if (!zenOpen) {
+        zenFall = undefined;
+        sky.setSun(null);
+      }
+      applyLook();
+      updateFall();
+    }
     // An app opened from the library comes back to the home screen, not the library.
     if (!appId) library?.close({ animate: false });
   },
@@ -239,6 +258,19 @@ const appHost = createAppHost({
   closeTo: (appId) => pager.pages()[pager.current]?.querySelector(`.widget[data-widget="${appId}"]`) ?? null,
 });
 context.openApp = appHost.openApp;
+context.goHome = appHost.goHome;
+// Zen mode's hold on the Blocks world: the sun, what falls, and calling a visitor.
+context.world = {
+  currentSun: () => sky.currentSun(),
+  realSun: () => sky.realSun(),
+  setSun: (sun) => sky.setSun(sun),
+  setFall: (kind) => {
+    zenFall = kind;
+    updateFall();
+  },
+  summon: () => scene?.summon() ?? false,
+  isNight: () => document.documentElement.dataset.night === 'true',
+};
 
 const track = home.querySelector('.pager__track');
 // The page before page 1 (set up below, once the app library and editor exist).
@@ -393,12 +425,27 @@ const menu = createBoardMenu({
   },
   onRemoveWidget: removeWidget,
   onEditHome: () => editor.enter(),
+  onZen: () => appHost.openApp('zen'),
 });
 document.querySelector('.statusbar__end').append(menu.node);
 
 // Scenery
 
 const sceneEl = home.querySelector('.home__scene');
+
+// What this screen shows: its own theme and Moving scenery setting, except while
+// Zen is open, which always shows the moving Blocks world.
+function look() {
+  const { theme, scenery } = services.settings.get();
+  return zenOpen ? { theme: 'blocks', scenery: true } : { theme, scenery };
+}
+
+function applyLook() {
+  const shown = look();
+  sky.setMode(shown.theme);
+  syncScene(shown);
+  scene?.setPaused('compact', compact.matches && !zenOpen);
+}
 
 function syncScene({ theme, scenery }) {
   if (theme === 'blocks' && !scene) {
@@ -414,7 +461,7 @@ function syncScene({ theme, scenery }) {
     scene.setPaused('side', scenePaused.side);
     scene.setPaused('screen', scenePaused.screen);
     scene.setPaused('motion', reducedMotion.matches);
-    scene.setPaused('compact', compact.matches);
+    scene.setPaused('compact', compact.matches && !zenOpen);
     updateFall();
     // Phones never show it, and ?weather= has already said what's falling.
     if (!compact.matches && !fixedWeather) stopWeather = services.weather.subscribe(onWeather);
@@ -428,10 +475,10 @@ function syncScene({ theme, scenery }) {
   scene?.setPaused('setting', !scenery);
 }
 
-syncScene(services.settings.get());
-services.settings.subscribe(syncScene);
+syncScene(look());
+services.settings.subscribe(applyLook);
 reducedMotion.addEventListener('change', () => scene?.setPaused('motion', reducedMotion.matches));
-compact.addEventListener('change', () => scene?.setPaused('compact', compact.matches));
+compact.addEventListener('change', () => scene?.setPaused('compact', compact.matches && !zenOpen));
 
 appHost.start();
 live.start();
@@ -454,6 +501,8 @@ if (kiosk) {
   initKiosk({
     idleMs: IDLE_RETURN_MS,
     onIdle: () => {
+      // Zen is for sitting with; it only ends when someone leaves it.
+      if (zenOpen) return;
       menu.close();
       editor.exit();
       library?.close({ animate: false });

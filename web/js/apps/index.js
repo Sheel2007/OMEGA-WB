@@ -1,7 +1,8 @@
 // Every app on the board. Each module exports id, name, description, widgetSize
 // (the size its widget starts at), widgetSizes (every size it can be resized to),
 // iconBackground and iconGlyph, plus createWidget(context) and, if it opens full
-// screen, mount(root, context). Apps with mount() are in the app library.
+// screen, mount(root, context). Apps with mount() are in the app library. Sports and
+// Zen have no widget; Zen is immersive (it opens over the world, not a panel).
 import * as calendar from './calendar/index.js';
 import * as games from './games/index.js';
 import * as grocery from './grocery/index.js';
@@ -11,8 +12,9 @@ import * as roommateGames from './roommate-games/index.js';
 import * as spotify from './spotify/index.js';
 import * as sports from './sports/index.js';
 import * as weather from './weather/index.js';
+import * as zen from './zen/index.js';
 
-export const APPS = [calendar, weather, spotify, notes, games, lights, roommateGames, grocery, sports];
+export const APPS = [calendar, weather, spotify, notes, games, lights, roommateGames, grocery, sports, zen];
 
 // New screens start with all of them, and this order is what page 1 lays out as:
 // the clock top left with a mini Spotify in the column right beside it, then the

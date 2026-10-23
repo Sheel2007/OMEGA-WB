@@ -65,6 +65,8 @@ html {
   --icon-grocery: linear-gradient(155deg, #ff8fb4 0%, #f2477f 52%, #c8235e 100%);
   --icon-spotify: linear-gradient(155deg, #3fe07a 0%, #1db954 50%, #138a3e 100%);
   --icon-sports: linear-gradient(160deg, #66708a 0%, #363d52 55%, #222736 100%);
+  /* Zen: a sunset sky behind its sun and hill. */
+  --icon-zen: linear-gradient(170deg, #4b4c9e 0%, #b0628a 55%, #f0a060 100%);
 
   /* Roommate Cup medals: the same in every theme, each with its own dark text (7:1 or better). */
   --medal-gold: #f4c534;
@@ -288,6 +290,7 @@ html {
   --icon-roommate-games: #0f7a76;
   --icon-spotify: #178a43;
   --icon-sports: #363d52;
+  --icon-zen: #4b4c9e;
 
   --event-blue: #2f5fd6;
   --event-purple: #6a33c8;

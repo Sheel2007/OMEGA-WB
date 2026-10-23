@@ -73,6 +73,8 @@ After the reboot, the board opens full screen by itself. The install script:
 - opens Chromium in kiosk mode (no tabs or address bar) when the desktop starts
 - installs the color emoji font used for item icons
 - turns off screen blanking so the board stays on
+- sends sound to the screen's speakers over HDMI, for Zen mode's sounds (log in
+  to the desktop before running it, so it can find the sound settings)
 - sets up Zigbee for the Lights widget, if a Zigbee USB dongle is plugged in (see "Lights" below)
 
 - adds **Widget Board** to the Pi's app menu, for reopening the board after you exit it
@@ -252,6 +254,22 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     snowing at home (this needs your latitude and longitude in `config.json`).
     Otherwise petals blow past now and then in spring, and leaves in autumn.
   - **Still picture:** turn off **Moving scenery** in the menu.
+- **Zen mode:** pick **Zen mode** in the menu, or **Zen** among the apps (swipe
+  up). The widgets, clock and status bar fade away and the moving Blocks world
+  is all there is, on any theme. The controls tuck themselves away after a few
+  seconds; tap anywhere to bring them back. In Zen you can:
+  - **Change the mood:** **Rain**, **Snow**, a golden **Sunset**, or a
+    **Starry night** with the odd shooting star. The sun moves there like a
+    time-lapse. **Now** goes back to the real sky and weather.
+  - **Call a visitor:** one of the animals (or a night creature) wanders in and
+    stays a few minutes. Tap it and it jumps.
+  - **Breathe:** a big pixel sun grows as you breathe in and shrinks as you
+    breathe out, for 1, 3 or 5 minutes.
+  - **Sounds:** soft rain, wind, a stream or a crackling campfire, made by the
+    browser (no recordings), quiet or normal volume. Off until you pick one.
+  - **Leave** (or press Escape) brings the home screen back just as it was.
+    The board's usual return to the home screen after 90 seconds doesn't
+    apply in Zen; it stays until someone leaves it.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
   screen. These choices are saved separately on each screen, so your phone can
   look different from the board.

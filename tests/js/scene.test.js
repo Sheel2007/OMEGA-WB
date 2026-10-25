@@ -144,6 +144,18 @@ test('a visit walks in, lingers (blinking) away from the dock, then leaves', () 
   }
 });
 
+test('a visitor who has been called runs in and stops on the near side, within a few seconds', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const plan = planVisit(seededRandom(seed), { ...stage, avoid: [], kind: 'visit', lingerMs: 60000, hurry: true });
+    const [enter, stay] = plan.segments;
+    assert.ok(enter.end <= 4000, `seed ${seed} takes ${Math.round(enter.end)}ms to arrive`);
+    const fromLeft = enter.from < 0;
+    if (fromLeft) assert.ok(stay.at + stage.size <= stage.width * 0.4 + 1, `seed ${seed} stops at ${stay.at}`);
+    else assert.ok(stay.at >= stage.width * 0.6 - 1, `seed ${seed} stops at ${stay.at}`);
+    assert.ok(stay.end - stay.start >= 59000, 'and stays as long as asked');
+  }
+});
+
 test('plans are repeatable for the same random numbers', () => {
   assert.deepEqual(planVisit(seededRandom(7), stage), planVisit(seededRandom(7), stage));
 });

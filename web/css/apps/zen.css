@@ -78,7 +78,7 @@
 }
 
 .zen__clock {
-  margin: 0;
+  margin: 0 0 0 auto;
   font-size: 1.4rem;
   font-weight: 650;
   color: var(--text-2);
@@ -131,6 +131,12 @@
 
 .zen__button--mood {
   flex: 1 1 0;
+}
+
+/* Quieter buttons: Hide controls, and Stop under the breathing sun. */
+.zen__button--quiet {
+  font-size: 1.1rem;
+  background: var(--card);
 }
 
 .zen__button--leave {

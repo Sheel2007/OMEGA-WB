@@ -16,6 +16,8 @@ const DASH_CHANCE = 0.4;
 // Keeps lingering spots away from the very edges.
 const EDGE_MARGIN = 0.08;
 const SPOT_TRIES = 30;
+// A visitor who's been called stops in the part of the screen nearest where it came in.
+const NEAR_SHARE = 0.4;
 
 const between = (random, [lo, hi]) => lo + random() * (hi - lo);
 
@@ -36,9 +38,12 @@ function walk(from, to, start, speed) {
 }
 
 // A spot to linger that isn’t hidden behind anything in `avoid` (anything in front of the floor).
-function lingerSpot(random, { width, size, avoid }) {
-  const lo = width * EDGE_MARGIN;
-  const hi = width * (1 - EDGE_MARGIN) - size;
+// `side` keeps it in the left or right part of the screen (a visitor who's been called).
+function lingerSpot(random, { width, size, avoid, side = null }) {
+  let lo = width * EDGE_MARGIN;
+  let hi = width * (1 - EDGE_MARGIN) - size;
+  if (side === 'left') hi = Math.max(lo, width * NEAR_SHARE - size);
+  if (side === 'right') lo = Math.min(hi, width * (1 - NEAR_SHARE));
   for (let i = 0; i < SPOT_TRIES; i++) {
     const x = Math.round(lo + random() * (hi - lo));
     if (avoid.every((a) => x + size <= a.left || x >= a.right)) return x;
@@ -46,8 +51,9 @@ function lingerSpot(random, { width, size, avoid }) {
   return Math.round(lo);
 }
 
-// lingerMs overrides how long a visit stays (the dev ?critter=stay mode uses it).
-export function planVisit(random, { width, size, avoid = [], kind, lingerMs } = {}) {
+// lingerMs overrides how long a visit stays (the dev ?critter=stay mode and Zen's
+// visitors use it). hurry: it's been called, so it runs in and stops nearby.
+export function planVisit(random, { width, size, avoid = [], kind, lingerMs, hurry = false } = {}) {
   const type = kind ?? (random() < DASH_CHANCE ? 'dash' : 'visit');
   const fromLeft = random() < 0.5;
   const offLeft = -size;
@@ -56,8 +62,8 @@ export function planVisit(random, { width, size, avoid = [], kind, lingerMs } = 
     const leg = walk(fromLeft ? offLeft : offRight, fromLeft ? offRight : offLeft, 0, RUN_SPEED);
     return { kind: 'dash', segments: [leg], duration: leg.end };
   }
-  const spot = lingerSpot(random, { width, size, avoid });
-  const enter = walk(fromLeft ? offLeft : offRight, spot, 0, WALK_SPEED);
+  const spot = lingerSpot(random, { width, size, avoid, side: hurry ? (fromLeft ? 'left' : 'right') : null });
+  const enter = walk(fromLeft ? offLeft : offRight, spot, 0, hurry ? RUN_SPEED : WALK_SPEED);
   const linger = lingerMs ?? between(random, LINGER_MS);
   const blinks = [];
   for (let t = enter.end + between(random, BLINK_EVERY_MS); t < enter.end + linger - BLINK_MS; t += between(random, BLINK_EVERY_MS)) {

@@ -15,6 +15,7 @@ import { createSoundscape } from './sounds.js';
 import { SOUNDS } from './sounds-plan.js';
 import {
   BREATH_TICK_MS,
+  CHOSEN_REST_MS,
   CLOCK_TICK_MS,
   CONTROLS_REST_MS,
   FIRST_STAR_AFTER_MS,
@@ -79,7 +80,13 @@ export function mount(root, { world, goHome }) {
   const mainView = el(
     'div',
     { class: 'zen__view' },
-    el('div', { class: 'zen__head' }, el('h1', { class: 'zen__title', text: 'Zen' }), clock),
+    el(
+      'div',
+      { class: 'zen__head' },
+      el('h1', { class: 'zen__title', text: 'Zen' }),
+      clock,
+      button('Hide controls', () => rest(), { class: 'zen__button zen__button--quiet' }),
+    ),
     el('div', { class: 'zen__row', role: 'group', 'aria-label': 'Sky' }, moodButtons),
     el(
       'div',
@@ -141,20 +148,27 @@ export function mount(root, { world, goHome }) {
   }
 
   // The controls rest after a while; a tap anywhere (or a key) brings them back.
+  function wake() {
+    view.classList.remove('zen--resting');
+    hint.hidden = true;
+    clearTimeout(timers.rest);
+    timers.rest = setTimeout(rest, CONTROLS_REST_MS);
+  }
+
+  // Something was picked: let the controls get out of the way so it can be seen.
+  function restSoon() {
+    clearTimeout(timers.rest);
+    timers.rest = setTimeout(rest, CHOSEN_REST_MS);
+  }
+
   function rest() {
+    clearTimeout(timers.rest);
     view.classList.add('zen--resting');
     showView('main');
     if (hinted || breathing) return;
     hinted = true;
     hint.hidden = false;
     timers.hint = setTimeout(() => (hint.hidden = true), HINT_MS);
-  }
-
-  function wake() {
-    view.classList.remove('zen--resting');
-    hint.hidden = true;
-    clearTimeout(timers.rest);
-    timers.rest = setTimeout(rest, CONTROLS_REST_MS);
   }
 
   document.addEventListener('pointerdown', wake, { capture: true, signal });
@@ -181,6 +195,7 @@ export function mount(root, { world, goHome }) {
     if (sounds.playing && mood.sound) playSound(mood.sound);
     scheduleStar(mood.id === 'night' ? FIRST_STAR_AFTER_MS : undefined);
     haptic();
+    restSoon();
   }
 
   // Moves the sun to a mood's place (or back to the real one) a step at a time,
@@ -238,9 +253,9 @@ export function mount(root, { world, goHome }) {
   function callVisitor() {
     if (world.summon()) {
       haptic();
-      toast('A visitor is on the way');
+      restSoon();
     } else {
-      toast('The world is keeping still while motion is turned down');
+      toast(reducedMotion.matches ? 'The world keeps still while motion is turned down' : 'No one can come out just now');
     }
   }
 
@@ -280,6 +295,7 @@ export function mount(root, { world, goHome }) {
   // Sounds (made the moment one is picked: browsers only start sound from a tap)
 
   function playSound(name) {
+    if (name !== sounds.playing) restSoon();
     sounds.play(name);
     soundButtons.forEach((b, i) => b.setAttribute('aria-pressed', String((i === 0 ? null : SOUND_NAMES[i - 1]) === sounds.playing)));
     soundLabel.textContent = `Sounds: ${sounds.playing ? SOUNDS[sounds.playing].label : 'Off'}`;

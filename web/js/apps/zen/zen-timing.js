@@ -1,7 +1,9 @@
 // Zen mode's timings, in one place.
 
-// The controls rest (fade away) after this long without a touch.
+// The controls rest (fade away) after this long without a touch…
 export const CONTROLS_REST_MS = 6000;
+// …or this soon after picking something, so it can be seen without them.
+export const CHOSEN_REST_MS = 1200;
 // "Tap anywhere" shows the first time they rest, for this long.
 export const HINT_MS = 3500;
 // A mood moves the sun over this long, a step at a time (each step repaints the sky).

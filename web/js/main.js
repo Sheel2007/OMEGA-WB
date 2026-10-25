@@ -244,7 +244,13 @@ const appHost = createAppHost({
     scenePaused.app = Boolean(appId) && !zenOpen;
     scene?.setPaused('app', scenePaused.app);
     if (zenOpen !== wasZen) {
-      if (!zenOpen) {
+      if (zenOpen) {
+        // Whatever Zen was opened over (the app library, the Sports page, edit
+        // mode) would keep the world paused underneath it.
+        library?.close({ animate: false });
+        sidePage?.close({ animate: false });
+        editor.exit();
+      } else {
         zenFall = undefined;
         sky.setSun(null);
       }

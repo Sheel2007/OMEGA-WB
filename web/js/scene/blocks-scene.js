@@ -99,8 +99,9 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   }
 
   // lingerMs: stay this long once it's walked in (a summoned visitor, or the dev
-  // ?critter= modes); otherwise it plans its own dash or short visit.
-  function startVisit({ lingerMs } = {}) {
+  // ?critter= modes); otherwise it plans its own dash or short visit. hurry: it's
+  // been called, so it runs in and stops nearby.
+  function startVisit({ lingerMs, hurry = false } = {}) {
     const name = only ?? pickCritter(random, CRITTERS_FOR_PHASE[getPhase()] ?? CRITTERS_FOR_PHASE.day, lastCritter);
     lastCritter = name;
     const size = artPixel() * SIZE;
@@ -109,7 +110,7 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
       width: sceneEl.clientWidth,
       size,
       avoid: getAvoid(),
-      ...(stay ? { kind: 'visit', lingerMs: stay } : {}),
+      ...(stay ? { kind: 'visit', lingerMs: stay, hurry } : {}),
     });
     strip.style.backgroundImage = sheetFor(name);
     critter.setAttribute('aria-label', `A ${CRITTERS[name].name} passing by`);
@@ -225,7 +226,7 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   function summon({ lingerMs = SUMMON_MS } = {}) {
     if (pauses.size) return false;
     if (!visit) {
-      startVisit({ lingerMs });
+      startVisit({ lingerMs, hurry: true });
       drawCritter();
       schedule();
     }

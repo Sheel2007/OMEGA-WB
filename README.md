@@ -540,6 +540,42 @@ both to `config.json`:
 
 The board's log says when a send fails, and the app shows it under the games.
 
+### The jukebox (hidden)
+
+Plays the sound of any YouTube video out of the board, asked for from a phone.
+There is no widget, no app and nothing in any menu; it doesn't exist at all until
+you turn it on:
+
+```json
+{ "jukebox": true }
+```
+
+Restart the server, then on a phone (on the Wi-Fi, or over Tailscale):
+
+1. Tap **the date above the clock** five times, within three seconds.
+2. Paste a YouTube link and tap **Play**. **Stop** ends it; the slider sets the volume.
+
+Only the board plays. A phone — including the one doing the asking — never makes a
+sound, so nobody can tell where it came from. Links in any of the usual shapes work
+(`youtu.be/...`, `watch?v=...`, Shorts, music.youtube.com), and a `t=` in the link
+starts it there.
+
+Worth knowing before you rely on it:
+
+- **The board has to be allowed to start sound by itself.** `pi/kiosk.sh` passes
+  `--autoplay-policy=no-user-gesture-required` for exactly this. If you launch
+  Chromium some other way, add it, or nothing will play and the phone will say the
+  board blocked it.
+- Some videos are blocked from playing outside YouTube by their owner; those won't
+  play, and the phone says so.
+- **The knock is the only lock**, and it only keeps the jukebox from being found by
+  accident. Anyone who reads this repo or the board's JavaScript can find the way
+  in, and then anyone who can reach the board can play whatever they like on it.
+  That's fine while only the house can reach it — a Wi-Fi network or a Tailscale
+  tailnet you control. Don't leave it on if you ever put the board on a public
+  address.
+- Nothing is saved: a reboot forgets whatever was playing.
+
 ## Updating
 
 ```bash

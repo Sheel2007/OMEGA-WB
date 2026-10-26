@@ -18,6 +18,7 @@ import { createCalendarService } from './services/calendar.js';
 import { createGamesStore } from './services/games.js';
 import { createGroceryService } from './services/grocery.js';
 import { createLightsService } from './services/lights.js';
+import { createJukeboxService } from './services/jukebox.js';
 import { createLiveConnection } from './services/live.js';
 import { createNotesService } from './services/notes.js';
 import { createRoommateGamesService } from './services/roommate-games.js';
@@ -69,11 +70,12 @@ try {
 // Services: the only code that talks to the server or to storage.
 
 const live = createLiveConnection({
-  streams: ['notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify', 'sports'],
+  streams: ['notes', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify', 'sports', 'jukebox'],
   onServerRestart: () => location.reload(),
 });
 const services = {
   notes: createNotesService({ live }),
+  jukebox: createJukeboxService({ live }),
   calendar: createCalendarService({ live }),
   lights: createLightsService({ live }),
   roommateGames: createRoommateGamesService({ live }),
@@ -331,6 +333,19 @@ const phoneHome = compact.matches
   ? createPhoneHome({ apps: APPS, openApp: (id, options) => appHost.openApp(id, options), services })
   : null;
 if (phoneHome) home.insertBefore(phoneHome.node, home.querySelector('.page-dots'));
+
+// The jukebox. The board plays, a phone asks; neither exists unless the server has
+// a passphrase for it, in which case nothing ever arrives on its stream and both
+// of these sit idle. The console is reached by a secret knock, never by a button.
+// Loaded on the side so nothing else on the board waits for it.
+if (kiosk) {
+  import('./jukebox.js').then(({ createJukebox }) => createJukebox({ jukebox: services.jukebox }));
+} else if (compact.matches) {
+  import('./phone-jukebox.js').then(({ createPhoneJukebox }) => {
+    const console_ = createPhoneJukebox({ jukebox: services.jukebox, knockOn: document.querySelector('.clock__date') });
+    document.querySelector('.board').append(console_.node);
+  });
+}
 
 // Every app, a swipe up from the home screen; the phone's home screen already is the apps.
 const library = phoneHome

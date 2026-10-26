@@ -1,0 +1,163 @@
+/* The jukebox console: a phone-only sheet with no way in but the secret knock.
+   None of this ever renders on the board — the board's player is invisible. */
+
+/* The board's player. One pixel, off-screen, but still laid out: a player with no
+   box at all counts as hidden and won't play. */
+.jukebox-player {
+  position: fixed;
+  left: -10px;
+  top: -10px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.jukebox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: rgb(8 12 24 / 0.55);
+}
+
+.jukebox[hidden] {
+  display: none;
+}
+
+.jukebox__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.4rem var(--gutter) calc(1.4rem + env(safe-area-inset-bottom));
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  border: var(--card-border);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.jukebox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.jukebox__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 750;
+}
+
+.jukebox__close {
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+}
+
+.jukebox__close svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.jukebox__close:active {
+  background: var(--fill);
+}
+
+.jukebox__field {
+  width: 100%;
+  min-height: var(--hit);
+  padding: 0.6rem 1.1rem;
+  border: var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: 550;
+}
+
+.jukebox__field::placeholder {
+  color: var(--text-3);
+}
+
+.jukebox__field:focus-visible {
+  outline: 0.15rem solid var(--focus);
+  outline-offset: 0.1rem;
+}
+
+.jukebox__row {
+  display: flex;
+  gap: 0.7rem;
+}
+
+.jukebox__button {
+  flex: 1;
+  min-height: var(--hit);
+  padding: 0.6rem 1.2rem;
+  border: var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--fill);
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 750;
+}
+
+.jukebox__button--go {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.jukebox__button--stop {
+  color: var(--danger);
+}
+
+.jukebox__button:active:not(:disabled) {
+  background: var(--fill-strong);
+}
+
+.jukebox__button--go:active:not(:disabled) {
+  background: var(--accent-pressed);
+}
+
+.jukebox__button:disabled {
+  opacity: 0.5;
+}
+
+.jukebox__volume {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.jukebox__volume input {
+  flex: 1;
+  height: var(--hit);
+  accent-color: var(--accent);
+}
+
+.jukebox__label {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.jukebox__status {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.jukebox__status--bad {
+  color: var(--danger);
+}

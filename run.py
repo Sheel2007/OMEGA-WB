@@ -17,6 +17,7 @@ from board.google import GoogleAccount
 from board.grocery import GroceryList
 from board.grocery_images import Photos, ProductImages
 from board.grocery_texts import GroceryTexts
+from board.jukebox import Jukebox, enabled_from
 from board.kiosk import Kiosk
 from board.lights import Lights, settings_from as lights_settings_from
 from board.screen import Screen, settings_from as screen_settings_from
@@ -167,6 +168,8 @@ def main():
     )
     spotify = spotify_from(config, args.data, feed)
     sports = Sports(follows_from(config.get("sports")), feed=feed, fotmob=fotmob_from(config))
+    # Not asked for in config.json, no jukebox: the addresses aren't there to find.
+    jukebox = Jukebox(feed=feed) if enabled_from(config) else None
     server = BoardServer(
         (args.host, port),
         notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
@@ -187,6 +190,7 @@ def main():
         sports=sports,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
+        jukebox=jukebox,
     )
     roommate_games.set_link(lambda: server.phone_url(ROOMMATE_GAMES_LINK) + "/record")
     sources.start()

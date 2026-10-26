@@ -109,7 +109,7 @@ class BoardServer(ThreadingHTTPServer):
 
     def __init__(self, address, *, notes, calendar, calendar_sources, google, feed, weather, kiosk,
                  lights, roommate_games, grocery, products, store_products, product_images, photos, spotify=None,
-                 sports=None, web_dir=WEB_DIR, location=None, public_url=None):
+                 sports=None, web_dir=WEB_DIR, location=None, public_url=None, jukebox=None):
         self.grocery = grocery
         self.products = products
         self.store_products = store_products
@@ -120,6 +120,8 @@ class BoardServer(ThreadingHTTPServer):
         self.spotify = spotify or NowPlaying(SpotifyAccount())
         # Left out, the board follows nothing (and never goes online for it).
         self.sports = sports or Sports(follows_from(False))
+        # None unless config.json asks for the jukebox, which is what switches it on.
+        self.jukebox = jukebox
         self.roommate_games = roommate_games
         self.notes = notes
         self.calendar = calendar
@@ -143,7 +145,9 @@ class BoardServer(ThreadingHTTPServer):
         return {"notes": self.notes, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
                 "roommate-games": self.roommate_games, "grocery": self.grocery, "spotify": self.spotify,
-                "sports": self.sports}
+                "sports": self.sports,
+                # Only on the stream when config.json asks for it.
+                **({"jukebox": self.jukebox} if self.jukebox is not None else {})}
 
     def server_bind(self):
         # Skip HTTPServer's reverse-DNS lookup, which can stall startup on a Pi.
@@ -287,6 +291,12 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/spotify/link": "spotify_link",
         "/api/spotify/unlink": "spotify_unlink",
         "/api/kiosk/exit": "kiosk_exit",
+        # The jukebox. Every one of these 404s unless config.json asks for it, so on
+        # a board that doesn't want it these addresses simply don't exist.
+        "/api/jukebox/play": "jukebox_play",
+        "/api/jukebox/stop": "jukebox_stop",
+        "/api/jukebox/volume": "jukebox_volume",
+        "/api/jukebox/report": "jukebox_report",
     }
 
     def __init__(self, request, client_address, server):
@@ -730,6 +740,30 @@ class BoardHandler(SimpleHTTPRequestHandler):
     def spotify_unlink(self, body):
         self._board_only("Disconnect Spotify from the board's own screen.")
         return self.server.spotify.unlink()
+
+    # The jukebox
+
+    def _jukebox(self):
+        """The jukebox, or the same 404 an address that doesn't exist would give."""
+        if self.server.jukebox is None:
+            raise RequestError(HTTPStatus.NOT_FOUND, "Not found.")
+        return self.server.jukebox
+
+    def jukebox_play(self, body):
+        return self._jukebox().play(body.get("url"))
+
+    def jukebox_stop(self, body):
+        return self._jukebox().stop()
+
+    def jukebox_volume(self, body):
+        return self._jukebox().set_volume(body.get("volume"))
+
+    def jukebox_report(self, body):
+        """The board saying what its player did. Only the board's own screen may."""
+        box = self._jukebox()
+        if not is_local_address(self.client_address[0]):
+            raise RequestError(HTTPStatus.NOT_FOUND, "Not found.")
+        return box.report(body.get("player"), body.get("detail"))
 
     def kiosk_exit(self, body):
         self._board_only("Only the board's own screen can exit kiosk mode.")

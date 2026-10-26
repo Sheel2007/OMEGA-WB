@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 
 from board.calendar import CalendarSources, CalendarStore
+from board.jukebox import Jukebox
 from board.google import GoogleAccount
 from board.grocery import GroceryList
 from board.grocery_images import Photos, ProductImages
@@ -133,6 +134,7 @@ class ServerTest(unittest.TestCase):
             photos=cls.photos,
             spotify=cls.spotify,
             sports=cls.sports,
+            jukebox=Jukebox(feed=feed),
             web_dir=web,
             location={"latitude": 1.5, "longitude": 2},
         )
@@ -251,12 +253,12 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 9)
+            events = self._read_events(stream, 10)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
                              {"notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify",
-                              "sports"})
+                              "sports", "jukebox"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/notes/add", {"text": "live note"})
@@ -605,6 +607,39 @@ class ServerTest(unittest.TestCase):
         finally:
             self.kiosk.running = True
         self.assertEqual(body, {"closing": False})
+
+    def test_jukebox_plays_a_link_and_stops_it(self):
+        status, body = self.post("/api/jukebox/play", {"url": "https://youtu.be/dQw4w9WgXcQ?t=20"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["state"]["track"]["video"], "dQw4w9WgXcQ")
+        self.assertEqual(body["state"]["track"]["start"], 20)
+
+        status, body = self.post("/api/jukebox/stop", {})
+        self.assertIsNone(body["state"]["track"])
+
+    def test_jukebox_refuses_a_link_that_isn_t_youtube(self):
+        status, body = self.post("/api/jukebox/play", {"url": "https://vimeo.com/1"})
+        self.assertEqual(status, 400)
+        self.assertIn("YouTube", body["error"]["message"])
+
+    def test_only_the_board_itself_says_what_its_player_did(self):
+        # The tests reach the server over loopback, which is what the board is.
+        status, body = self.post("/api/jukebox/report", {"player": "playing"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["state"]["player"], "playing")
+
+    def test_without_a_passphrase_in_the_config_the_jukebox_isn_t_there(self):
+        was = self.server.jukebox
+        self.server.jukebox = None
+        try:
+            for path in ["/api/jukebox/play", "/api/jukebox/stop",
+                         "/api/jukebox/volume", "/api/jukebox/report"]:
+                status, body = self.post(path, {"url": "https://youtu.be/dQw4w9WgXcQ"})
+                # The same answer an address that was never built would give.
+                self.assertEqual(status, 404, path)
+                self.assertEqual(body["error"]["message"], "Not found.", path)
+        finally:
+            self.server.jukebox = was
 
     def test_kiosk_exit_only_accepts_json(self):
         status, _, _ = self.request("/api/kiosk/exit", {}, method="POST", content_type="text/plain")

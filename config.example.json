@@ -59,6 +59,9 @@
   "_sports": "Optional. The Sports widget follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League Cup, Champions League), Maryland soccer in the Big Ten, and every Champions League match, from ESPN and bigten.org (no account needed). 'maryland' is \"men\" (the default) or \"women\". Match pages also get the referee's record, predicted line-ups, injuries, player ratings and stats from FotMob; 'fotmob': false leaves that out. \"sports\": false turns it all off.",
   "sports": { "maryland": "men" },
 
+  "_jukebox": "Optional, and off unless you turn it on. A hidden way to play the sound of any YouTube video on the board from a phone: tap the date above the clock five times quickly. Without this setting the addresses it uses don't exist at all. There's no password on it, so only turn it on while only the house can reach the board.",
+  "jukebox": true,
+
   "_calendars": "Read-only, and needs no account: each calendar's 'Secret address in iCal format'. Use these instead of (or as well as) the Google account above.",
   "calendars": [
     { "name": "Holidays", "url": "https://calendar.google.com/calendar/ical/en.usa%23holiday%40group.v.calendar.google.com/public/basic.ics", "color": "orange" }

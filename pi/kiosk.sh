@@ -37,6 +37,7 @@ exec "$BROWSER" \
   --disable-session-crashed-bubble \
   --disable-features=Translate,TranslateUI \
   --overscroll-history-navigation=0 \
+  --autoplay-policy=no-user-gesture-required \
   --disable-pinch \
   --check-for-update-interval=31536000 \
   --password-store=basic

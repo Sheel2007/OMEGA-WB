@@ -40,6 +40,9 @@ import { icons, reducedMotion, toast } from './ui.js';
 
 // In kiosk mode, an app left open goes back to the home screen after this long.
 const IDLE_RETURN_MS = 90 * 1000;
+// The Sports page goes back to the main page after this long with nobody touching
+// the screen. A match opened from it waits just as long.
+const SPORTS_IDLE_RETURN_MS = 2 * 60 * 1000;
 const CLOCK_TICK_MS = 1000;
 
 // A phone (or any screen too small for the 12 x 4 grid) gets the compact layout.
@@ -520,7 +523,7 @@ if (kiosk) {
     },
   });
   initKiosk({
-    idleMs: IDLE_RETURN_MS,
+    idleMs: () => (sidePage?.isOpen ? SPORTS_IDLE_RETURN_MS : IDLE_RETURN_MS),
     onIdle: () => {
       // Zen is for sitting with; it only ends when someone leaves it.
       if (zenOpen) return;

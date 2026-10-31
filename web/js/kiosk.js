@@ -6,21 +6,37 @@ const NIGHTLY_RELOAD_HOUR = 4;
 const RELOAD_RETRY_MS = 5 * 60 * 1000;
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel'];
 
+// idleMs(): how long nobody may touch the screen before onIdle. It's asked again when
+// that runs out, because what's on screen can have changed since the last touch.
 export function initKiosk({ onIdle, idleMs }) {
   const root = document.documentElement;
   const lifetime = new AbortController();
   let cursorTimer = null;
   let idleTimer = null;
+  let idleFor = 0;
   let reloadTimer = null;
 
   root.classList.add('is-kiosk');
+
+  const waitForIdle = () => {
+    const left = idleMs() - idleFor;
+    if (left <= 0) {
+      onIdle();
+      return;
+    }
+    idleTimer = setTimeout(() => {
+      idleFor += left;
+      waitForIdle();
+    }, left);
+  };
 
   const activity = () => {
     root.classList.remove('hide-cursor');
     clearTimeout(cursorTimer);
     cursorTimer = setTimeout(() => root.classList.add('hide-cursor'), CURSOR_HIDE_MS);
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(onIdle, idleMs);
+    idleFor = 0;
+    waitForIdle();
   };
   for (const type of ACTIVITY_EVENTS) {
     addEventListener(type, activity, { passive: true, capture: true, signal: lifetime.signal });

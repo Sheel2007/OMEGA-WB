@@ -111,11 +111,15 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   under your finger, so an app you don't keep as a widget is still one swipe and
   a tap away, without a dock taking room on the screen. Swipe down, tap anywhere
   that isn't an app, or press Escape to go back.
-- **Arranging widgets:** hold a widget for half a second (or pick **Edit home
-  screen** in the menu). Then drag widgets around; hold one against the left or
-  right edge to carry it to another page (or to a new page past the last one).
-  Tap − to remove a widget, **Add widget** to add one, and **Done** when you're
-  finished. On a phone, use the ↑ ↓ buttons instead of dragging.
+- **Arranging the home screen:** press and hold a widget for half a second (or
+  pick **Edit home screen** in the menu). Then drag any widget wherever you want
+  it; the others move out of the way. To move it to another page, push it against
+  the left or right side of the screen: the pages peek over, and after a moment
+  it's carried across (or to a new page past the last one). To resize, pull the
+  curved bracket in a widget's bottom-right corner: it stretches with your finger
+  and snaps to the nearest size when you let go. Tap − to remove a widget, **Add
+  widget** to add one, and **Done** when you're finished. Phones show the apps as
+  icons rather than widgets, so there's nothing to arrange on one.
 - **Games:** tap a game on the Games widget. Choose **2 players** to take turns
   on the board or **vs Computer** to play the board. A game in progress is kept
   (even through the nightly reload) until you start a new one.
@@ -241,6 +245,14 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     when it's on `https://` (Tailscale can give the Pi an address like that; see
     `hostname`). On plain `http://` on the home Wi-Fi, **Scan** takes a photo
     instead and reads the code from it.
+  - **Texts:** to get a free text when someone else adds to the list, tap **Add
+    Your Number** on the Texts card and give your name, US number and carrier
+    (T-Mobile, Verizon or Google Fi). A welcome text comes first, so you know it
+    works. Adds are gathered until the list has been quiet for a minute (five
+    minutes at most), so a basket of scans sends one text, and anything removed or
+    bought by then is left out. Tap × next to a name to stop. Screens only show the
+    last four digits. The Pi needs an email account to send these; see
+    "Grocery: texts" below.
 - **Blocks theme:**
   - **Clock:** drawn in blocks, so every digit has its own shape from across
     the room.
@@ -272,16 +284,11 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     apply in Zen; it stays until someone leaves it.
 - **Menu (top right):** pick a theme, add or remove widgets, or edit the home
   screen. These choices are saved separately on each screen, so your phone can
-  look different from the board.
-- **Arranging the home screen:** press and hold a widget (or pick **Edit home
-  screen** in the menu). Then drag any widget wherever you want it; the others
-  move out of the way. To move it to another page, push it against the side of
-  the screen: the pages peek over, and after a moment it's carried across. To
-  resize, pull the curved bracket in a widget's bottom-right corner: it stretches
-  with your finger and snaps to small, medium or large when you let go. Tap
-  **Done** when you're finished.
+  have its own theme. Phones don't show widgets, so their menu leaves those
+  choices out.
 - In kiosk mode, the board goes back to the home screen after 90 seconds
-  untouched, and it reloads itself once a night at 4am to stay fresh.
+  untouched (two minutes from the Sports page), and it reloads itself once a
+  night at 4am to stay fresh.
 
 ## Settings
 
@@ -474,6 +481,29 @@ which the Pi downloads from Open Food Facts once a week (about 5,000 names, unde
 { "grocery": { "currency": "EUR", "country": "germany" } }
 ```
 
+### Grocery: texts
+
+Grocery texts are free because they go through the carrier's email-to-text gateway:
+an email to `5551234567@tmomail.net` arrives on that T-Mobile phone as a text. So
+the board only needs an email account to send from, with no texting account. Put
+one under `grocery.texts.email`, or leave it out to use the Roommate Cup's:
+
+```json
+{
+  "grocery": {
+    "texts": {
+      "email": { "host": "smtp.gmail.com", "port": 587, "username": "board@gmail.com",
+                 "password": "app password", "from": "Home Board <board@gmail.com>" }
+    }
+  }
+}
+```
+
+`"texts": false` turns them off. Only T-Mobile, Verizon and Google Fi are offered,
+because they're the carriers whose gateways still take email (AT&T closed theirs in
+2025). Numbers are kept in `data/grocery.json`. Gateways can be unreliable, so if
+the welcome text never arrives, this route doesn't work for that number.
+
 ### Sports
 
 Nothing to set up: the scores, line-ups and the Premier League and Champions
@@ -531,8 +561,9 @@ both to `config.json`:
   and make an [App Password](https://myaccount.google.com/apppasswords); port 587
   uses STARTTLS and 465 uses SSL.
 - **Texts** go through [Twilio](https://www.twilio.com): the Account SID, Auth
-  Token and a Twilio phone number from its console. (Carriers' email-to-text
-  gateways are unreliable and some have shut down, so the board doesn't use them.)
+  Token and a Twilio phone number from its console. (The Cup doesn't use carriers'
+  email-to-text gateways because they're unreliable and some have shut down. Only
+  the free grocery texts do; see "Grocery: texts".)
 - `country_code` is added to numbers typed without one, so `(555) 123-4567`
   becomes `+15551234567`.
 - Set `hostname` (see "Reaching the board when you're out") so the link in the

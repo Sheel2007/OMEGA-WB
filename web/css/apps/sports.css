@@ -609,25 +609,34 @@
 
 /* The game-day strip under the clock (game-day.js): the two teams with a
    countdown that ticks, then the score and the minute. A card, so it reads over
-   any sky; it resets the clock's outline. */
+   any sky; it resets the clock's outline. Matches at the same time share it, a
+   row each. */
 
 .game-day {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
   width: min(100%, 30rem);
   margin-top: 1.4rem;
-  padding: 0.7rem 1.1rem 0.8rem;
+  overflow: hidden;
   border-radius: var(--radius-panel);
   border: var(--card-border);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-sm);
   text-shadow: none;
+}
+
+.game-day__match {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.7rem 1.1rem 0.8rem;
+  color: inherit;
   text-align: left;
 }
 
-.game-day:active {
+.game-day__match:active {
   background: var(--card);
 }
 
@@ -698,7 +707,7 @@
   white-space: nowrap;
 }
 
-.game-day--counting .game-day__score > :first-child {
+.game-day__match--counting .game-day__score > :first-child {
   font-size: 2rem;
 }
 
@@ -708,6 +717,71 @@
   font-weight: 650;
   color: var(--text-2);
   white-space: nowrap;
+}
+
+/* A row each, the minute or FT and then the teams, low enough for three of them
+   to clear the widgets under the clock. */
+
+.game-day--shared {
+  margin-top: 0.9rem;
+  padding: 0.1rem 0;
+}
+
+.game-day--shared .game-day__match {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 0.8rem;
+}
+
+.game-day--shared .game-day__top {
+  flex: none;
+  width: 4rem;
+}
+
+.game-day--shared .game-day__match--counting .game-day__top {
+  display: none;
+}
+
+.game-day--shared .game-day__label {
+  color: var(--text);
+}
+
+.game-day--shared .sports-live {
+  padding: 0.1rem 0.4rem;
+}
+
+.game-day--shared .sports-live__dot {
+  display: none;
+}
+
+.game-day--shared .game-day__teams {
+  flex: 1;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.game-day--shared .game-day__team {
+  gap: 0.4rem;
+  font-size: var(--fs-body);
+}
+
+.game-day--shared .game-day__crest {
+  width: 2rem;
+  height: 2rem;
+}
+
+.game-day--shared .game-day__score {
+  min-width: 4rem;
+}
+
+.game-day--shared .game-day__score > :first-child {
+  font-size: 1.7rem;
+}
+
+.game-day--shared .game-day__caption {
+  display: none;
 }
 
 :root[data-theme="apple"] .game-day {

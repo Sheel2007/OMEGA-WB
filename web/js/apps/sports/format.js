@@ -82,24 +82,33 @@ export function resultsList(matches, follows, skipId) {
 // After the final whistle, the result stays on the home screen this long before
 // a later match that day takes over with its countdown.
 const RESULT_HELD_MS = 30 * MINUTE;
+// A later match kicking off within this long doesn't wait for that: its countdown
+// takes over at the final whistle.
+const NEXT_SOON_MS = HOUR;
 
-// The match for the game-day strip under the clock: a followed team playing now,
-// then one that's just finished, then the next one today, then today's last result
-// for a few hours after. Null when no followed team plays today.
-export function gameDayMatch(matches, follows, now) {
+// The matches for the game-day strip under the clock, in kickoff order: followed
+// teams playing now (with any that kicked off alongside them and have finished),
+// then what's just finished, then the next kickoff today, then today's last
+// results for a few hours after. Matches kicking off together come as one. Empty
+// when no followed team plays today.
+export function gameDayMatches(matches, follows, now) {
   const t = at(now);
   const teams = teamFollows(follows);
   const today = dayKey(t);
   const ours = matches.filter((m) => isTeamMatch(m, teams));
   const ended = (m) => t - (m.kickoff + MATCH_LENGTH_MS);
   const finished = ours.filter((m) => isFinal(m) && m.kickoff <= t && ended(m) <= RESULT_SHOWN_MS);
-  return (
-    ours.find(isLive) ??
-    finished.filter((m) => ended(m) <= RESULT_HELD_MS).at(-1) ??
-    ours.find((m) => isUpcoming(m) && dayKey(m.kickoff) === today && m.kickoff >= t - MATCH_LENGTH_MS) ??
-    finished.at(-1) ??
-    null
-  );
+  const waiting = ours.filter((m) => isUpcoming(m) && dayKey(m.kickoff) === today && m.kickoff >= t - MATCH_LENGTH_MS);
+  // Past its kickoff but not live yet: ESPN just hasn't said so.
+  const playing = ours.filter((m) => isLive(m) || (waiting.includes(m) && m.kickoff <= t));
+  if (playing.length) {
+    return ours.filter((m) => playing.includes(m) || (finished.includes(m) && playing.some((p) => p.kickoff === m.kickoff)));
+  }
+  const kickingOffWith = (list, match) => list.filter((m) => m.kickoff === match?.kickoff);
+  const next = waiting[0];
+  const fresh = finished.filter((m) => ended(m) <= RESULT_HELD_MS);
+  if (fresh.length && !(next && next.kickoff - t <= NEXT_SOON_MS)) return kickingOffWith(fresh, fresh.at(-1));
+  return next ? kickingOffWith(waiting, next) : kickingOffWith(finished, finished.at(-1));
 }
 
 // A countdown to kickoff that ticks: "4:05:09", "14:05", then "0:00".

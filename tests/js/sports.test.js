@@ -23,7 +23,7 @@ import {
   tableWindow,
   comingList,
   countdownClock,
-  gameDayMatch,
+  gameDayMatches,
   resultsList,
   formText,
   minutesText,
@@ -223,14 +223,50 @@ test('the game-day strip: the live match, a fresh result, then the next kickoff 
   const evening = match('pm', local(10, 13, 20), { follows: ['tottenham'] });
   const ucl = match('ucl', local(10, 13, 18), { follows: ['ucl'] });
   const at = (hour, minute = 0) => new Date(local(10, 13, hour, minute));
-  assert.equal(gameDayMatch([morning, ucl, evening], FOLLOWS, at(11, 10))?.id, 'am', 'just finished');
-  assert.equal(gameDayMatch([morning, ucl, evening], FOLLOWS, at(11, 40))?.id, 'pm', 'then the countdown to the next');
-  assert.equal(gameDayMatch([morning], FOLLOWS, at(13))?.id, 'am', 'nothing later: the result stays a while');
-  assert.equal(gameDayMatch([morning], FOLLOWS, at(15)), null, 'and then goes');
-  assert.equal(gameDayMatch([ucl], FOLLOWS, at(12)), null, 'a match nobody follows a team in');
-  assert.equal(gameDayMatch([match('tmrw', local(10, 14, 15))], FOLLOWS, at(12)), null, 'not today');
+  const shown = (matches, now) => gameDayMatches(matches, FOLLOWS, now).map((m) => m.id);
+  assert.deepEqual(shown([morning, ucl, evening], at(11, 10)), ['am'], 'just finished');
+  assert.deepEqual(shown([morning, ucl, evening], at(11, 40)), ['pm'], 'then the countdown to the next');
+  assert.deepEqual(shown([morning], at(13)), ['am'], 'nothing later: the result stays a while');
+  assert.deepEqual(shown([morning], at(15)), [], 'and then goes');
+  assert.deepEqual(shown([ucl], at(12)), [], 'a match nobody follows a team in');
+  assert.deepEqual(shown([match('tmrw', local(10, 14, 15))], at(12)), [], 'not today');
   const live = match('live', local(10, 13, 11), { status: 'live' });
-  assert.equal(gameDayMatch([morning, live, evening], FOLLOWS, at(11, 10))?.id, 'live');
+  assert.deepEqual(shown([morning, live, evening], at(11, 10)), ['live']);
+});
+
+test('the game-day strip shows matches at the same time together', () => {
+  const at = (hour, minute = 0) => new Date(local(10, 13, hour, minute));
+  const shown = (matches, now) => gameDayMatches(matches, FOLLOWS, now).map((m) => m.id);
+  const pair = (status, extra = {}) => [
+    match('a', local(10, 13, 15), { status, ...extra }),
+    match('b', local(10, 13, 15), { status, follows: ['tottenham'], ...extra }),
+  ];
+  assert.deepEqual(shown(pair('pre'), at(12)), ['a', 'b'], 'counting down to both');
+  assert.deepEqual(shown(pair('live'), at(16)), ['a', 'b'], 'both on');
+  assert.deepEqual(shown(pair('ft', scored(1, 0)), at(17, 10)), ['a', 'b'], 'both results');
+  const [early] = pair('ft', scored(1, 0));
+  const [, late] = pair('live');
+  assert.deepEqual(shown([early, late], at(16, 55)), ['a', 'b'], 'the first to finish stays until the other does');
+  const [ahead] = pair('live');
+  const [, behind] = pair('pre');
+  assert.deepEqual(shown([ahead, behind], at(15, 1)), ['a', 'b'], 'one ESPN has not called live yet');
+  const overlap = match('c', local(10, 13, 16), { status: 'live', follows: ['tottenham'] });
+  assert.deepEqual(shown([pair('live')[0], overlap], at(16, 30)), ['a', 'c'], 'overlapping kickoffs while both are on');
+  const later = match('d', local(10, 13, 17, 30), { follows: ['tottenham'] });
+  assert.deepEqual(shown([...pair('pre'), later], at(12)), ['a', 'b'], 'a later kickoff waits its turn');
+});
+
+test('the game-day strip goes straight to a countdown that is coming up soon', () => {
+  const at = (hour, minute = 0) => new Date(local(10, 13, hour, minute));
+  const shown = (matches, now) => gameDayMatches(matches, FOLLOWS, now).map((m) => m.id);
+  const first = (status, extra = {}) => match('first', local(10, 13, 11, 30), { status, ...extra });
+  const second = match('second', local(10, 13, 14), { follows: ['tottenham'] });
+  const inHours = match('later', local(10, 13, 20), { follows: ['tottenham'] });
+  assert.deepEqual(shown([first('live'), second], at(13, 25)), ['first'], 'still playing');
+  assert.deepEqual(shown([first('ft', scored(2, 1)), second], at(13, 30)), ['second'], 'at the final whistle');
+  assert.deepEqual(shown([first('ft', scored(2, 1)), inHours], at(13, 30)), ['first'], 'hours off: the result stays');
+  const both = [second, match('third', local(10, 13, 14), { follows: ['ucl', 'arsenal'] })];
+  assert.deepEqual(shown([first('ft', scored(2, 1)), ...both], at(13, 30)), ['second', 'third'], 'to both, if they kick off together');
 });
 
 test('the countdown ticks in hours, minutes and seconds', () => {

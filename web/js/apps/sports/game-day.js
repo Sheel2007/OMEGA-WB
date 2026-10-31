@@ -1,17 +1,20 @@
 // Sports: the game-day strip under the clock on page 1. On a day a followed team
 // plays, it shows the two teams with a countdown to kickoff that ticks down to the
 // second, then the score and the minute all through the match, then the result
-// for a while after. Any other day it isn't there. Tap it for the match page.
+// for a while after. Matches on at the same time share the card, a row each, and a
+// later match's countdown takes over when the last one ends. Any other day it
+// isn't there. Tap a match for its page.
 //
 // The score comes over the live stream. The strip's own timer ticks once a second
 // only while it's counting down; otherwise once a minute, to notice the day's
-// match coming or going.
+// matches coming or going.
 import { el } from '../../ui.js';
 import {
   countdownClock,
   describe,
-  gameDayMatch,
+  gameDayMatches,
   hasScore,
+  isDone,
   isHalfTime,
   isLive,
   isUpcoming,
@@ -24,9 +27,10 @@ import { crest, liveBadge, setCrest } from './views.js';
 
 const SECOND_MS = 1000;
 const MINUTE_MS = 60 * 1000;
+// As many rows as fit under the clock without reaching the widgets below it.
+const MAX_ROWS = 3;
 
-export function createGameDay({ services, openApp }) {
-  const { sports } = services;
+function createRow(openApp) {
   const label = el('span', { class: 'game-day__label' });
   const live = liveBadge();
   const homeCrest = crest(null, 'game-day__crest');
@@ -35,9 +39,10 @@ export function createGameDay({ services, openApp }) {
   const awayName = el('span', { class: 'game-day__name' });
   const middle = el('span', { class: 'game-day__middle' });
   const caption = el('span', { class: 'game-day__caption' });
+  let match = null;
   const node = el(
     'button',
-    { class: 'game-day', type: 'button', onclick: () => match && openApp(appId, { origin: node, intent: `match-${match.id}` }) },
+    { class: 'game-day__match', type: 'button', onclick: () => openApp(appId, { origin: node, intent: `match-${match.id}` }) },
     el('span', { class: 'game-day__top' }, live, label),
     el(
       'span',
@@ -47,23 +52,15 @@ export function createGameDay({ services, openApp }) {
       el('span', { class: 'game-day__team game-day__team--away' }, awayCrest, awayName),
     ),
   );
-  node.hidden = true;
 
-  let state = sports.getState();
-  let match = null;
-  let timer = null;
-
-  function paint() {
-    const now = new Date();
-    match = gameDayMatch(state.matches, state.follows, now);
-    node.hidden = !match;
-    if (!match) return;
+  function paint(next, now, shared) {
+    match = next;
     const counting = isUpcoming(match);
-    node.classList.toggle('game-day--counting', counting);
-    node.classList.toggle('game-day--live', isLive(match));
+    node.classList.toggle('game-day__match--counting', counting);
     live.hidden = !isLive(match);
     live.lastChild.textContent = isLive(match) ? (isHalfTime(match) ? 'HT' : match.status.clock || 'Live') : '';
-    label.textContent = counting ? `${match.competition} · ${timeLabel(match.kickoff)}` : match.competition;
+    if (shared) label.textContent = isDone(match) ? shortStatus(match) : '';
+    else label.textContent = counting ? `${match.competition} · ${timeLabel(match.kickoff)}` : match.competition;
     setCrest(homeCrest, match.home);
     setCrest(awayCrest, match.away);
     homeName.textContent = match.home.abbr;
@@ -79,12 +76,37 @@ export function createGameDay({ services, openApp }) {
     node.setAttribute('aria-label', `Game day. ${describe(match, now)}. Open the match.`);
   }
 
+  return { node, paint };
+}
+
+export function createGameDay({ services, openApp }) {
+  const { sports } = services;
+  const rows = Array.from({ length: MAX_ROWS }, () => createRow(openApp));
+  const node = el('div', { class: 'game-day' }, ...rows.map((row) => row.node));
+  node.hidden = true;
+
+  let state = sports.getState();
+  let matches = [];
+  let timer = null;
+
+  function paint() {
+    const now = new Date();
+    matches = gameDayMatches(state.matches, state.follows, now).slice(0, MAX_ROWS);
+    node.hidden = !matches.length;
+    if (!matches.length) return;
+    const shared = matches.length > 1;
+    node.classList.toggle('game-day--shared', shared);
+    rows.forEach((row, index) => {
+      row.node.hidden = index >= matches.length;
+      if (matches[index]) row.paint(matches[index], now, shared);
+    });
+  }
+
   // Once a second while counting down (lined up with the clock's seconds), else once a minute.
   function tick() {
     clearTimeout(timer);
     paint();
-    const counting = match && isUpcoming(match);
-    timer = setTimeout(tick, counting ? SECOND_MS - (Date.now() % SECOND_MS) : MINUTE_MS);
+    timer = setTimeout(tick, matches.some(isUpcoming) ? SECOND_MS - (Date.now() % SECOND_MS) : MINUTE_MS);
   }
 
   const unsubscribe = sports.subscribe((next) => {

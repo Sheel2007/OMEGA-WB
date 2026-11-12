@@ -124,7 +124,7 @@
 
 :root[data-theme="apple"] .widget[data-widget="calendar"] { --widget-accent: var(--accent-calendar); }
 :root[data-theme="apple"] .widget[data-widget="weather"] { --widget-accent: var(--accent-weather); }
-:root[data-theme="apple"] .widget[data-widget="notes"] { --widget-accent: var(--accent-notes); }
+:root[data-theme="apple"] .widget[data-widget="unspeakable"] { --widget-accent: var(--accent-unspeakable); }
 :root[data-theme="apple"] .widget[data-widget="games"] { --widget-accent: var(--accent-games); }
 :root[data-theme="apple"] .widget[data-widget="lights"] { --widget-accent: var(--accent-lights); }
 :root[data-theme="apple"] .widget[data-widget="roommate-games"] { --widget-accent: var(--accent-roommate-games); }
@@ -205,14 +205,14 @@
 
 /* Empty states: one short, quiet, centred line. */
 
-:root[data-theme="apple"] :is(.notes-widget__empty, .calendar-widget__empty, .cup-widget__empty, .grocery-widget__empty, .lights-widget__message:not(.lights-widget__pairing)) {
+:root[data-theme="apple"] :is(.ledger-widget__empty, .calendar-widget__empty, .cup-widget__empty, .grocery-widget__empty, .lights-widget__message:not(.lights-widget__pairing)) {
   align-items: center;
   justify-content: center;
   padding: 0 0.4rem 1.3rem;
   text-align: center;
 }
 
-:root[data-theme="apple"] :is(.notes-widget__empty-title, .calendar-widget__empty-title, .cup-widget__empty-title, .grocery-widget__empty-title, .lights-widget__message:not(.lights-widget__pairing) .lights-widget__message-title) {
+:root[data-theme="apple"] :is(.ledger-widget__empty-title, .calendar-widget__empty-title, .cup-widget__empty-title, .grocery-widget__empty-title, .lights-widget__message:not(.lights-widget__pairing) .lights-widget__message-title) {
   font-family: var(--font-body);
   font-size: var(--fs-caption);
   font-weight: 400;
@@ -220,7 +220,7 @@
   color: var(--text-quiet);
 }
 
-:root[data-theme="apple"] :is(.notes-widget__empty-text, .calendar-widget__empty-text, .cup-widget__empty-text, .grocery-widget__empty-text, .grocery-widget__empty-art, .lights-widget__message:not(.lights-widget__pairing) .lights-widget__message-text) {
+:root[data-theme="apple"] :is(.ledger-widget__empty-text, .calendar-widget__empty-text, .cup-widget__empty-text, .grocery-widget__empty-text, .grocery-widget__empty-art, .lights-widget__message:not(.lights-widget__pairing) .lights-widget__message-text) {
   display: none;
 }
 

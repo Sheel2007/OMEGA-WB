@@ -358,7 +358,7 @@ input {
   animation: toast-out 0.22s ease-in forwards;
 }
 
-/* Add bar: the text field + button at the top of the notes and calendar apps. */
+/* Add bar: the text field + button at the top of the ledger and calendar apps. */
 
 .add-bar {
   display: flex;

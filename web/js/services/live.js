@@ -1,4 +1,4 @@
-// One live connection to the board server. Every shared store (notes, grocery)
+// One live connection to the board server. Every shared store (the ledger, grocery)
 // arrives as a named event on the same stream.
 
 const OFFLINE_GRACE_MS = 3000;

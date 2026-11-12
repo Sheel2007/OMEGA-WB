@@ -21,7 +21,7 @@ from board.jukebox import Jukebox, enabled_from
 from board.kiosk import Kiosk
 from board.lights import Lights, settings_from as lights_settings_from
 from board.screen import Screen, settings_from as screen_settings_from
-from board.notes import NotesBoard
+from board.unspeakable import UnspeakableLedger
 from board.notify import Notifier, settings_from as notify_settings_from
 from board.products import ProductLookup
 from board.spotify import NowPlaying, SpotifyAccount
@@ -118,7 +118,7 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="address to listen on (default: all interfaces)")
     parser.add_argument("--port", type=int, help="port to listen on (default: config.json or %d)" % DEFAULT_PORT)
     parser.add_argument("--config", default=os.path.join(ROOT, "config.json"))
-    parser.add_argument("--data", default=os.path.join(ROOT, "data"), help="folder for the saved list and notes")
+    parser.add_argument("--data", default=os.path.join(ROOT, "data"), help="folder for the saved list and ledger")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -172,7 +172,7 @@ def main():
     jukebox = Jukebox(feed=feed) if enabled_from(config) else None
     server = BoardServer(
         (args.host, port),
-        notes=NotesBoard(os.path.join(args.data, "notes.json"), feed=feed),
+        unspeakable=UnspeakableLedger(os.path.join(args.data, "unspeakable.json"), feed=feed),
         calendar=CalendarStore(os.path.join(args.data, "calendar.json"), feed=feed),
         calendar_sources=sources,
         google=account,

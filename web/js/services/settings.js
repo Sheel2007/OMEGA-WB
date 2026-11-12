@@ -22,7 +22,7 @@ import {
 } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
 // versions 4, 5 and 6 pick up the ones named in `widgetsSince` (Lights, the
@@ -31,10 +31,29 @@ const SCHEMA_VERSION = 9;
 // pages are laid out once, in their order, at each widget's default size. From
 // version 7 on, a widget named in `widgetsSince` (Spotify in 8; Sports was one in 9, and is a page of its own now, so a saved one is dropped like any unknown widget) goes
 // in the first free spot that fits it, leaving everything else where it was.
-const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8];
+// Version 10 renamed the Notes widget to Unspeakable (RENAMED_WIDGETS), so a saved
+// board keeps the widget, in its place, instead of losing it as an unknown id.
+const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const FIRST_PLACED_VERSION = 7;
 const MAX_ASKER_LENGTH = 30;
 const RENAMED_THEMES = { retro: 'blocks' };
+// Widgets that changed id. A saved page keeps the widget's place and size.
+const RENAMED_WIDGETS = { notes: 'unspeakable' };
+
+// Saved pages hold either placements (version 7 on) or plain ids, so rename both.
+export function renameWidgets(raw) {
+  const named = (id) => RENAMED_WIDGETS[id] ?? id;
+  if (!Array.isArray(raw)) return raw;
+  return raw.map((page) =>
+    Array.isArray(page)
+      ? page.map((item) => {
+          if (typeof item === 'string') return named(item);
+          if (item && typeof item === 'object' && typeof item.id === 'string') return { ...item, id: named(item.id) };
+          return item;
+        })
+      : page,
+  );
+}
 
 function browserStorage() {
   try {
@@ -135,14 +154,14 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
       let pages;
       let apple = null;
       if (version >= FIRST_PLACED_VERSION) {
-        pages = normalize(saved.pages, LAYOUTS.board, specOf) ?? defaults().pages;
-        apple = normalize(saved.applePages, LAYOUTS.apple, specOf);
+        pages = normalize(renameWidgets(saved.pages), LAYOUTS.board, specOf) ?? defaults().pages;
+        apple = normalize(renameWidgets(saved.applePages), LAYOUTS.apple, specOf);
         if (version < SCHEMA_VERSION) {
           pages = withNewPlacements(pages, LAYOUTS.board, version);
           apple = apple && withNewPlacements(apple, LAYOUTS.apple, version);
         }
       } else {
-        const raw = version === 1 ? [saved.widgets] : saved.pages;
+        const raw = renameWidgets(version === 1 ? [saved.widgets] : saved.pages);
         pages = fromOrder(withNewWidgets(cleanPages(raw) ?? [defaultWidgets.filter(known)], version), defaultSize, LAYOUTS.board);
       }
       return {

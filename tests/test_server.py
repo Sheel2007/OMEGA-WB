@@ -15,7 +15,7 @@ from board.grocery import GroceryList
 from board.grocery_images import Photos, ProductImages
 from board.store_products import StoreProducts
 from board.lights import Lights, settings_from
-from board.notes import NotesBoard
+from board.unspeakable import UnspeakableLedger
 from board.roommate_games import RoommateGames
 from board.server import BoardHandler, BoardServer, phone_address
 from board.spotify import NowPlaying, SpotifyAccount
@@ -117,7 +117,7 @@ class ServerTest(unittest.TestCase):
         cls.sports.poll()
         cls.server = BoardServer(
             ("127.0.0.1", 0),
-            notes=NotesBoard(os.path.join(cls.tmp.name, "data", "notes.json"), feed=feed),
+            unspeakable=UnspeakableLedger(os.path.join(cls.tmp.name, "data", "unspeakable.json"), feed=feed),
             calendar=CalendarStore(os.path.join(cls.tmp.name, "data", "calendar.json"), feed=feed),
             calendar_sources=cls.sources,
             google=cls.google,
@@ -170,23 +170,23 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(json.loads(raw)["ok"])
 
     def test_validation_errors_are_400_with_a_message(self):
-        status, body = self.post("/api/notes/add", {"text": "   "})
+        status, body = self.post("/api/unspeakable/add", {"text": "   "})
         self.assertEqual(status, 400)
-        self.assertEqual(body["error"]["message"], "Write something first.")
+        self.assertEqual(body["error"]["message"], "Write what happened first.")
 
     def test_unknown_item_is_404(self):
-        status, body = self.post("/api/notes/remove", {"id": "missing"})
+        status, body = self.post("/api/unspeakable/remove", {"id": "missing"})
         self.assertEqual(status, 404)
         self.assertIn("message", body["error"])
 
     def test_bad_json_is_400(self):
-        req = urllib.request.Request(self.base + "/api/notes/add", data=b"{nope", method="POST")
+        req = urllib.request.Request(self.base + "/api/unspeakable/add", data=b"{nope", method="POST")
         with self.assertRaises(urllib.error.HTTPError) as caught:
             urllib.request.urlopen(req, timeout=5)
         self.assertEqual(caught.exception.code, 400)
 
     def test_oversized_body_is_rejected(self):
-        status, _ = self.post("/api/notes/add", {"text": "x" * 20000})
+        status, _ = self.post("/api/unspeakable/add", {"text": "x" * 20000})
         self.assertEqual(status, 413)
 
     def test_unknown_api_route_is_404(self):
@@ -257,28 +257,28 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
-                             {"notes", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify",
+                             {"unspeakable", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify",
                               "sports", "jukebox"})
             versions = {name: state["version"] for name, state in events[1:]}
 
-            self.post("/api/notes/add", {"text": "live note"})
+            self.post("/api/unspeakable/add", {"text": "live incident"})
             name, state = self._read_events(stream, 1)[0]
-            self.assertEqual(name, "notes")
-            self.assertGreater(state["version"], versions["notes"])
-            self.assertIn("live note", [n["text"] for n in state["notes"]])
+            self.assertEqual(name, "unspeakable")
+            self.assertGreater(state["version"], versions["unspeakable"])
+            self.assertIn("live incident", [n["text"] for n in state["entries"]])
         finally:
             sock.close()
 
-    def test_notes_add_remove_and_restore(self):
-        status, body = self.post("/api/notes/add", {"text": "Rent is due"})
+    def test_ledger_add_remove_and_restore(self):
+        status, body = self.post("/api/unspeakable/add", {"text": "the turkey incident"})
         self.assertEqual(status, 200)
-        note_id = body["note"]["id"]
-        status, body = self.post("/api/notes/remove", {"id": note_id})
-        self.assertNotIn(note_id, [n["id"] for n in body["state"]["notes"]])
-        status, body = self.post("/api/notes/restore", {"ids": [note_id]})
-        self.assertEqual(body["restored"], [note_id])
-        status, _, raw = self.request("/api/notes")
-        self.assertIn(note_id, [n["id"] for n in json.loads(raw)["notes"]])
+        entry_id = body["entry"]["id"]
+        status, body = self.post("/api/unspeakable/remove", {"id": entry_id})
+        self.assertNotIn(entry_id, [n["id"] for n in body["state"]["entries"]])
+        status, body = self.post("/api/unspeakable/restore", {"ids": [entry_id]})
+        self.assertEqual(body["restored"], [entry_id])
+        status, _, raw = self.request("/api/unspeakable")
+        self.assertIn(entry_id, [n["id"] for n in json.loads(raw)["entries"]])
 
     def test_roommate_games_sign_up_catalog_draw_and_record(self):
         status, body = self.post("/api/roommate-games/players/add", {"name": "Sam", "email": "sam@example.com"})
@@ -411,10 +411,10 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(err.code, 400)
             err.close()
 
-    def test_notes_validation_is_400(self):
-        status, body = self.post("/api/notes/add", {"text": " "})
+    def test_ledger_validation_is_400(self):
+        status, body = self.post("/api/unspeakable/add", {"text": " "})
         self.assertEqual(status, 400)
-        self.assertEqual(body["error"]["message"], "Write something first.")
+        self.assertEqual(body["error"]["message"], "Write what happened first.")
 
     def test_calendar_add_remove_and_restore(self):
         status, body = self.post("/api/calendar/add", {

@@ -43,8 +43,9 @@ export const icons = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5.5l6.5 6.5-6.5 6.5"/></svg>',
   chevronLeft:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>',
-  note:
-    '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M14 12h36a3 3 0 0 1 3 3v24L39 53H14a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3z" fill="currentColor"/><path d="M53 39H42a3 3 0 0 0-3 3v11z" fill="currentColor" fill-opacity=".55"/></svg>',
+  // A shut padlock: the ledger of unspeakable things.
+  lock:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>',
   calendar:
     '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="19" y="6" width="5" height="11" rx="2.5" fill="currentColor" fill-opacity=".5"/><rect x="40" y="6" width="5" height="11" rx="2.5" fill="currentColor" fill-opacity=".5"/><path d="M11 16h42a3 3 0 0 1 3 3v31a3 3 0 0 1-3 3H11a3 3 0 0 1-3-3V19a3 3 0 0 1 3-3z" fill="currentColor" fill-opacity=".4"/><rect x="8" y="26" width="48" height="27" rx="3" fill="currentColor"/></svg>',
 };

@@ -7,7 +7,7 @@ import { contrastRatio } from '../../web/js/color.js';
 const ACCENTS = {
   calendar: '#ff9a90',
   weather: '#64d2ff',
-  notes: '#ffd60a',
+  unspeakable: '#ffd60a',
   games: '#c7a6ff',
   lights: '#ffb340',
   'roommate-games': '#5ee0c4',

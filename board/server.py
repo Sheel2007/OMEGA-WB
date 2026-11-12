@@ -107,7 +107,7 @@ class BoardServer(ThreadingHTTPServer):
     # waiting connections overflows, and one refused script leaves the board blank.
     request_queue_size = 128
 
-    def __init__(self, address, *, notes, calendar, calendar_sources, google, feed, weather, kiosk,
+    def __init__(self, address, *, unspeakable, calendar, calendar_sources, google, feed, weather, kiosk,
                  lights, roommate_games, grocery, products, store_products, product_images, photos, spotify=None,
                  sports=None, web_dir=WEB_DIR, location=None, public_url=None, jukebox=None):
         self.grocery = grocery
@@ -123,7 +123,7 @@ class BoardServer(ThreadingHTTPServer):
         # None unless config.json asks for the jukebox, which is what switches it on.
         self.jukebox = jukebox
         self.roommate_games = roommate_games
-        self.notes = notes
+        self.unspeakable = unspeakable
         self.calendar = calendar
         self.calendar_sources = calendar_sources
         self.google = google
@@ -142,7 +142,7 @@ class BoardServer(ThreadingHTTPServer):
 
     def live_stores(self):
         """Stores whose state is pushed over /api/events, by event name."""
-        return {"notes": self.notes, "calendar": self.calendar,
+        return {"unspeakable": self.unspeakable, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
                 "roommate-games": self.roommate_games, "grocery": self.grocery, "spotify": self.spotify,
                 "sports": self.sports,
@@ -216,7 +216,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/info": "info",
         "/api/qr.svg": "qr_code",
         "/api/events": "events",
-        "/api/notes": "notes_state",
+        "/api/unspeakable": "unspeakable_state",
         "/api/calendar": "calendar_state",
         "/api/calendar/sources": "calendar_sources",
         # Where Google sends people back to after they sign in.
@@ -243,9 +243,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/grocery/photo": "grocery_photo_upload",
     }
     POST_ROUTES = {
-        "/api/notes/add": "notes_add",
-        "/api/notes/remove": "notes_remove",
-        "/api/notes/restore": "notes_restore",
+        "/api/unspeakable/add": "unspeakable_add",
+        "/api/unspeakable/remove": "unspeakable_remove",
+        "/api/unspeakable/restore": "unspeakable_restore",
         "/api/calendar/add": "calendar_add",
         "/api/calendar/remove": "calendar_remove",
         "/api/calendar/restore": "calendar_restore",
@@ -365,8 +365,8 @@ class BoardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def notes_state(self):
-        self._send_json(HTTPStatus.OK, self.server.notes.snapshot())
+    def unspeakable_state(self):
+        self._send_json(HTTPStatus.OK, self.server.unspeakable.snapshot())
 
     def calendar_state(self):
         self._send_json(HTTPStatus.OK, self.server.calendar.snapshot())
@@ -563,14 +563,14 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     # Write endpoints
 
-    def notes_add(self, body):
-        return self.server.notes.add(body.get("text"), note_id=body.get("id"))
+    def unspeakable_add(self, body):
+        return self.server.unspeakable.add(body.get("text"), entry_id=body.get("id"))
 
-    def notes_remove(self, body):
-        return self.server.notes.remove(body.get("id"))
+    def unspeakable_remove(self, body):
+        return self.server.unspeakable.remove(body.get("id"))
 
-    def notes_restore(self, body):
-        return self.server.notes.restore(body.get("ids"))
+    def unspeakable_restore(self, body):
+        return self.server.unspeakable.restore(body.get("ids"))
 
     def calendar_add(self, body):
         """Puts a new event on a connected Google calendar, or on the board's own list."""

@@ -1,0 +1,239 @@
+/* Unspeakable: the ledger of things this house doesn't talk about. Entry cards
+   (.ledger-card) sit under censor ink until tapped; the full-screen app is
+   .ledger-app and the home-screen widget .ledger-widget. */
+
+/* An entry: a buff card, a case number, and the text under a redaction bar. */
+
+.ledger-card {
+  position: relative;
+  min-width: 0;
+  border-radius: 0.6rem;
+  border: var(--card-border);
+  background: var(--sealed-card);
+  color: var(--sealed-text);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="blocks"] .ledger-card {
+  border-radius: 0;
+}
+
+.ledger-card__veil {
+  display: block;
+  width: 100%;
+  padding: 1.3rem 4rem 1.1rem 1.3rem;
+  border-radius: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+[data-theme="blocks"] .ledger-card__veil {
+  border-radius: 0;
+}
+
+.ledger-card__case {
+  display: block;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--sealed-text) 72%, transparent);
+}
+
+.ledger-card__text {
+  margin: 0.7rem 0 0;
+  font-size: var(--fs-item);
+  font-weight: 560;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Inline, so a wrapped line gets its own bar (box-decoration-break) like a real redaction. */
+.ledger-card__redacted {
+  display: inline;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.2rem;
+  background: var(--sealed-redact);
+  color: transparent;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color 0.25s, color 0.25s;
+}
+
+[data-theme="blocks"] .ledger-card__redacted {
+  border-radius: 0;
+}
+
+.ledger-card.is-revealed .ledger-card__redacted {
+  background: transparent;
+  color: var(--sealed-text);
+}
+
+.ledger-card__time {
+  margin: 0.8rem 0 0;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  color: color-mix(in srgb, var(--sealed-text) 68%, transparent);
+}
+
+.ledger-card__strike {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: var(--radius-control);
+  color: var(--sealed-text);
+}
+
+.ledger-card__strike svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.ledger-card__strike:active {
+  background: rgb(0 0 0 / 0.1);
+}
+
+/* On the widget: a case number and a bar, never the words. */
+
+.ledger-card--mini {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.9rem;
+  box-shadow: none;
+}
+
+.ledger-card--mini .ledger-card__case {
+  flex: none;
+  font-size: var(--fs-caption);
+}
+
+.ledger-card__bar {
+  height: 1.1rem;
+  min-width: 2rem;
+  border-radius: 0.2rem;
+  background: var(--sealed-redact);
+}
+
+[data-theme="blocks"] .ledger-card__bar {
+  border-radius: 0;
+}
+
+/* App */
+
+.ledger-app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--gutter);
+}
+
+.ledger-app__header {
+  margin: 0.9rem 0 1.2rem;
+}
+
+.ledger-app__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-weight: 700;
+  font-size: var(--fs-heading);
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+
+[data-theme="blocks"] .ledger-app__title {
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.ledger-app__meta {
+  margin: 0.5rem 0 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.ledger-app__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.4rem 0 calc(4.5rem + var(--kb-h));
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.ledger-app__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  align-items: start;
+  gap: 1.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ledger-app__grid .ledger-card {
+  min-height: 10rem;
+}
+
+/* Widget */
+
+.ledger-widget__list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.ledger-widget__more {
+  margin: 0.4rem 0 0;
+  font-size: var(--fs-body);
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.ledger-widget__empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 1.5rem;
+}
+
+.ledger-widget__empty-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-weight: 650;
+  font-size: var(--fs-empty);
+  letter-spacing: -0.02em;
+}
+
+.ledger-widget__empty-text {
+  margin: 0.4rem 0 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+}
+
+/* A small widget has room for the bars, not for the numbers beside them. */
+.widget--small .ledger-card--mini {
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+}
+
+@media (max-width: 900px), (max-height: 560px) {
+  .ledger-app__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

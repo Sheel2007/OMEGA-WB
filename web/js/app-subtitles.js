@@ -3,16 +3,16 @@
 import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
 import { summaryLabel as grocerySummary } from './apps/grocery/format.js';
 import { statusLabel as lightsStatus } from './apps/lights/format.js';
-import { countLabel as notesCount } from './apps/notes/format.js';
+import { countLabel as ledgerCount } from './apps/unspeakable/format.js';
 import { leaderLabel } from './apps/roommate-games/format.js';
 import { subtitle as sportsLine } from './apps/sports/format.js';
 
 // Each returns a subscribe(fn) that reports the line, and stops when the handle is called.
 // Services only report changes, so the ones that can say how things are now do that first.
 const SUBTITLES = {
-  notes: ({ notes }) => (set) => {
-    set(notesCount(notes.getNotes().length));
-    return notes.subscribe((state) => set(notesCount(state.notes.length)));
+  unspeakable: ({ unspeakable }) => (set) => {
+    set(ledgerCount(unspeakable.getEntries().length));
+    return unspeakable.subscribe((state) => set(ledgerCount(state.entries.length)));
   },
 
   calendar: ({ calendar }) => (set) =>

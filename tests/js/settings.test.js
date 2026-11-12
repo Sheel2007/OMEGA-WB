@@ -16,7 +16,7 @@ const ALL_SIZES = ['small', 'medium', 'large'];
 function specs(sizes) {
   return Object.fromEntries(Object.entries(sizes).map(([id, size]) => [id, { size, sizes: ALL_SIZES }]));
 }
-const SIZES = { shopping: 'large', weather: 'medium', notes: 'small', calendar: 'small', games: 'small' };
+const SIZES = { shopping: 'large', weather: 'medium', unspeakable: 'small', calendar: 'small', games: 'small' };
 const options = (storage) => ({
   storage,
   widgets: specs(SIZES),
@@ -44,28 +44,28 @@ test('saves changes and reads them back on the next load', () => {
   const settings = createSettingsService(options(storage));
   settings.setTheme('blocks');
   settings.setScenery(false);
-  settings.addWidget('notes');
+  settings.addWidget('unspeakable');
   settings.removeWidget('shopping');
 
   const again = createSettingsService(options(storage));
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
-  assert.deepEqual(ids(again.getPages()), [['weather', 'notes']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 9);
+  assert.deepEqual(ids(again.getPages()), [['weather', 'unspeakable']]);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 10);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
-  const settings = createSettingsService(options(saved({ version: 1, theme: 'retro', widgets: ['notes', 'shopping', 'weather'] })));
+  const settings = createSettingsService(options(saved({ version: 1, theme: 'retro', widgets: ['unspeakable', 'shopping', 'weather'] })));
   assert.equal(settings.getTheme(), 'blocks');
-  // Keeps the saved order (Notes before Weather), all still beside the clock.
-  assert.deepEqual(ids(settings.getPages()), [['notes', 'shopping', 'weather']]);
+  // Keeps the saved order (Unspeakable before Weather), all still beside the clock.
+  assert.deepEqual(ids(settings.getPages()), [['unspeakable', 'shopping', 'weather']]);
   assert.equal(settings.getScenery(), true);
 });
 
 test('adding a widget that does not fit puts it on a new page, and says where', () => {
-  // Page 1 is full once the clock, the shopping list, the weather, the notes and
+  // Page 1 is full once the clock, the shopping list, the weather, the ledger and
   // the calendar are on it, so the sixth widget starts page 2.
-  const full = ['shopping', 'weather', 'notes', 'calendar'];
+  const full = ['shopping', 'weather', 'unspeakable', 'calendar'];
   const settings = createSettingsService(options(saved({ version: 1, theme: 'auto', widgets: full })));
   assert.equal(settings.addWidget('games'), 1);
   assert.deepEqual(ids(settings.getPages())[1], ['games']);
@@ -75,8 +75,8 @@ test('adding a widget that does not fit puts it on a new page, and says where', 
 
 test('adding a widget fills the first page with room for it', () => {
   const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather'], ['games']], scenery: true })));
-  assert.equal(settings.addWidget('notes'), 0);
-  assert.deepEqual(ids(settings.getPages())[0].sort(), ['notes', 'shopping', 'weather']);
+  assert.equal(settings.addWidget('unspeakable'), 0);
+  assert.deepEqual(ids(settings.getPages())[0].sort(), ['shopping', 'unspeakable', 'weather']);
   assert.deepEqual(ids(settings.getPages())[1], ['games']);
 });
 
@@ -84,40 +84,40 @@ test('a widget added to the board turns up on a screen that saved its pages earl
   // The screen last saved before Calendar existed; version 3 slots it in where the
   // board's own order puts it, without disturbing what the user arranged.
   const withCalendar = {
-    storage: saved({ version: 2, theme: 'dark', pages: [['shopping', 'weather', 'notes'], ['games']], scenery: false }),
-    widgets: specs({ shopping: 'large', weather: 'medium', notes: 'small', calendar: 'small', games: 'small' }),
-    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games'],
+    storage: saved({ version: 2, theme: 'dark', pages: [['shopping', 'weather', 'unspeakable'], ['games']], scenery: false }),
+    widgets: specs({ shopping: 'large', weather: 'medium', unspeakable: 'small', calendar: 'small', games: 'small' }),
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'unspeakable', 'games'],
   };
   const settings = createSettingsService(withCalendar);
-  assert.deepEqual(ids(settings.getPages()), [['calendar', 'shopping', 'weather', 'notes'], ['games']]);
+  assert.deepEqual(ids(settings.getPages()), [['calendar', 'shopping', 'weather', 'unspeakable'], ['games']]);
   assert.equal(settings.getTheme(), 'dark', 'the screen keeps its theme');
   assert.equal(settings.getScenery(), false, 'and its other choices');
 });
 
 test('upgrading keeps a layout the user arranged, and only adds what is missing', () => {
   const settings = createSettingsService({
-    storage: saved({ version: 2, theme: 'auto', pages: [['shopping'], ['notes', 'weather', 'games']], scenery: true }),
-    widgets: specs({ shopping: 'large', weather: 'medium', notes: 'small', calendar: 'small', games: 'small' }),
-    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games'],
+    storage: saved({ version: 2, theme: 'auto', pages: [['shopping'], ['unspeakable', 'weather', 'games']], scenery: true }),
+    widgets: specs({ shopping: 'large', weather: 'medium', unspeakable: 'small', calendar: 'small', games: 'small' }),
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'unspeakable', 'games'],
   });
-  assert.deepEqual(ids(settings.getPages()), [['calendar', 'shopping'], ['notes', 'weather', 'games']]);
+  assert.deepEqual(ids(settings.getPages()), [['calendar', 'shopping'], ['unspeakable', 'weather', 'games']]);
 });
 
 test('a screen already on the current version is left exactly as it was', () => {
   const settings = createSettingsService({
     storage: saved({ version: 3, theme: 'auto', pages: [['shopping']], scenery: true }),
-    widgets: specs({ shopping: 'large', weather: 'medium', notes: 'small', calendar: 'small', games: 'small' }),
-    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games'],
+    widgets: specs({ shopping: 'large', weather: 'medium', unspeakable: 'small', calendar: 'small', games: 'small' }),
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'unspeakable', 'games'],
   });
   assert.deepEqual(ids(settings.getPages()), [['shopping']], 'a widget taken off stays off');
 });
 
 test('a version 3 screen picks up only the widgets added since, beside where the board puts them', () => {
-  // Lights came in version 4. This screen took Notes off; it gets Lights, not Notes back.
+  // Lights came in version 4. This screen took Unspeakable off; it gets Lights, not Unspeakable back.
   const settings = createSettingsService({
     storage: saved({ version: 3, theme: 'auto', pages: [['calendar', 'shopping', 'weather'], ['games']], scenery: true }),
-    widgets: specs({ shopping: 'large', weather: 'medium', notes: 'small', calendar: 'small', games: 'small', lights: 'medium' }),
-    defaultWidgets: ['calendar', 'shopping', 'weather', 'notes', 'games', 'lights'],
+    widgets: specs({ shopping: 'large', weather: 'medium', unspeakable: 'small', calendar: 'small', games: 'small', lights: 'medium' }),
+    defaultWidgets: ['calendar', 'shopping', 'weather', 'unspeakable', 'games', 'lights'],
     widgetsSince: { lights: 4 },
   });
   assert.deepEqual(ids(settings.getPages()), [['calendar', 'shopping', 'weather'], ['games', 'lights']]);
@@ -170,16 +170,16 @@ test('a version 5 screen picks up Grocery once, and remembers who scans on it', 
 });
 
 test('a version 7 screen picks up Spotify once, in the first free spot, leaving the rest where they were', () => {
-  const sizes = { calendar: 'small', weather: 'medium', notes: 'small', spotify: 'mini' };
+  const sizes = { calendar: 'small', weather: 'medium', unspeakable: 'small', spotify: 'mini' };
   const widgets = Object.fromEntries(Object.entries(sizes).map(([id, size]) => [id, { size, sizes: ['mini', 'small', 'medium', 'large'] }]));
-  const board = [[at('weather', 'medium', 9, 1), at('calendar', 'small', 6, 1), at('notes', 'small', 1, 3)]];
-  const storage = saved({ version: 7, theme: 'auto', pages: board, applePages: [[at('calendar', 'small', 3, 1), at('weather', 'medium', 1, 2), at('notes', 'small', 4, 1)]], scenery: true });
-  const make = () => createSettingsService({ storage, widgets, defaultWidgets: ['calendar', 'weather', 'spotify', 'notes'], widgetsSince: { spotify: 8 } });
+  const board = [[at('weather', 'medium', 9, 1), at('calendar', 'small', 6, 1), at('unspeakable', 'small', 1, 3)]];
+  const storage = saved({ version: 7, theme: 'auto', pages: board, applePages: [[at('calendar', 'small', 3, 1), at('weather', 'medium', 1, 2), at('unspeakable', 'small', 4, 1)]], scenery: true });
+  const make = () => createSettingsService({ storage, widgets, defaultWidgets: ['calendar', 'weather', 'spotify', 'unspeakable'], widgetsSince: { spotify: 8 } });
 
   const settings = make();
   const pages = settings.getPages();
   assert.deepEqual(pages[0].find((item) => item.id === 'spotify'), at('spotify', 'mini', 4, 1), 'the column beside the clock');
-  assert.deepEqual(pages[0].filter((item) => item.id !== 'spotify'), [at('calendar', 'small', 6, 1), at('weather', 'medium', 9, 1), at('notes', 'small', 1, 3)]);
+  assert.deepEqual(pages[0].filter((item) => item.id !== 'spotify'), [at('calendar', 'small', 6, 1), at('weather', 'medium', 9, 1), at('unspeakable', 'small', 1, 3)]);
   settings.setTheme('apple');
   assert.ok(settings.getWidgets().includes('spotify'), 'on the Glass layout too');
   assert.deepEqual(settings.getPages()[0].find((item) => item.id === 'calendar'), at('calendar', 'small', 3, 1), 'which keeps its arrangement');
@@ -190,12 +190,12 @@ test('a version 7 screen picks up Spotify once, in the first free spot, leaving 
 });
 
 test('a version 8 screen picks up Sports once, leaving everything else where it was', () => {
-  const sizes = { calendar: 'small', weather: 'medium', notes: 'small', spotify: 'mini', sports: 'medium' };
+  const sizes = { calendar: 'small', weather: 'medium', unspeakable: 'small', spotify: 'mini', sports: 'medium' };
   const widgets = Object.fromEntries(Object.entries(sizes).map(([id, size]) => [id, { size, sizes: ['mini', 'small', 'medium', 'large'] }]));
-  const board = [[at('spotify', 'mini', 5, 1), at('calendar', 'small', 6, 1), at('weather', 'medium', 9, 1), at('notes', 'small', 1, 3)]];
+  const board = [[at('spotify', 'mini', 5, 1), at('calendar', 'small', 6, 1), at('weather', 'medium', 9, 1), at('unspeakable', 'small', 1, 3)]];
   const storage = saved({ version: 8, theme: 'auto', pages: board, applePages: null, scenery: true });
   const make = () =>
-    createSettingsService({ storage, widgets, defaultWidgets: ['spotify', 'calendar', 'weather', 'notes', 'sports'], widgetsSince: { spotify: 8, sports: 9 } });
+    createSettingsService({ storage, widgets, defaultWidgets: ['spotify', 'calendar', 'weather', 'unspeakable', 'sports'], widgetsSince: { spotify: 8, sports: 9 } });
 
   const settings = make();
   const pages = settings.getPages();
@@ -207,38 +207,38 @@ test('a version 8 screen picks up Sports once, leaving everything else where it 
 
 test('adding to a chosen page puts it there (spilling over only if it must)', () => {
   const settings = createSettingsService(options(saved({ version: 2, theme: 'auto', pages: [['shopping', 'weather'], ['games']], scenery: true })));
-  assert.equal(settings.addWidget('notes', { page: 1 }), 1);
-  assert.deepEqual(ids(settings.getPages()), [['shopping', 'weather'], ['games', 'notes']]);
+  assert.equal(settings.addWidget('unspeakable', { page: 1 }), 1);
+  assert.deepEqual(ids(settings.getPages()), [['shopping', 'weather'], ['games', 'unspeakable']]);
 });
 
 test('moving a widget puts it where it was dropped; removing then restoring puts it back', () => {
   const settings = createSettingsService(
-    options(saved({ version: 7, theme: 'auto', pages: [[at('notes', 'small', 5, 1), at('weather', 'medium', 9, 1)], [at('games', 'small', 1, 1)]], scenery: true })),
+    options(saved({ version: 7, theme: 'auto', pages: [[at('unspeakable', 'small', 5, 1), at('weather', 'medium', 9, 1)], [at('games', 'small', 1, 1)]], scenery: true })),
   );
-  settings.moveWidget('notes', { page: 0, col: 9, row: 3 });
-  assert.deepEqual(settings.getPages()[0], [at('weather', 'medium', 9, 1), at('notes', 'small', 9, 3)], 'anywhere on the page, gaps and all');
+  settings.moveWidget('unspeakable', { page: 0, col: 9, row: 3 });
+  assert.deepEqual(settings.getPages()[0], [at('weather', 'medium', 9, 1), at('unspeakable', 'small', 9, 3)], 'anywhere on the page, gaps and all');
   settings.moveWidget('games', { page: 0, col: 9, row: 1 });
   assert.deepEqual(settings.getPages().length, 1, 'the page it left was empty, so it goes');
   assert.deepEqual(settings.getPages()[0].find((item) => item.id === 'games'), at('games', 'small', 9, 1));
   assert.ok(!settings.getPages()[0].some((item) => item.id === 'weather' && item.col === 9 && item.row === 1), 'Weather moved aside');
 
-  const from = settings.removeWidget('notes');
-  assert.deepEqual(from, { page: 0, id: 'notes', size: 'small', col: 9, row: 3 });
-  assert.deepEqual(settings.getWidgets().includes('notes'), false);
-  settings.restoreWidget('notes', from);
-  assert.deepEqual(settings.getPages()[0].find((item) => item.id === 'notes'), at('notes', 'small', 9, 3));
+  const from = settings.removeWidget('unspeakable');
+  assert.deepEqual(from, { page: 0, id: 'unspeakable', size: 'small', col: 9, row: 3 });
+  assert.deepEqual(settings.getWidgets().includes('unspeakable'), false);
+  settings.restoreWidget('unspeakable', from);
+  assert.deepEqual(settings.getPages()[0].find((item) => item.id === 'unspeakable'), at('unspeakable', 'small', 9, 3));
 });
 
 test('resizing a widget changes its size where it is, and only to sizes it comes in', () => {
   const settings = createSettingsService({
-    storage: saved({ version: 7, theme: 'auto', pages: [[at('notes', 'small', 5, 1), at('games', 'small', 8, 1)]], scenery: true }),
-    widgets: { notes: { size: 'small', sizes: ALL_SIZES }, games: { size: 'small', sizes: ['small', 'medium'] } },
+    storage: saved({ version: 7, theme: 'auto', pages: [[at('unspeakable', 'small', 5, 1), at('games', 'small', 8, 1)]], scenery: true }),
+    widgets: { unspeakable: { size: 'small', sizes: ALL_SIZES }, games: { size: 'small', sizes: ['small', 'medium'] } },
     defaultWidgets: [],
   });
-  settings.resizeWidget('notes', 'large');
-  const notes = settings.getPages()[0].find((item) => item.id === 'notes');
-  assert.deepEqual(notes, at('notes', 'large', 5, 1));
-  assert.ok(settings.getPages()[0].some((item) => item.id === 'games' && item.col >= 10), 'Games moved out of its way (Notes now spans columns 5 to 9)');
+  settings.resizeWidget('unspeakable', 'large');
+  const sealed = settings.getPages()[0].find((item) => item.id === 'unspeakable');
+  assert.deepEqual(sealed, at('unspeakable', 'large', 5, 1));
+  assert.ok(settings.getPages()[0].some((item) => item.id === 'games' && item.col >= 10), 'Games moved out of its way (Unspeakable now spans columns 5 to 9)');
   settings.resizeWidget('games', 'large');
   assert.equal(settings.getPages().flat().find((item) => item.id === 'games').size, 'small', 'Games has no large size');
   // A saved size it doesn't come in falls back to its default.
@@ -262,16 +262,16 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   const corrupt = createSettingsService(options(memoryStorage({ [STORAGE_KEY]: '{nope' })));
   assert.deepEqual(ids(corrupt.getPages()), [['shopping', 'weather']]);
 
-  const future = createSettingsService(options(saved({ version: 10, theme: 'dark' })));
+  const future = createSettingsService(options(saved({ version: 11, theme: 'dark' })));
   assert.equal(future.getTheme(), 'auto');
 
   const tampered = createSettingsService(
-    options(saved({ version: 3, theme: 'dark', pages: [['notes', 'bogus', 'notes'], ['notes', 7, 'games'], 'x'], scenery: 'yes' })),
+    options(saved({ version: 3, theme: 'dark', pages: [['unspeakable', 'bogus', 'unspeakable'], ['unspeakable', 7, 'games'], 'x'], scenery: 'yes' })),
   );
   assert.deepEqual(tampered.get(), {
     theme: 'dark',
-    pages: [[at('notes', 'small', 4, 1)], [at('games', 'small', 1, 1)]],
-    widgets: ['notes', 'games'],
+    pages: [[at('unspeakable', 'small', 4, 1)], [at('games', 'small', 1, 1)]],
+    widgets: ['unspeakable', 'games'],
     scenery: true,
     asker: null,
   });
@@ -305,13 +305,13 @@ test('tells subscribers about changes until they unsubscribe', () => {
 test('get() hands out copies, so callers cannot change settings behind its back', () => {
   const settings = createSettingsService(options(memoryStorage()));
   const copy = settings.get();
-  copy.widgets.push('notes');
-  copy.pages[0].push('notes');
+  copy.widgets.push('unspeakable');
+  copy.pages[0].push('unspeakable');
   assert.deepEqual(ids(settings.getPages()), [['shopping', 'weather']]);
 });
 
 test('the Apple theme keeps its own arrangement, and switching back leaves the board as it was', () => {
-  const storage = saved({ version: 6, theme: 'auto', pages: [['shopping', 'weather', 'notes'], ['games']], scenery: true });
+  const storage = saved({ version: 6, theme: 'auto', pages: [['shopping', 'weather', 'unspeakable'], ['games']], scenery: true });
   const settings = createSettingsService(options(storage));
   const board = ids(settings.getPages());
   assert.equal(settings.getLayout().id, 'board');
@@ -320,9 +320,9 @@ test('the Apple theme keeps its own arrangement, and switching back leaves the b
   assert.equal(settings.getLayout().id, 'apple');
   // On the board, Shopping (large) and Weather (medium) share the top beside the
   // clock. On Glass, Shopping fills the right half beside the clock and Weather
-  // the medium slot under the clock, so Notes starts page 2.
-  assert.deepEqual(board, [['shopping', 'weather', 'notes'], ['games']]);
-  assert.deepEqual(ids(settings.getPages()), [['shopping', 'weather'], ['notes', 'games']]);
+  // the medium slot under the clock, so Unspeakable starts page 2.
+  assert.deepEqual(board, [['shopping', 'weather', 'unspeakable'], ['games']]);
+  assert.deepEqual(ids(settings.getPages()), [['shopping', 'weather'], ['unspeakable', 'games']]);
   settings.moveWidget('games', { page: 0, index: 0 });
   const apple = ids(settings.getPages());
 
@@ -345,32 +345,52 @@ test('adding and removing a widget changes every layout; moving or resizing only
   });
   const settings = createSettingsService(options(storage));
   assert.deepEqual(ids(settings.getPages()), [['weather'], ['shopping']]);
-  settings.addWidget('notes');
+  settings.addWidget('unspeakable');
   settings.removeWidget('weather');
   settings.moveWidget('shopping', { page: 1, col: 3, row: 1 });
-  settings.resizeWidget('notes', 'medium');
+  settings.resizeWidget('unspeakable', 'medium');
   settings.setTheme('light');
-  assert.deepEqual(settings.getWidgets().sort(), ['notes', 'shopping']);
+  assert.deepEqual(settings.getWidgets().sort(), ['shopping', 'unspeakable']);
   const onBoard = settings.getPages().flat();
   assert.deepEqual(onBoard.find((item) => item.id === 'shopping'), at('shopping', 'large', 5, 1), 'not moved on the board');
-  assert.equal(onBoard.find((item) => item.id === 'notes').size, 'small', 'nor resized');
+  assert.equal(onBoard.find((item) => item.id === 'unspeakable').size, 'small', 'nor resized');
 
   // Saved Apple pages that disagree with the board about which widgets are on are rebuilt.
   const stale = createSettingsService(
-    options(saved({ version: 7, theme: 'apple', pages: [[at('shopping', 'large', 5, 1), at('weather', 'medium', 1, 3)]], applePages: [[at('notes', 'small', 3, 1)]], scenery: true })),
+    options(saved({ version: 7, theme: 'apple', pages: [[at('shopping', 'large', 5, 1), at('weather', 'medium', 1, 3)]], applePages: [[at('unspeakable', 'small', 3, 1)]], scenery: true })),
   );
   assert.deepEqual(stale.getWidgets().sort(), ['shopping', 'weather']);
 });
 
 test('a version 6 screen keeps its order, laid out once with each widget at its default size', () => {
-  const settings = createSettingsService(options(saved({ version: 6, theme: 'auto', pages: [['weather', 'notes'], ['games']], applePages: [['notes']], scenery: true })));
-  assert.deepEqual(settings.getPages(), [[at('weather', 'medium', 4, 1), at('notes', 'small', 8, 1)], [at('games', 'small', 1, 1)]]);
+  const settings = createSettingsService(options(saved({ version: 6, theme: 'auto', pages: [['weather', 'unspeakable'], ['games']], applePages: [['unspeakable']], scenery: true })));
+  assert.deepEqual(settings.getPages(), [[at('weather', 'medium', 4, 1), at('unspeakable', 'small', 8, 1)], [at('games', 'small', 1, 1)]]);
   settings.setTheme('apple');
-  assert.deepEqual(ids(settings.getPages()), [['weather', 'notes'], ['games']], 'an old Apple arrangement is worked out again');
+  assert.deepEqual(ids(settings.getPages()), [['weather', 'unspeakable'], ['games']], 'an old Apple arrangement is worked out again');
 });
 
 test('a screen saved when it had a dock setting loads without it', () => {
   const settings = createSettingsService(options(saved({ version: 7, theme: 'auto', pages: [], dock: false, scenery: true })));
   assert.equal('dock' in settings.get(), false);
   assert.equal(settings.getTheme(), 'auto');
+});
+
+test('a board saved with the Notes widget keeps its place as Unspeakable', () => {
+  const storage = saved({
+    version: 9,
+    theme: 'dark',
+    pages: [[at('notes', 'medium', 4, 1), at('weather', 'medium', 8, 1)]],
+    applePages: [[at('notes', 'small', 1, 2), at('weather', 'medium', 3, 1)]],
+  });
+  const settings = createSettingsService(options(storage));
+  assert.deepEqual(settings.getPages(), [[at('unspeakable', 'medium', 4, 1), at('weather', 'medium', 8, 1)]]);
+  settings.setTheme('apple');
+  assert.deepEqual(ids(settings.getPages()), [['weather', 'unspeakable']]);
+});
+
+test('an older board that still listed Notes by id picks it up as Unspeakable', () => {
+  const settings = createSettingsService(
+    options(saved({ version: 2, theme: 'light', pages: [['shopping', 'notes'], ['weather']] })),
+  );
+  assert.deepEqual(ids(settings.getPages()), [['shopping', 'unspeakable'], ['weather']]);
 });

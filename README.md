@@ -10,7 +10,9 @@ It has eight widgets, and a Sports page:
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
   Google Calendars. Anyone can add an event on the board or from their phone and
   it goes straight into Google Calendar.
-- **Notes.** Sticky notes for everyone at home ("Rent is due Friday").
+- **Unspeakable.** The house ledger of things that happened and are never to be
+  mentioned again. Every entry sits under a censor bar on the board; tap one and
+  it reads out for a few seconds, then blacks itself out again.
 - **Weather.** Today and the next four days, from [Open-Meteo](https://open-meteo.com) (free, no account).
 - **Games.** Four in a Row, Reversi, and Dots and Boxes, for two people taking
   turns on the board or one person against the board, plus Blackjack against
@@ -91,8 +93,9 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 - **On your phone:** open Grocery on the board and scan the QR code under
   "Scan with your phone", or go to `http://<pi-ip>:8080`. You need to be on the
   same Wi-Fi.
-- **Notes:** tap + on the Notes widget to post one. Tap × on a note to take
-  it down (you can undo that too).
+- **Unspeakable:** tap + on the Unspeakable widget and write what happened, then
+  **Seal**. Tap an entry to read it (it covers itself again after a few seconds),
+  and × to strike it from the record (you can undo that too).
 - **Calendar:** type what's happening, then fill in as much as you like:
   - **When** — a day button (Today, Tomorrow, the week ahead) or the date picker.
   - **Time** — leave it **All day** and pick how many days it runs, or set a start
@@ -305,8 +308,8 @@ the board estimates sunrise and sunset from your timezone (up to an hour off).
 to be online; it's fetched at most every 15 minutes and shared by every screen.
 Restart after changing settings: `sudo systemctl restart widget-board`.
 
-Notes and any calendar events kept on the board itself are saved on the Pi in
-`data/notes.json` and `data/calendar.json`.
+The ledger and any calendar events kept on the board itself are saved on the Pi in
+`data/unspeakable.json` and `data/calendar.json`.
 Light schedules, swapped switches and what each motion sensor does are in `data/lights.json`.
 
 ### Reaching the board when you're out
@@ -334,7 +337,7 @@ can't read is ignored, and the board falls back to its Wi-Fi address.
 
 **Don't put the board on a public address without putting a password in front of
 it.** There are no accounts: anyone who can reach it can read and change the
-grocery list and notes, and — if you've connected Google Calendar — read your
+grocery list and the ledger, and — if you've connected Google Calendar — read your
 calendars and create or delete events. Tailscale avoids that because only your own
 devices can reach the Pi at all. A public tunnel or a forwarded router port does
 not, and needs authentication adding first.
@@ -672,7 +675,7 @@ tests/                  unit tests (Python unittest + node --test)
 
 ### Adding an app
 
-Make a folder `web/js/apps/<id>/` like `notes/`:
+Make a folder `web/js/apps/<id>/` like `unspeakable/`:
 
 - `meta.js` exports `id`, `name`, `description`, `widgetSize` (the size it starts
   at), `widgetSizes` (every size it can be resized to: `mini`, `small`,
@@ -722,7 +725,7 @@ exit to the desktop and open `http://localhost:8081/?kiosk=1` in Chromium.
 
 The test board uses the real board's `config.json`, except that it never switches
 the monitor off or on, and keeps its own data in `~/widget-board-dev` on the Pi. So
-it starts with an empty grocery list and notes, isn't signed in to Google or Spotify,
+it starts with an empty grocery list and ledger, isn't signed in to Google or Spotify,
 and has no Roommate Cup, grocery texts or light schedules to run. It can still switch
 the real lights. It stops when the Pi restarts; the real board doesn't notice any of
 it.
@@ -810,5 +813,5 @@ smooth there you can keep the parameter, but the copy looks the same.
 - **Calendar events are an hour out.** Set `timezone` in `config.json` to your
   IANA time zone, or fix the Pi's with `sudo raspi-config`.
 
-Anyone on your Wi-Fi can open and edit the list and notes, and switch the
+Anyone on your Wi-Fi can open and edit the list and the ledger, and switch the
 lights. There are no accounts. Only the board's own screen can use Exit to desktop.

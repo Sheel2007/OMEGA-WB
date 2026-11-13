@@ -1,4 +1,4 @@
-// Words for the ledger: "5 min ago", "4 things we don't talk about", "#3".
+// Words for the ledger: "5 min ago", "4 things we don't talk about", "#3", "Oct 3".
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -39,4 +39,21 @@ export function numbered(entries) {
 
 export function caseLabel(number) {
   return `#${number}`;
+}
+
+// The day a case happened, the way a file is dated: "Oct 3".
+export function caseDate(iso) {
+  const then = new Date(iso ?? NaN);
+  return Number.isNaN(then.getTime()) ? '' : dateFormat.format(then);
+}
+
+// The widget's public count of the people it turned away.
+export function tallyLabel(attempts) {
+  return `Unauthorized attempts: ${attempts}`;
+}
+
+// How many cases the widget has no room for. The short form is for when it shares
+// its line with the tally.
+export function moreLabel(hidden, short = false) {
+  return short ? `+${hidden} more` : `${hidden} more on the record`;
 }

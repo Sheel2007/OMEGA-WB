@@ -13,6 +13,11 @@ It has eight widgets, and a Sports page:
 - **Unspeakable.** The house ledger of things that happened and are never to be
   mentioned again. Every entry sits under a censor bar on the board; tap one and
   it reads out for a few seconds, then blacks itself out again.
+  The widget is built to be noticed: it wears one of three looks (a file under
+  crime-scene tape, a classified dossier, or an evidence wall of pinned cards and
+  red string), stamps SEALED on every screen when something new goes on the
+  record, and tells anyone who taps it "Access denied", keeping a public count of
+  the people it turned away.
 - **Weather.** Today and the next four days, from [Open-Meteo](https://open-meteo.com) (free, no account).
 - **Games.** Four in a Row, Reversi, and Dots and Boxes, for two people taking
   turns on the board or one person against the board, plus Blackjack against
@@ -96,6 +101,9 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
 - **Unspeakable:** tap + on the Unspeakable widget and write what happened, then
   **Seal**. Tap an entry to read it (it covers itself again after a few seconds),
   and × to strike it from the record (you can undo that too).
+  The widget turns away a first tap; tap it twice to get in (the + always
+  works). **Look on the board**, at the top of the app, changes the widget's look
+  on every screen, from the board or a phone.
 - **Calendar:** type what's happening, then fill in as much as you like:
   - **When** — a day button (Today, Tomorrow, the week ahead) or the date picker.
   - **Time** — leave it **All day** and pick how many days it runs, or set a start

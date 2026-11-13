@@ -280,6 +280,16 @@ class ServerTest(unittest.TestCase):
         status, _, raw = self.request("/api/unspeakable")
         self.assertIn(entry_id, [n["id"] for n in json.loads(raw)["entries"]])
 
+    def test_ledger_look_and_attempts(self):
+        status, body = self.post("/api/unspeakable/look", {"look": "wall"})
+        self.assertEqual((status, body["state"]["look"]), (200, "wall"))
+        status, body = self.post("/api/unspeakable/look", {"look": "neon"})
+        self.assertEqual(status, 400)
+        before = json.loads(self.request("/api/unspeakable")[2])["attempts"]
+        status, body = self.post("/api/unspeakable/attempt", {})
+        self.assertEqual((status, body["state"]["attempts"]), (200, before + 1))
+        self.assertEqual(body["state"]["look"], "wall")
+
     def test_roommate_games_sign_up_catalog_draw_and_record(self):
         status, body = self.post("/api/roommate-games/players/add", {"name": "Sam", "email": "sam@example.com"})
         self.assertEqual(status, 200)

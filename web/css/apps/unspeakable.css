@@ -1,6 +1,7 @@
 /* Unspeakable: the ledger of things this house doesn't talk about. Entry cards
    (.ledger-card) sit under censor ink until tapped; the full-screen app is
-   .ledger-app and the home-screen widget .ledger-widget. */
+   .ledger-app and the home-screen widget .ledger-widget, which wears one of three
+   looks (data-look: tape, dossier or wall; see looks.js). */
 
 /* An entry: a buff card, a case number, and the text under a redaction bar. */
 
@@ -97,32 +98,6 @@
   background: rgb(0 0 0 / 0.1);
 }
 
-/* On the widget: a case number and a bar, never the words. */
-
-.ledger-card--mini {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.55rem 0.9rem;
-  box-shadow: none;
-}
-
-.ledger-card--mini .ledger-card__case {
-  flex: none;
-  font-size: var(--fs-caption);
-}
-
-.ledger-card__bar {
-  height: 1.1rem;
-  min-width: 2rem;
-  border-radius: 0.2rem;
-  background: var(--sealed-redact);
-}
-
-[data-theme="blocks"] .ledger-card__bar {
-  border-radius: 0;
-}
-
 /* App */
 
 .ledger-app {
@@ -133,7 +108,43 @@
 }
 
 .ledger-app__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2rem;
   margin: 0.9rem 0 1.2rem;
+}
+
+/* The widget's look, for every screen at once. */
+
+.ledger-looks__label {
+  margin: 0 0 0.4rem;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.ledger-looks__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ledger-looks__option {
+  min-height: var(--hit);
+  padding: 0 1.2rem;
+  border-radius: var(--radius-control);
+  border: 0.2rem solid transparent;
+  background: var(--fill);
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 650;
+}
+
+.ledger-looks__option[aria-checked="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
 }
 
 .ledger-app__title {
@@ -181,7 +192,68 @@
   min-height: 10rem;
 }
 
-/* Widget */
+/* Widget. The header stays on the theme's card; everything under it is the scene,
+   which runs to the card's edges and is dressed by the look. Its colours are fixed
+   (--look-* in tokens.css), like a game board's, so a look reads the same in every theme. */
+
+.widget.ledger-widget,
+:root[data-theme="apple"] .widget.ledger-widget {
+  padding: 0;
+}
+
+.ledger-widget > .widget-head {
+  padding: 1.4rem 1.4rem 0 1.5rem;
+}
+
+:root[data-theme="apple"] .ledger-widget > .widget-head {
+  padding: 0.8rem 0.8rem 0;
+}
+
+.ledger-widget.is-nudged {
+  animation: nudge 0.35s ease-in-out;
+}
+
+/* Read out when a tap is turned away; never drawn. */
+.ledger-widget__live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ledger-widget__scene {
+  position: relative;
+  /* Its own stacking order, so nothing in it climbs over the card's link. */
+  z-index: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--sealed-card);
+  color: var(--sealed-text);
+  --row-size: 1.1rem;
+  --bar-height: 1.3rem;
+  --stamp-size: 1.8rem;
+  --tape-size: 1.1rem;
+}
+
+.widget--large .ledger-widget__scene {
+  --row-size: 1.4rem;
+  --bar-height: 1.6rem;
+  --stamp-size: 2.8rem;
+  --tape-size: 1.4rem;
+}
+
+.ledger-scene__paper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.3rem 0.9rem 1.5rem;
+}
 
 .ledger-widget__list {
   position: relative;
@@ -189,18 +261,97 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.95rem;
   margin: 0;
   padding: 0;
   list-style: none;
   overflow: hidden;
 }
 
+.widget--large .ledger-widget__list {
+  gap: 1.3rem;
+}
+
+/* A case on the widget: its number, the day, and a bar. Never the words. */
+
+.ledger-card--mini {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--row-size);
+}
+
+.ledger-card__label {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 6.4em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ledger-card--mini .ledger-card__case {
+  font-size: inherit;
+  color: inherit;
+}
+
+.ledger-card__date {
+  color: color-mix(in srgb, currentColor 75%, transparent);
+}
+
+/* The ink covers as much of the line as the entry is long (--bar, from widget.js). */
+.ledger-card__bar {
+  flex: 1;
+  min-width: 2rem;
+  height: var(--bar-height);
+  background: linear-gradient(var(--sealed-redact), var(--sealed-redact)) no-repeat left / var(--bar, 60%) 100%;
+  transform-origin: left;
+}
+
+.ledger-card__pin {
+  display: none;
+}
+
+/* One line: how many cases didn't fit, and the tally. */
+.ledger-scene__foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 1.7rem;
+  margin-top: 0.6rem;
+}
+
 .ledger-widget__more {
-  margin: 0.4rem 0 0;
-  font-size: var(--fs-body);
+  margin: 0;
+  font-size: var(--fs-caption);
   font-weight: 650;
-  color: var(--text-2);
+  white-space: nowrap;
+}
+
+/* A small widget hasn't the width for both, and its header already says how many
+   cases there are, so the tally wins. */
+.widget--small .ledger-widget__more:has(+ .ledger-widget__tally:not([hidden])) {
+  display: none;
+}
+
+/* The public count of everyone it turned away. */
+.ledger-widget__tally {
+  margin: 0;
+  padding: 0.2rem 0.6rem;
+  background: var(--look-ink);
+  color: var(--look-on-ink);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .ledger-widget__empty {
@@ -208,7 +359,6 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding-bottom: 1.5rem;
 }
 
 .ledger-widget__empty-title {
@@ -216,20 +366,371 @@
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
   font-weight: 650;
+  font-size: var(--fs-item);
+  letter-spacing: -0.01em;
+}
+
+.widget--large .ledger-widget__empty-title {
   font-size: var(--fs-empty);
-  letter-spacing: -0.02em;
 }
 
-.ledger-widget__empty-text {
-  margin: 0.4rem 0 0;
+.ledger-widget__empty-text,
+:root[data-theme="apple"] .ledger-widget__empty-text {
+  margin: 0.3rem 0 0;
+  font-size: var(--fs-caption);
+  color: inherit;
+}
+
+:root[data-theme="apple"] .ledger-widget__empty-title {
+  color: inherit;
+}
+
+/* The pieces a look adds. They're all in the scene; each look shows its own. */
+
+.ledger-scene__tab,
+.ledger-scene__tape,
+.ledger-scene__string,
+.ledger-scene__note,
+.ledger-scene__stamp--secret {
+  display: none;
+  margin: 0;
+  pointer-events: none;
+}
+
+/* A rubber stamp: a crooked box of capitals. */
+.ledger-scene__stamp {
+  margin: 0;
+  padding: 0.1em 0.5em;
+  border: 0.14em solid currentColor;
+  border-radius: 0.2em;
+  color: var(--look-stamp);
+  font-family: var(--font-display);
+  font-size: var(--stamp-size);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Crime scene: the file, with two strips of tape slapped across it. */
+
+.ledger-widget[data-look="tape"] .ledger-scene__tape {
+  display: block;
+  position: absolute;
+  left: -12%;
+  width: 124%;
+  z-index: 1;
+  padding: 0.35em 0;
+  border-block: 0.22em solid var(--look-ink);
+  background: var(--look-tape);
+  color: var(--look-ink);
+  font-size: var(--tape-size);
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.14em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ledger-widget[data-look="tape"] .ledger-scene__tape--1 {
+  top: 24%;
+  transform: rotate(-7deg);
+}
+
+.ledger-widget[data-look="tape"] .ledger-scene__tape--2 {
+  top: 58%;
+  transform: rotate(5deg);
+}
+
+/* With nothing on the record, the tape moves clear of the words that say so. */
+.ledger-widget[data-look="tape"] .ledger-scene__paper:has(.ledger-widget__list[hidden]) ~ .ledger-scene__tape--1 {
+  top: 5%;
+}
+
+.ledger-widget[data-look="tape"] .ledger-scene__paper:has(.ledger-widget__list[hidden]) ~ .ledger-scene__tape--2 {
+  top: 72%;
+}
+
+/* Classified dossier: a manila folder with its tab, and a crooked stamp. */
+
+.ledger-widget[data-look="dossier"] .ledger-widget__scene {
+  background: none;
+  color: var(--look-folder-ink);
+}
+
+.ledger-widget[data-look="dossier"] .ledger-scene__tab {
+  display: block;
+  flex: none;
+  align-self: flex-start;
+  margin-left: 1.5rem;
+  padding: 0.15rem 1.1rem 0.05rem;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: var(--look-folder-tab);
+  font-size: var(--fs-caption);
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ledger-widget[data-look="dossier"] .ledger-scene__paper {
+  background: var(--look-folder);
+  border-top: 0.2rem solid var(--look-folder-tab);
+}
+
+.ledger-widget[data-look="dossier"] .ledger-scene__stamp--secret {
+  display: block;
+  position: absolute;
+  right: 1.1rem;
+  /* Clear of the foot line, however far the tilt drops its corner. */
+  bottom: calc(2.6rem + var(--stamp-size) * 0.6);
+  z-index: 1;
+  transform: rotate(-11deg);
+}
+
+/* Evidence wall: a corkboard. Each case is an index card hung from its pin
+   (--pin-x, --pin-y and --pin-tilt, from wallSlots() in looks.js), with red string
+   from pin to pin and a sticky note where it ends. */
+
+.ledger-widget[data-look="wall"] .ledger-widget__scene {
+  background: var(--look-cork);
+  color: var(--look-index-ink);
+  --card-width: 38%;
+}
+
+.widget--medium.ledger-widget[data-look="wall"] .ledger-widget__scene {
+  --card-width: 27%;
+}
+
+.ledger-widget[data-look="wall"] :is(.ledger-scene__paper, .ledger-widget__list) {
+  position: static;
+  overflow: visible;
+}
+
+.ledger-widget[data-look="wall"] :is(.ledger-card--mini, .ledger-scene__note) {
+  position: absolute;
+  left: var(--pin-x, 50%);
+  top: var(--pin-y, 10%);
+  transform: translateX(-50%) rotate(var(--pin-tilt, 0deg));
+  transform-origin: 50% 0;
+}
+
+.ledger-widget[data-look="wall"] .ledger-card--mini {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45em;
+  width: var(--card-width);
+  padding: 0.9em 0.7em 0.7em;
+  background: var(--look-index);
+}
+
+/* A hard edge under each thing pinned up, so it sits on the cork rather than in it. */
+.ledger-widget[data-look="wall"] :is(.ledger-card--mini, .ledger-scene__note, .ledger-widget__empty) {
+  box-shadow: 0 0.15rem 0 rgb(0 0 0 / 0.28);
+}
+
+/* Three cards and the foot share a small board, so each card is a little tighter. */
+.widget--small.ledger-widget[data-look="wall"] .ledger-widget__scene {
+  --bar-height: 1.1rem;
+}
+
+.widget--small.ledger-widget[data-look="wall"] .ledger-card--mini {
+  gap: 0.35em;
+  padding: 0.75em 0.65em 0.6em;
+}
+
+/* A second, shorter line of ink, so a card reads as a note and not a label. */
+.ledger-widget[data-look="wall"] .ledger-card--mini::after {
+  content: "";
+  width: 55%;
+  height: var(--bar-height);
+  background: var(--sealed-redact);
+}
+
+.ledger-widget[data-look="wall"] .ledger-card__label {
+  min-width: 0;
+}
+
+.ledger-widget[data-look="wall"] .ledger-card__bar {
+  flex: none;
+}
+
+.ledger-widget[data-look="wall"] .ledger-card__pin {
+  display: block;
+  position: absolute;
+  top: -0.45rem;
+  left: 50%;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-left: -0.45rem;
+  border-radius: 50%;
+  background: var(--look-string);
+}
+
+/* Behind the cards, so it shows only where it runs from one pin to the next. */
+.ledger-widget[data-look="wall"] .ledger-scene__string {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.ledger-scene__string svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ledger-scene__string polyline {
+  fill: none;
+  stroke: var(--look-string);
+  stroke-width: 0.2rem;
+  vector-effect: non-scaling-stroke;
+}
+
+.ledger-widget[data-look="wall"] .ledger-scene__note {
+  display: grid;
+  place-items: center;
+  width: 5.2em;
+  height: 4.2em;
+  background: var(--look-sticky);
+  color: var(--look-index-ink);
+  font-size: var(--row-size);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* With nothing pinned up there's no string, so no note to end it at. */
+.ledger-widget[data-look="wall"] .ledger-scene__paper:has(.ledger-widget__list[hidden]) ~ .ledger-scene__note {
+  display: none;
+}
+
+.ledger-widget[data-look="wall"] .ledger-scene__foot {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0.8rem;
+  z-index: 2;
+}
+
+.ledger-widget[data-look="wall"] .ledger-widget__more {
+  padding: 0.2rem 0.6rem;
+  background: var(--look-index);
+}
+
+.ledger-widget[data-look="wall"] .ledger-widget__empty {
+  align-self: center;
+  flex: none;
+  margin: auto;
+  padding: 1rem 1.2rem;
+  background: var(--look-index);
+  transform: rotate(-2deg);
+}
+
+/* A case being sealed: the stamp thuds onto the widget and the ink runs along the
+   new line. Both play once (CLAUDE.md: no looping animations) and only move
+   transform and opacity. */
+
+.ledger-scene__stamp--sealed {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  background: var(--look-index);
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(-10deg);
+}
+
+.is-sealing .ledger-scene__stamp--sealed {
+  animation: ledger-sealed 2.4s ease-out both;
+}
+
+.ledger-card.is-inking .ledger-card__bar {
+  animation: ledger-ink 0.9s 0.3s ease-out both;
+}
+
+@keyframes ledger-sealed {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-10deg) scale(2.6);
+  }
+  10%,
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(-10deg) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-10deg) scale(1);
+  }
+}
+
+@keyframes ledger-ink {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Access denied: what a first tap gets. Solid, not blurred. */
+
+.ledger-denied {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  background: var(--look-denied);
+  text-align: center;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ledger-widget.is-denied .ledger-denied {
+  visibility: visible;
+}
+
+/* Two words, one over the other, so it fits the narrowest widget at full size. */
+.ledger-denied__stamp {
+  width: min-content;
+  color: var(--look-denied-stamp);
+  font-size: calc(var(--stamp-size) * 1.25);
+  line-height: 1.1;
+  white-space: normal;
+  transform: rotate(-7deg);
+}
+
+.ledger-widget.is-denied .ledger-denied__stamp {
+  animation: ledger-denied 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes ledger-denied {
+  from {
+    opacity: 0;
+    transform: rotate(-7deg) scale(2.4);
+  }
+}
+
+.ledger-denied__line {
+  margin: 0;
+  color: var(--look-on-ink);
   font-size: var(--fs-body);
-  color: var(--text-2);
+  font-weight: 650;
 }
 
-/* A small widget has room for the bars, not for the numbers beside them. */
-.widget--small .ledger-card--mini {
-  gap: 0.5rem;
-  padding: 0.5rem 0.7rem;
+/* Blocks: the pixel font is wide, so the tally gives up its letter-spacing to fit. */
+[data-theme="blocks"] .ledger-widget__tally {
+  letter-spacing: 0;
+}
+
+/* Blocks: square corners all the way down. */
+[data-theme="blocks"] :is(.ledger-scene__stamp, .ledger-scene__tab, .ledger-card__pin, .ledger-looks__option) {
+  border-radius: 0;
 }
 
 @media (max-width: 900px), (max-height: 560px) {

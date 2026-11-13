@@ -115,6 +115,25 @@ html {
   --sealed-card: #ebe5d8;
   --sealed-redact: #1b1b22;
 
+  /* The Unspeakable widget's looks. Fixed in every theme, like a game board, so each
+     scene reads the same wherever it's shown: text on its background is 4.5:1 or
+     better, and a stamp (large capitals) 3:1 or better on every paper it lands on. */
+  --look-ink: #15151c;
+  --look-on-ink: #ffffff;
+  --look-tape: #f5c518;
+  --look-stamp: #a3140f;
+  --look-folder: #dcb96f;
+  --look-folder-tab: #c59c4a;
+  --look-folder-ink: #2b1e07;
+  --look-cork: #c99a63;
+  --look-index: #f4eedd;
+  --look-index-ink: #2a2412;
+  --look-sticky: #ffe98a;
+  /* 3:1 against the cork, so the string shows from across the room. */
+  --look-string: #9c140e;
+  --look-denied: rgb(14 14 20 / 0.92);
+  --look-denied-stamp: #ff7a6b;
+
   /* One per subscribed calendar. Each is at least 3:1 against --card in its theme. */
   --event-blue: #1f6fd0;
   --event-purple: #6b42c8;

@@ -3,6 +3,10 @@ to mention again, kept in a JSON file and shown blacked out on every screen.
 
 It replaced the old sticky-notes board, so it is the same kind of store: one list,
 newest first, written atomically and pushed over the event stream.
+
+Two more things are shared by every screen: the look the home-screen widget wears
+(crime-scene tape, a classified dossier or an evidence wall), and a tally of the
+people it turned away, because the widget answers a first tap with "Access denied".
 """
 import copy
 import re
@@ -13,6 +17,11 @@ from .store import JsonStore, NotFound, ValidationError, tidy_text
 MAX_TEXT_LENGTH = 200
 MAX_ENTRIES = 40
 CLIENT_ID = re.compile(r"^[a-f0-9]{8,32}$")
+# The widget's looks, by the names the screens use for them.
+LOOKS = ("tape", "dossier", "wall")
+DEFAULT_LOOK = "tape"
+# Where the tally of turned-away taps stops: it only has to be funny, not exact.
+MAX_ATTEMPTS = 9999
 
 
 def clean_text(raw):
@@ -64,6 +73,23 @@ class UnspeakableLedger(JsonStore):
                 self._commit()
             return {"state": self._state(), "restored": [entry["id"] for _, entry in entries]}
 
+    def set_look(self, look):
+        if not isinstance(look, str) or look not in LOOKS:
+            raise ValidationError("Pick one of the looks: %s." % ", ".join(LOOKS))
+        with self._changed:
+            if look != self._look:
+                self._look = look
+                self._commit()
+            return {"state": self._state()}
+
+    def attempt(self):
+        """Someone tapped the widget, was turned away and gave up."""
+        with self._changed:
+            if self._attempts < MAX_ATTEMPTS:
+                self._attempts += 1
+                self._commit()
+            return {"state": self._state()}
+
     # Internals
 
     def _new_id(self, requested):
@@ -76,15 +102,24 @@ class UnspeakableLedger(JsonStore):
 
     def _reset(self):
         self._entries = []
+        self._look = DEFAULT_LOOK
+        self._attempts = 0
 
     def _state(self):
-        return {"version": self._version, "entries": copy.deepcopy(self._entries)}
+        return {"version": self._version, "entries": copy.deepcopy(self._entries), "look": self._look,
+                "attempts": self._attempts}
 
     def _to_disk(self):
-        return {"entries": self._entries}
+        return {"entries": self._entries, "look": self._look, "attempts": self._attempts}
 
     def _from_disk(self, data):
         self._entries = [_valid_entry(e) for e in data.get("entries", [])]
+        # Files from before the looks have neither; a bad value isn't worth losing the ledger over.
+        look = data.get("look")
+        self._look = look if isinstance(look, str) and look in LOOKS else DEFAULT_LOOK
+        attempts = data.get("attempts")
+        counted = isinstance(attempts, int) and not isinstance(attempts, bool)
+        self._attempts = min(max(attempts, 0), MAX_ATTEMPTS) if counted else 0
 
 
 def _valid_entry(raw):

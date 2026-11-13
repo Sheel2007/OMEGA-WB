@@ -1,9 +1,11 @@
 // Unspeakable: the full-screen ledger. Every entry is blacked out until someone
-// taps it, and covers itself again a few seconds later.
+// taps it, and covers itself again a few seconds later. It's also where the look of
+// the home-screen widget is picked, for every screen at once.
 import { createKeyboard } from '../../keyboard.js';
 import { animateLayout, el, icons, nudge, reconcile, toast } from '../../ui.js';
 import { name } from './meta.js';
 import { caseLabel, countLabel, numbered, timeAgo } from './format.js';
+import { LOOKS, lookOf } from './looks.js';
 
 const TIME_REFRESH_MS = 60 * 1000;
 // How long a tapped entry stays readable before it blacks itself out again.
@@ -42,6 +44,24 @@ export function mount(root, { services, kiosk }) {
     submitButton.disabled = !input.value.trim();
   });
 
+  // The widget's look. It's shared, so a phone (which has no widgets) changes the board's.
+  const lookButtons = LOOKS.map((look) =>
+    el('button', {
+      class: 'ledger-looks__option',
+      type: 'button',
+      role: 'radio',
+      text: look.label,
+      dataset: { look: look.id },
+      onclick: () => unspeakable.setLook(look.id).catch((err) => toast(err.message)),
+    }),
+  );
+  const looks = el(
+    'div',
+    { class: 'ledger-looks' },
+    el('p', { class: 'ledger-looks__label', id: 'ledger-looks-label', text: 'Look on the board' }),
+    el('div', { class: 'ledger-looks__options', role: 'radiogroup', 'aria-labelledby': 'ledger-looks-label' }, lookButtons),
+  );
+
   const grid = el('ul', { class: 'ledger-app__grid', 'aria-label': 'Unspeakable things' });
   const empty = el(
     'div',
@@ -53,7 +73,12 @@ export function mount(root, { services, kiosk }) {
   const view = el(
     'div',
     { class: 'ledger-app' },
-    el('header', { class: 'ledger-app__header' }, el('h1', { class: 'ledger-app__title', text: name }), meta),
+    el(
+      'header',
+      { class: 'ledger-app__header' },
+      el('div', { class: 'ledger-app__heading' }, el('h1', { class: 'ledger-app__title', text: name }), meta),
+      looks,
+    ),
     form,
     el('div', { class: 'ledger-app__scroll' }, grid, empty),
   );
@@ -179,6 +204,8 @@ export function mount(root, { services, kiosk }) {
   function render(state) {
     entries = numbered(state.entries);
     meta.textContent = countLabel(entries.length);
+    const look = lookOf(state.look);
+    lookButtons.forEach((button) => button.setAttribute('aria-checked', String(button.dataset.look === look)));
     const apply = () => {
       reconcile(grid, entries, (e) => e.id, createCard, updateCard);
       grid.hidden = entries.length === 0;
@@ -200,7 +227,7 @@ export function mount(root, { services, kiosk }) {
       if (entry) card.firstChild.children[2].textContent = timeAgo(entry.created);
     }
   }, TIME_REFRESH_MS);
-  render({ entries: unspeakable.getEntries() });
+  render(unspeakable.getState());
 
   return {
     intent(action) {

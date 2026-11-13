@@ -246,6 +246,8 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/unspeakable/add": "unspeakable_add",
         "/api/unspeakable/remove": "unspeakable_remove",
         "/api/unspeakable/restore": "unspeakable_restore",
+        "/api/unspeakable/look": "unspeakable_look",
+        "/api/unspeakable/attempt": "unspeakable_attempt",
         "/api/calendar/add": "calendar_add",
         "/api/calendar/remove": "calendar_remove",
         "/api/calendar/restore": "calendar_restore",
@@ -571,6 +573,12 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def unspeakable_restore(self, body):
         return self.server.unspeakable.restore(body.get("ids"))
+
+    def unspeakable_look(self, body):
+        return self.server.unspeakable.set_look(body.get("look"))
+
+    def unspeakable_attempt(self, body):
+        return self.server.unspeakable.attempt()
 
     def calendar_add(self, body):
         """Puts a new event on a connected Google calendar, or on the board's own list."""

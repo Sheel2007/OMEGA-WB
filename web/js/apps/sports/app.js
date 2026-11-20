@@ -4,7 +4,7 @@
 // its match page (#/app/sports/match-<id>). While a followed team is playing, the
 // app opens straight onto that match: on game day the match page is the app.
 import { el, reconcile } from '../../ui.js';
-import { dayLabel, followedTeamIds, liveTeamMatch, matchesFor, signed, splitFixtures, tableFor } from './format.js';
+import { dayLabel, followedTeamIds, liveTeamMatch, matchesFor, splitFixtures, tableCells, tableColumns, tableFor } from './format.js';
 import { createMatchPage } from './match-page.js';
 import { name } from './meta.js';
 import { createMatchRow, crest, setCrest, updateMatchRow } from './views.js';
@@ -171,22 +171,17 @@ export function mount(root, { services }) {
     tablePicker.hidden = ids.length < 2;
     tableNote.hidden = true;
     if (!table) return;
-    const college = table.kind === 'college';
-    const columns = college
-      ? [['#', 'rank'], ['Team', 'team'], ['GP', 'num'], ['W', 'num'], ['L', 'num'], ['T', 'num'], ['Pts', 'points'], ['Overall', 'num wide']]
-      : [['#', 'rank'], ['Team', 'team'], ['P', 'num'], ['W', 'num wide'], ['D', 'num wide'], ['L', 'num wide'], ['GD', 'num'], ['Pts', 'points']];
+    const columns = tableColumns(table);
     tableHead.replaceChildren(
       el('tr', {}, ...columns.map(([label, kind]) => el('th', { class: `sports-table__${kind.split(' ').join(' sports-table__')}`, scope: 'col', text: label }))),
     );
-    const wanted = followedTeamIds(state.follows);
+    const wanted = followedTeamIds(state.follows, table.sport);
     const rows = table.groups.flatMap((group) => group.rows);
     const zones = new Map();
     tableBody.replaceChildren(
       ...rows.map((row) => {
         if (row.zone && !zones.has(row.zone.label)) zones.set(row.zone.label, row.zone.level);
-        const cells = college
-          ? [row.played, row.won, row.lost, row.drawn, row.points, row.overall ?? '']
-          : [row.played, row.won, row.drawn, row.lost, signed(row.diff), row.points];
+        const cells = tableCells(table, row);
         const kinds = columns.slice(2).map(([, kind]) => kind);
         return el(
           'tr',

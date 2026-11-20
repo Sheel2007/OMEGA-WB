@@ -1,8 +1,8 @@
 """Sports: fixtures, live scores, tables and match pages for the teams the board follows.
 
 The board follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League
-Cup and Champions League), Maryland's soccer team in the Big Ten, and every Champions
-League match. None of it needs an account:
+Cup and Champions League), Maryland's soccer and basketball teams in the Big Ten,
+and every Champions League match. None of it needs an account:
 
 - ESPN's public scoreboard API (site.api.espn.com) has the fixtures, live scores,
   line-ups, match stats and the Premier League and Champions League tables. It's
@@ -10,7 +10,10 @@ League match. None of it needs an account:
   into the board's own small format here: if ESPN changes something, the widget
   shows less, never an error page.
 - ESPN keeps no table for college soccer, so the Big Ten's is read from the
-  standings page on bigten.org.
+  standings page on bigten.org. (It does keep the basketball one.)
+- Basketball comes from the same ESPN API under another sport: a game's page is
+  its box score, the score by half and the team stats instead of line-ups on a
+  pitch, and before tip-off the two teams' season averages.
 
 One background thread reads it all and pushes it over the event stream: the
 schedules every hour and the tables every few hours (and again just after a
@@ -47,8 +50,13 @@ except ImportError:  # pragma: no cover - every Python the board runs on has zon
 
 log = logging.getLogger(__name__)
 
-SITE_API = "https://site.api.espn.com/apis/site/v2/sports/soccer/"
-STANDINGS_API = "https://site.api.espn.com/apis/v2/sports/soccer/"
+# ESPN's API, then the sport ("soccer/") and the league ("eng.1/").
+ESPN_SITE = "https://site.api.espn.com/apis/site/v2/sports/"
+ESPN_STANDINGS = "https://site.api.espn.com/apis/v2/sports/"
+SITE_API = ESPN_SITE + "soccer/"
+STANDINGS_API = ESPN_STANDINGS + "soccer/"
+BASKETBALL_API = ESPN_SITE + "basketball/"
+BASKETBALL_STANDINGS_API = ESPN_STANDINGS + "basketball/"
 BIG_TEN_URL = "https://bigten.org/sports/%s/standings"
 # ESPN's image server, asked for a small copy of the 500px crest.
 CREST_URL = "https://a.espncdn.com/combiner/i?img=/i/teamlogos/%s/500/%s.png&w=%d&h=%d"
@@ -75,6 +83,8 @@ MAX_MATCHES = 150
 MAX_EVENTS = 120
 MAX_TABLE_ROWS = 60
 MAX_TEXT = 120
+MAX_BOX_PLAYERS = 20
+MAX_PERIODS = 12
 
 # How often to read things.
 SCHEDULE_SECONDS = 60 * 60
@@ -122,10 +132,20 @@ TEAMS = (
 )
 # Maryland's men's or women's team ("maryland" in config.json; men's unless it says otherwise).
 MARYLAND = {
-    "men": {"id": "maryland", "name": "Maryland", "espn": "5617", "leagues": ("usa.ncaa.m.1",), "table": "big-ten"},
-    "women": {"id": "maryland", "name": "Maryland", "espn": "20341", "leagues": ("usa.ncaa.w.1",), "table": "big-ten"},
+    "men": {"id": "maryland", "name": "Maryland Soccer", "espn": "5617", "leagues": ("usa.ncaa.m.1",),
+            "table": "big-ten"},
+    "women": {"id": "maryland", "name": "Maryland Soccer", "espn": "20341", "leagues": ("usa.ncaa.w.1",),
+              "table": "big-ten"},
 }
 BIG_TEN_SPORT = {"men": "msoc", "women": "wsoc"}
+# Maryland's basketball team ("basketball" in config.json: the men's unless it says
+# otherwise). ESPN numbers a school the same in both, under different leagues.
+MARYLAND_BASKETBALL = {
+    "men": {"id": "maryland-basketball", "name": "Maryland Basketball", "espn": "120",
+            "leagues": ("mens-college-basketball",), "table": "big-ten-basketball"},
+    "women": {"id": "maryland-basketball", "name": "Maryland Basketball", "espn": "120",
+              "leagues": ("womens-college-basketball",), "table": "big-ten-basketball"},
+}
 # Every match of these, not just the teams' own.
 COMPETITIONS = ({"id": "ucl", "name": "Champions League", "league": "uefa.champions", "table": "uefa.champions"},)
 LEAGUES = {
@@ -135,7 +155,23 @@ LEAGUES = {
     "uefa.champions": {"name": "Champions League", "table": "uefa.champions"},
     "usa.ncaa.m.1": {"name": "College Soccer", "table": "big-ten", "conference": "Big Ten"},
     "usa.ncaa.w.1": {"name": "College Soccer", "table": "big-ten", "conference": "Big Ten"},
+    # "group" is ESPN's number for the conference: its standings, and the scoreboard of
+    # its teams' games (the plain scoreboard only has the top 25's).
+    "mens-college-basketball": {"name": "College Basketball", "table": "big-ten-basketball",
+                                "conference": "Big Ten Basketball", "sport": "basketball", "group": "7"},
+    "womens-college-basketball": {"name": "College Basketball", "table": "big-ten-basketball",
+                                  "conference": "Big Ten Basketball", "sport": "basketball", "group": "7"},
 }
+
+
+def sport_of(league):
+    """Which of ESPN's sports a league is filed under: soccer unless it says otherwise."""
+    return LEAGUES.get(league, {}).get("sport", "soccer")
+
+
+def site_api(league):
+    """ESPN's address for a league ("all" is every soccer competition at once)."""
+    return ESPN_SITE + "%s/%s/" % (sport_of(league), league)
 
 
 STATE_ORDER = {"pre": 0, "in": 1, "post": 2}
@@ -177,9 +213,10 @@ def fetch_image(url):
 def follows_from(config):
     """What to follow, from the "sports" setting in config.json.
 
-    Left out, the board follows everything above with Maryland's men's team;
-    {"maryland": "women"} follows the women's team instead, and false turns
-    Sports off.
+    Left out, the board follows everything above with Maryland's men's teams;
+    {"maryland": "women"} follows the women's soccer team instead and
+    {"basketball": "women"} the women's basketball team, {"basketball": false}
+    leaves basketball out, and false turns Sports off.
     """
     if config is False:
         return Follows(teams=(), competitions=(), big_ten=None)
@@ -188,34 +225,46 @@ def follows_from(config):
     if which not in MARYLAND:
         log.warning("Ignoring sports maryland %r in config.json; following the men's team.", which)
         which = "men"
-    return Follows(teams=TEAMS + (MARYLAND[which],), competitions=COMPETITIONS, big_ten=BIG_TEN_SPORT[which])
+    teams = TEAMS + (MARYLAND[which],)
+    hoops = settings.get("basketball", "men")
+    if hoops is not False:
+        if hoops not in MARYLAND_BASKETBALL:
+            log.warning("Ignoring sports basketball %r in config.json; following the men's team.", hoops)
+            hoops = "men"
+        teams += (MARYLAND_BASKETBALL[hoops],)
+    return Follows(teams=teams, competitions=COMPETITIONS, big_ten=BIG_TEN_SPORT[which])
 
 
 class Follows:
     """The teams and competitions the board follows, and the tables that go with them."""
 
-    def __init__(self, teams=TEAMS + (MARYLAND["men"],), competitions=COMPETITIONS, big_ten="msoc"):
+    def __init__(self, teams=TEAMS + (MARYLAND["men"], MARYLAND_BASKETBALL["men"]), competitions=COMPETITIONS,
+                 big_ten="msoc"):
         self.teams = tuple(teams)
         self.competitions = tuple(competitions)
         self.big_ten = big_ten
+        # Each table, with the league it's read from (the first follow's that has it).
         tables = OrderedDict()
         for follow in self.teams + self.competitions:
             leagues = follow.get("leagues") or (follow["league"],)
             for table in [follow.get("table")] + [LEAGUES.get(league, {}).get("table") for league in leagues]:
                 if table and table not in tables and (table != "big-ten" or big_ten):
-                    tables[table] = table
+                    tables[table] = next((league for league in leagues if LEAGUES.get(league, {}).get("table") == table),
+                                         leagues[0])
         self.tables = tuple(tables)
+        self.table_leagues = dict(tables)
 
     def public(self):
         """What screens are told about each follow."""
-        out = [{"id": t["id"], "name": t["name"], "kind": "team", "team": t["espn"], "table": t.get("table")}
-               for t in self.teams]
-        out += [{"id": c["id"], "name": c["name"], "kind": "competition", "team": None, "table": c.get("table")}
-                for c in self.competitions]
+        out = [{"id": t["id"], "name": t["name"], "kind": "team", "team": t["espn"], "table": t.get("table"),
+                "sport": sport_of(t["leagues"][0])} for t in self.teams]
+        out += [{"id": c["id"], "name": c["name"], "kind": "competition", "team": None, "table": c.get("table"),
+                 "sport": sport_of(c["league"])} for c in self.competitions]
         return out
 
 
-TABLE_NAMES = {"eng.1": "Premier League", "uefa.champions": "Champions League", "big-ten": "Big Ten"}
+TABLE_NAMES = {"eng.1": "Premier League", "uefa.champions": "Champions League", "big-ten": "Big Ten Soccer",
+               "big-ten-basketball": "Big Ten Basketball"}
 
 
 # Reading ESPN's answers
@@ -305,15 +354,34 @@ def shape_team(team):
     }
 
 
-def shape_status(status):
+CLOCK_AND_PERIOD = re.compile(r"^(\S{1,6}) - (.{1,5})$")
+
+
+def _basketball_clock(status, kind):
+    """The time left and the period, short enough for a list: "2:12 2nd" from ESPN's
+    "2:12 - 2nd", "End 1st" from "End of 1st", "Halftime" as it is."""
+    detail = _text(kind.get("shortDetail"), 24) or ""
+    found = CLOCK_AND_PERIOD.match(detail)
+    if found:
+        return "%s %s" % found.groups()
+    return _text(detail.replace("End of ", "End "), 12) or _text(status.get("displayClock"), 12)
+
+
+def shape_status(status, sport="soccer"):
     status = _dict(status)
     kind = _dict(status.get("type"))
     state = kind.get("state") if kind.get("state") in ("pre", "in", "post") else "pre"
+    if state != "in":
+        clock = None
+    elif sport == "basketball":
+        clock = _basketball_clock(status, kind)
+    else:
+        clock = _text(status.get("displayClock"), 12)
     return {
         "state": state,
         "name": _text(kind.get("name")) or "STATUS_SCHEDULED",
         "detail": _text(kind.get("shortDetail")) or _text(kind.get("detail")) or "",
-        "clock": _text(status.get("displayClock"), 12) if state == "in" else None,
+        "clock": clock,
         "period": _int(status.get("period")) or 0,
         "completed": bool(kind.get("completed")),
     }
@@ -327,6 +395,14 @@ def _scores(competitor):
         shootout = score.get("shootoutScore", shootout)
         score = score.get("value", score.get("displayValue"))
     return _int(score), _int(shootout)
+
+
+def _poll_rank(competitor):
+    """A team's place in the top 25 (1 to 25), or None: ESPN says 99 for everyone else."""
+    rank = _int(_dict(competitor.get("curatedRank")).get("current"))
+    if rank is None:
+        rank = _int(competitor.get("rank"))
+    return rank if rank is not None and 1 <= rank <= 25 else None
 
 
 def _sides(competition):
@@ -346,7 +422,8 @@ def shape_match(event, league):
     kickoff = kickoff_ms(event.get("date") or competition.get("date"))
     if home is None or away is None or kickoff is None:
         return None
-    status = shape_status(competition.get("status") or event.get("status"))
+    sport = sport_of(league)
+    status = shape_status(competition.get("status") or event.get("status"), sport)
     info = LEAGUES.get(league, {})
     name = info.get("name") or _text(_dict(event.get("league")).get("abbreviation")) or "Match"
     sides = {}
@@ -356,11 +433,14 @@ def shape_match(event, league):
         team["score"] = None if status["state"] == "pre" else score
         team["shootout"] = shootout
         team["winner"] = bool(competitor.get("winner"))
+        if sport == "basketball":
+            team["rank"] = _poll_rank(competitor)
         sides[side] = team
     notes = [_text(_dict(note).get("headline")) for note in _list(competition.get("notes"))]
     venue = _dict(competition.get("venue"))
     return {
         "id": str(event["id"]),
+        "sport": sport,
         "league": league,
         "competition": name,
         "table": info.get("table"),
@@ -432,7 +512,59 @@ def shape_espn_table(raw, table_id):
     if not groups:
         return None
     return {"id": table_id, "name": TABLE_NAMES.get(table_id, _text(raw.get("name")) or table_id),
-            "kind": "league", "groups": groups}
+            "kind": "league", "sport": "soccer", "groups": groups}
+
+
+# A record as it's written: "4-0-1" (won-lost-tied) or basketball's "12-4".
+RECORD = re.compile(r"^(\d+)-(\d+)(?:-(\d+))?$")
+
+
+def shape_basketball_table(raw, table_id):
+    """ESPN's standings for one basketball conference, or None if there are none.
+
+    A row is a team's conference record (won, lost), with its overall record and
+    streak beside it. ESPN's order is kept (it breaks ties its own way), behind
+    the conference record.
+    """
+    rows = []
+    for entry in _list(_dict(_dict(raw).get("standings")).get("entries"))[:MAX_TABLE_ROWS]:
+        entry = _dict(entry)
+        stats = {s.get("name"): s for s in _list(entry.get("stats")) if isinstance(s, dict)}
+
+        def shown(name, limit=12):
+            return _text(_dict(stats.get(name)).get("displayValue"), limit)
+
+        record = RECORD.match(shown("vs. Conf.") or "")
+        if record:
+            won, lost = int(record.group(1)), int(record.group(2))
+        else:
+            won = _int(_dict(stats.get("wins")).get("value")) or 0
+            lost = _int(_dict(stats.get("losses")).get("value")) or 0
+        if not isinstance(entry.get("team"), dict):
+            continue
+        streak = shown("streak", 6)
+        rows.append({
+            "rank": 0,
+            "team": shape_team(entry.get("team")),
+            "played": won + lost,
+            "won": won,
+            "drawn": 0,
+            "lost": lost,
+            "for": None,
+            "against": None,
+            "diff": None,
+            "points": None,
+            "overall": shown("overall"),
+            "streak": streak if streak and streak != "-" else None,
+            "zone": None,
+        })
+    if not rows:
+        return None
+    rows.sort(key=lambda row: -(row["won"] / row["played"]) if row["played"] else 0)
+    for index, row in enumerate(rows):
+        row["rank"] = index + 1
+    return {"id": table_id, "name": TABLE_NAMES.get(table_id, table_id), "kind": "basketball", "sport": "basketball",
+            "groups": [{"name": "", "rows": rows}]}
 
 
 class _StandingsPage(HTMLParser):
@@ -497,9 +629,6 @@ class _StandingsPage(HTMLParser):
     def handle_data(self, data):
         if self._cell is not None:
             self._cell.append(data)
-
-
-RECORD = re.compile(r"^(\d+)-(\d+)(?:-(\d+))?$")
 
 
 def parse_big_ten(page):
@@ -818,6 +947,216 @@ def shape_detail(raw, match):
     return detail
 
 
+# Basketball game pages
+
+
+# The team stats a finished or running game shows, in order: (ESPN's name, label,
+# unit, ESPN's name for the same thing as made-attempted).
+BASKETBALL_STATS = (
+    ("fieldGoalPct", "Field goals", "%", "fieldGoalsMade-fieldGoalsAttempted"),
+    ("threePointFieldGoalPct", "Three-pointers", "%", "threePointFieldGoalsMade-threePointFieldGoalsAttempted"),
+    ("freeThrowPct", "Free throws", "%", "freeThrowsMade-freeThrowsAttempted"),
+    ("totalRebounds", "Rebounds", None, None),
+    ("offensiveRebounds", "Offensive rebounds", None, None),
+    ("assists", "Assists", None, None),
+    ("steals", "Steals", None, None),
+    ("blocks", "Blocks", None, None),
+    ("totalTurnovers", "Turnovers", None, None),
+    ("fouls", "Fouls", None, None),
+    ("pointsInPaint", "Points in the paint", None, None),
+    ("fastBreakPoints", "Fast break points", None, None),
+    ("turnoverPoints", "Points off turnovers", None, None),
+    ("largestLead", "Largest lead", None, None),
+)
+# Before tip-off ESPN sends each team's season so far instead.
+BASKETBALL_SEASON_STATS = (
+    ("avgPoints", "Points a game", None, None),
+    ("avgPointsAgainst", "Points allowed a game", None, None),
+    ("fieldGoalPct", "Field goals", "%", None),
+    ("threePointFieldGoalPct", "Three-pointers", "%", None),
+    ("avgRebounds", "Rebounds a game", None, None),
+    ("avgAssists", "Assists a game", None, None),
+    ("avgSteals", "Steals a game", None, None),
+    ("avgBlocks", "Blocks a game", None, None),
+    ("avgTotalTurnovers", "Turnovers a game", None, None),
+)
+# A player's line in the box score: (the board's name, ESPN's key, ESPN's column label).
+BOX_NUMBERS = (
+    ("min", "minutes", "MIN"), ("pts", "points", "PTS"), ("reb", "rebounds", "REB"), ("ast", "assists", "AST"),
+    ("stl", "steals", "STL"), ("blk", "blocks", "BLK"), ("to", "turnovers", "TO"), ("pf", "fouls", "PF"),
+)
+BOX_SHOTS = (
+    ("fg", "fieldGoalsMade-fieldGoalsAttempted", "FG"),
+    ("tp", "threePointFieldGoalsMade-threePointFieldGoalsAttempted", "3PT"),
+    ("ft", "freeThrowsMade-freeThrowsAttempted", "FT"),
+)
+MADE_ATTEMPTED = re.compile(r"^\d{1,3}-\d{1,3}$")
+LEADER_LABELS = {"points": "Points", "pointsPerGame": "Points", "rebounds": "Rebounds", "reboundsPerGame": "Rebounds",
+                 "assists": "Assists", "assistsPerGame": "Assists"}
+
+
+def _tidy(number):
+    """92.5 stays 92.5; 41.0 is 41."""
+    rounded = round(number, 1)
+    return int(rounded) if rounded == int(rounded) else rounded
+
+
+def shape_basketball_stats(boxscore_teams, home_id, away_id, wanted):
+    """The two teams' numbers side by side, for the stats ESPN sent of the ones wanted."""
+    by_team = {}
+    for team in _list(boxscore_teams):
+        values = {}
+        for stat in _list(_dict(team).get("statistics")):
+            if isinstance(stat, dict) and isinstance(stat.get("name"), str):
+                values.setdefault(stat["name"], stat.get("displayValue"))
+        by_team[str(_dict(_dict(team).get("team")).get("id"))] = values
+    home, away = by_team.get(home_id), by_team.get(away_id)
+    if not home or not away:
+        return []
+    out = []
+    for key, label, unit, shots in wanted:
+        ours, theirs = _number(home.get(key)), _number(away.get(key))
+        if ours is None or theirs is None:
+            continue
+        stat = {"key": key, "label": label, "unit": unit, "home": _tidy(ours), "away": _tidy(theirs)}
+        made = [home.get(shots), away.get(shots)] if shots else []
+        if made and all(isinstance(text, str) and MADE_ATTEMPTED.match(text) for text in made):
+            # "24-57" beside the 42%.
+            stat["homeText"], stat["awayText"] = made
+        out.append(stat)
+    return out
+
+
+def shape_box(players):
+    """One team's box score from ESPN's: who played, starters first, and the team's totals; or None."""
+    table = _dict((_list(_dict(players).get("statistics")) or [None])[0])
+    keys = [key if isinstance(key, str) else "" for key in _list(table.get("keys"))]
+    labels = [label if isinstance(label, str) else "" for label in _list(table.get("labels"))]
+
+    def column(key, label):
+        if key in keys:
+            return keys.index(key)
+        return labels.index(label) if label in labels else None
+
+    numbers = [(name, column(key, label)) for name, key, label in BOX_NUMBERS]
+    shots = [(name, column(key, label)) for name, key, label in BOX_SHOTS]
+
+    def line(cells):
+        cells = _list(cells)
+
+        def cell(at):
+            return cells[at] if at is not None and at < len(cells) and isinstance(cells[at], str) else None
+
+        out = {name: _int(cell(at)) for name, at in numbers}
+        out.update({name: cell(at) if MADE_ATTEMPTED.match(cell(at) or "") else None for name, at in shots})
+        return out
+
+    found = []
+    for index, entry in enumerate(_list(table.get("athletes"))[:40]):
+        entry = _dict(entry)
+        athlete = _dict(entry.get("athlete"))
+        full = _text(athlete.get("displayName"), 60)
+        stats = line(entry.get("stats"))
+        if not full or entry.get("didNotPlay") or stats["pts"] is None:
+            continue
+        found.append((index, {
+            "id": _text(str(athlete.get("id"))) if athlete.get("id") is not None else None,
+            "name": _text(athlete.get("shortName"), 40) or full,
+            "full": full,
+            "number": _text(str(athlete.get("jersey")), 3) if athlete.get("jersey") is not None else None,
+            "pos": _text(_dict(athlete.get("position")).get("abbreviation"), 4),
+            "starter": bool(entry.get("starter")),
+            **stats,
+        }))
+    if not found:
+        return None
+    # The starters as ESPN lists them, then the bench by who played most.
+    found.sort(key=lambda item: (not item[1]["starter"], 0 if item[1]["starter"] else -(item[1]["min"] or 0), item[0]))
+    totals = line(table.get("totals"))
+    totals.pop("min", None)
+    return {"players": [player for _, player in found[:MAX_BOX_PLAYERS]], "totals": totals}
+
+
+def _leaders(raw_leaders):
+    """Each team's leaders by ESPN team id: [{label, name, value}], points then rebounds then assists."""
+    out = {}
+    for team in _list(raw_leaders):
+        team = _dict(team)
+        found = []
+        for category in _list(team.get("leaders"))[:8]:
+            category = _dict(category)
+            label = LEADER_LABELS.get(category.get("name"))
+            best = _dict((_list(category.get("leaders")) or [None])[0])
+            athlete = _dict(best.get("athlete"))
+            name = _text(athlete.get("shortName"), 40) or _text(athlete.get("displayName"), 40)
+            value = _text(best.get("displayValue"), 8)
+            if label and name and value:
+                found.append({"label": label, "name": name, "value": value})
+        out[str(_dict(team.get("team")).get("id"))] = found[:3]
+    return out
+
+
+def shape_basketball_detail(raw, match):
+    """ESPN's game summary as the board's basketball page (built on the match it belongs to).
+
+    The same shape as a soccer page where they share one (so the page's score,
+    stats and facts work unchanged), with the line-ups, bench and timeline left
+    empty, and basketball's own parts added: the score by period, each team's
+    box score, record and leaders, and before tip-off ESPN's chance of a win.
+    """
+    raw = _dict(raw)
+    header = _dict((_list(_dict(raw.get("header")).get("competitions")) or [None])[0])
+    detail = copy.deepcopy(match)
+    detail.pop("follows", None)
+    home_id, away_id = match["home"]["id"], match["away"]["id"]
+    periods = {"home": [], "away": []}
+    if header:
+        status = shape_status(header.get("status"), "basketball")
+        detail["status"] = status
+        home, away = _sides(header)
+        for side, competitor in (("home", home), ("away", away)):
+            if not competitor:
+                continue
+            score, _ = _scores(competitor)
+            detail[side]["score"] = None if status["state"] == "pre" else score
+            detail[side]["winner"] = bool(competitor.get("winner"))
+            detail[side]["color"] = shape_team(competitor.get("team"))["color"] or detail[side]["color"]
+            detail[side]["rank"] = _poll_rank(competitor) or detail[side].get("rank")
+            records = [_dict(r) for r in _list(competitor.get("record"))]
+            overall = next((r for r in records if r.get("type") == "total"), {})
+            detail[side]["record"] = _text(overall.get("summary") or overall.get("displayValue"), 12)
+            scores = [_int(_dict(period).get("displayValue")) for period in _list(competitor.get("linescores"))]
+            periods[side] = [score for score in scores[:MAX_PERIODS] if score is not None]
+    boxes = {str(_dict(_dict(p).get("team")).get("id")): p for p in _list(_dict(raw.get("boxscore")).get("players"))}
+    leaders = _leaders(raw.get("leaders"))
+    for side, team_id in (("home", home_id), ("away", away_id)):
+        detail[side].setdefault("record", None)
+        detail[side].update(formation=None, lines=[], bench=[], box=shape_box(boxes.get(team_id)),
+                            leaders=leaders.get(team_id, []))
+    played = detail["status"]["state"] != "pre"
+    teams = _dict(raw.get("boxscore")).get("teams")
+    detail["events"] = []
+    detail["stats"] = shape_basketball_stats(teams, home_id, away_id, BASKETBALL_STATS if played else BASKETBALL_SEASON_STATS)
+    # What the stats are: this game's, or (before it) each team's season so far.
+    detail["statsOf"] = "game" if played else "season"
+    even = len(periods["home"]) == len(periods["away"]) and periods["home"]
+    detail["periods"] = periods if even else None
+    detail["regulation"] = _int(_dict(_dict(raw.get("format")).get("regulation")).get("periods")) or 2
+    chance = None
+    if not played:
+        predictor = _dict(raw.get("predictor"))
+        ours = _number(_dict(predictor.get("homeTeam")).get("gameProjection"))
+        theirs = _number(_dict(predictor.get("awayTeam")).get("gameProjection"))
+        if ours is not None and theirs is not None and 99 <= ours + theirs <= 101:
+            chance = {"home": int(round(ours)), "away": 100 - int(round(ours))}
+    detail["chance"] = chance
+    info = _dict(raw.get("gameInfo"))
+    detail["venue"] = _text(_dict(info.get("venue")).get("fullName")) or match.get("venue")
+    detail["attendance"] = _int(info.get("attendance")) or None
+    detail["referee"] = None
+    return detail
+
+
 # The service
 
 
@@ -1009,8 +1348,11 @@ class Sports:
             leagues = team["leagues"]
             # One league: ask it directly (college soccer); otherwise every competition at once.
             path = leagues[0] if len(leagues) == 1 else "all"
-            for upcoming in (False, True):
-                url = SITE_API + "%s/teams/%s/schedule%s" % (path, team["espn"], "?fixture=true" if upcoming else "")
+            # Soccer's results and its fixtures are two lists. Basketball's one list
+            # has both, and its tournaments (the Big Ten's, March's) are another.
+            asks = ("", "?seasontype=3") if sport_of(path) == "basketball" else ("", "?fixture=true")
+            for ask in asks:
+                url = site_api(path) + "teams/%s/schedule%s" % (team["espn"], ask)
                 try:
                     raw = self._get_json(url)
                 except SportsUnavailable as err:
@@ -1025,7 +1367,7 @@ class Sports:
             for offset in COMPETITION_DAYS:
                 day = espn_day(now + offset * 24 * 60 * 60)
                 try:
-                    raw = self._get_json(SITE_API + "%s/scoreboard?dates=%s" % (competition["league"], day))
+                    raw = self._get_json(self._scoreboard(competition["league"], day))
                 except SportsUnavailable as err:
                     self._fail("Couldn't read the %s scoreboard" % competition["name"], err)
                     ok = False
@@ -1060,6 +1402,12 @@ class Sports:
         return ok
 
     @staticmethod
+    def _scoreboard(league, day):
+        """A league's scoreboard for one day; for a college league, its conference's teams' games."""
+        group = LEAGUES.get(league, {}).get("group")
+        return site_api(league) + "scoreboard?dates=%s%s" % (day, "&groups=%s" % group if group else "")
+
+    @staticmethod
     def _add(found, match, follow, table=None):
         if match is None:
             return
@@ -1082,8 +1430,12 @@ class Sports:
                 if table_id == "big-ten":
                     page = self._fetch(BIG_TEN_URL % self._follows.big_ten)
                     rows = parse_big_ten(page.decode("utf-8", "replace") if isinstance(page, bytes) else page)
-                    table = {"id": table_id, "name": TABLE_NAMES[table_id], "kind": "college",
+                    table = {"id": table_id, "name": TABLE_NAMES[table_id], "kind": "college", "sport": "soccer",
                              "groups": [{"name": "", "rows": rows}]} if rows else None
+                elif sport_of(self._follows.table_leagues[table_id]) == "basketball":
+                    league = self._follows.table_leagues[table_id]
+                    url = BASKETBALL_STANDINGS_API + "%s/standings?group=%s" % (league, LEAGUES[league]["group"])
+                    table = shape_basketball_table(self._get_json(url), table_id)
                 else:
                     table = shape_espn_table(self._get_json(STANDINGS_API + "%s/standings" % table_id), table_id)
             except SportsUnavailable as err:
@@ -1109,7 +1461,7 @@ class Sports:
         failed = False
         for league, day in wanted:
             try:
-                raw = self._get_json(SITE_API + "%s/scoreboard?dates=%s" % (league, day))
+                raw = self._get_json(self._scoreboard(league, day))
             except SportsUnavailable as err:
                 self._fail("Couldn't read the live scores", err)
                 failed = True
@@ -1166,10 +1518,13 @@ class Sports:
                 cached = self._details.get(match["id"])
                 if cached is not None and now - cached[0] < self._detail_age(match, now):
                     return cached[1]
-            raw = self._get_json(SITE_API + "%s/summary?event=%s" % (match["league"], match["id"]))
-            detail = shape_detail(raw, match)
-            if self._fotmob is not None:
-                add_fotmob(detail, self._fotmob.extra(match))
+            raw = self._get_json(site_api(match["league"]) + "summary?event=%s" % match["id"])
+            if match.get("sport") == "basketball":
+                detail = shape_basketball_detail(raw, match)
+            else:
+                detail = shape_detail(raw, match)
+                if self._fotmob is not None:
+                    add_fotmob(detail, self._fotmob.extra(match))
             with self._lock:
                 old = self._details.get(match["id"])
                 self._details[match["id"]] = (now, detail)
@@ -1244,31 +1599,35 @@ class Sports:
         with self._lock:
             matches = copy.deepcopy(sorted(self._matches.values(), key=lambda m: (m["kickoff"], m["id"])))
             tables = copy.deepcopy(self._tables)
-            # The Big Ten's page has names but no crests: borrow ESPN's for the same schools.
-            schools = {}
-            for match in matches:
-                if match["league"].startswith("usa.ncaa"):
-                    for side in ("home", "away"):
-                        schools.setdefault(match[side]["name"].lower(), match[side])
-            conference = set()
-            for table in tables.values():
-                if table["kind"] == "college":
-                    for row in table["groups"][0]["rows"]:
-                        name = row["team"]["name"].lower()
-                        conference.add(name)
-                        espn = schools.get(name)
-                        if espn:
-                            row["team"].update(id=espn["id"], abbr=espn["abbr"], crest=espn["crest"])
+            # Who's in each table, by name (the same school has another ESPN number in another sport).
+            members = {}
+            for table_id, table in tables.items():
+                rows = [row for group in table["groups"] for row in group["rows"]]
+                members[table_id] = {row["team"]["name"].lower() for row in rows}
+                if table["kind"] != "college":
+                    continue
+                # The Big Ten's page has names but no crests: borrow ESPN's for the same schools.
+                schools = {}
+                for match in matches:
+                    if LEAGUES.get(match["league"], {}).get("table") == table_id:
+                        for side in ("home", "away"):
+                            schools.setdefault(match[side]["name"].lower(), match[side])
+                for row in rows:
+                    espn = schools.get(row["team"]["name"].lower())
+                    if espn:
+                        row["team"].update(id=espn["id"], abbr=espn["abbr"], crest=espn["crest"])
             # ESPN doesn't say which college games are conference games: both teams in the table are.
             for match in matches:
                 info = LEAGUES.get(match["league"], {})
-                if info.get("conference") and {match["home"]["name"].lower(), match["away"]["name"].lower()} <= conference:
+                playing = {match["home"]["name"].lower(), match["away"]["name"].lower()}
+                if info.get("conference") and playing <= members.get(info.get("table"), set()):
                     match["competition"] = info["conference"]
             follows = self._follows.public()
             for follow in follows:
                 if follow["team"]:
-                    follow["crest"] = next((m[side]["crest"] for m in matches for side in ("home", "away")
-                                            if m[side]["id"] == follow["team"]), None)
+                    # Only from its own matches: ESPN's team numbers repeat from sport to sport.
+                    follow["crest"] = next((m[side]["crest"] for m in matches if follow["id"] in m["follows"]
+                                            for side in ("home", "away") if m[side]["id"] == follow["team"]), None)
                 else:
                     follow["crest"] = None
             published = {"follows": follows, "matches": matches, "tables": tables, "error": self._error}

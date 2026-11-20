@@ -6,16 +6,26 @@
 // rated players and FotMob's insights). Tapping a rated player opens their stats.
 // Before the line-ups are out, FotMob's predicted ones stand in for them.
 //
+// A basketball game has the same score across the top (with who's scored most),
+// and two tabs: the box score (the score by half, then each team's players) and
+// the team stats. Before tip-off the stats are the two teams' seasons so far,
+// with ESPN's chance of a win and each team's leaders.
+//
 // The page comes from the Pi (/api/sports/match), which keeps it fresh while the
 // match is on. The live stream says when there's a newer one (the match's
 // `detail` count, its score or its status moves), and only then is it fetched.
 import { el, icons } from '../../ui.js';
 import {
+  BOX_COLUMNS,
+  boxGroups,
+  boxLineLabel,
+  boxValue,
   countdown,
   describe,
   formText,
   hasScore,
   inkOn,
+  isBasketball,
   isHalfTime,
   isLive,
   isUpcoming,
@@ -23,6 +33,7 @@ import {
   minutesText,
   monthYear,
   outText,
+  periodLabels,
   perMatchText,
   ratingBand,
   ratingText,
@@ -32,6 +43,8 @@ import {
   statShare,
   statusText,
   statValue,
+  teamTitle,
+  topScorers,
   versusAverage,
 } from './format.js';
 import { crest, liveBadge, setCrest } from './views.js';
@@ -64,6 +77,8 @@ export function createMatchPage({ sports, matchId, onBack }) {
   let detail = null;
   let summary = null;
   let tab = 'lineups';
+  // Until someone picks a tab, a basketball game shows whichever has something in it.
+  let choseTab = false;
   let shownKey;
   let loading = false;
   let wanted = false;
@@ -109,6 +124,7 @@ export function createMatchPage({ sports, matchId, onBack }) {
         'aria-pressed': 'false',
         onclick: () => {
           tab = id;
+          choseTab = true;
           paint();
         },
       }),
@@ -175,14 +191,16 @@ export function createMatchPage({ sports, matchId, onBack }) {
     const match = current();
     if (!match) return;
     const now = new Date();
+    const hoops = isBasketball(match);
     comp.textContent = match.competition;
     setCrest(homeCrest, match.home);
     setCrest(awayCrest, match.away);
-    homeName.textContent = match.home.name;
-    awayName.textContent = match.away.name;
+    homeName.textContent = teamTitle(match.home);
+    awayName.textContent = teamTitle(match.away);
     const events = detail?.events ?? [];
-    fillScorers(homeGoals, scorers(events, 'home'));
-    fillScorers(awayGoals, scorers(events, 'away'));
+    // Under each name: who scored (soccer), or who's scored most and the team's record.
+    fillScorers(homeGoals, hoops ? underName(match.home) : scorers(events, 'home'), hoops ? 'Top scorers' : 'Goals');
+    fillScorers(awayGoals, hoops ? underName(match.away) : scorers(events, 'away'), hoops ? 'Top scorers' : 'Goals');
     const live = isLive(match);
     scoreLive.hidden = !live;
     scoreLive.lastChild.textContent = live ? (isHalfTime(match) ? 'Half-time' : match.status.clock || 'Live') : '';
@@ -202,22 +220,131 @@ export function createMatchPage({ sports, matchId, onBack }) {
       return;
     }
     const hasLineups = detail.home.lines.length > 0 || detail.away.lines.length > 0;
-    const available = { lineups: true, stats: detail.stats.length > 0, timeline: true, info: Boolean(detail.fotmob) };
-    if (!available[tab]) tab = 'lineups';
+    const hasBox = Boolean(detail.home.box || detail.away.box);
+    const available = hoops
+      ? { lineups: hasBox, stats: detail.stats.length > 0, timeline: false, info: false }
+      : { lineups: true, stats: detail.stats.length > 0, timeline: true, info: Boolean(detail.fotmob) };
+    // The first tab is the box score for basketball.
+    tabButtons.get('lineups').textContent = hoops ? 'Box score' : 'Line-ups';
+    if (hoops && !choseTab) tab = hasBox ? 'lineups' : 'stats';
+    if (!available[tab]) tab = hoops && !hasBox ? 'stats' : 'lineups';
     for (const [id, button] of tabButtons) {
       button.hidden = !available[id];
       button.setAttribute('aria-pressed', String(id === tab));
     }
-    if (tab === 'lineups') content.replaceChildren(hasLineups ? lineups(match) : noLineups(match, now));
+    if (hoops && !available[tab]) content.replaceChildren(noBox(match, now));
+    else if (tab === 'lineups') content.replaceChildren(hoops ? boxScore(match) : hasLineups ? lineups(match) : noLineups(match, now));
     else if (tab === 'stats') content.replaceChildren(stats(match));
     else if (tab === 'info') content.replaceChildren(infoTab(match));
     else content.replaceChildren(timeline(match));
     fillSheet();
   }
 
-  function fillScorers(list, lines) {
+  function fillScorers(list, lines, label) {
     list.replaceChildren(...lines.map((line) => el('li', { class: 'sports-score__scorer', text: line })));
+    list.setAttribute('aria-label', label);
     list.hidden = lines.length === 0;
+  }
+
+  // Basketball, under a team's name: its top scorers once there are any, its record until then.
+  function underName(team) {
+    const scored = topScorers(team.box);
+    if (scored.length) return scored;
+    return team.record ? [`${team.record} this season`] : [];
+  }
+
+  // Basketball's box score: the score by period, then each team's players.
+
+  function boxScore(match) {
+    return el('div', { class: 'sports-box' }, lineScore(match), el('div', { class: 'sports-box__teams' }, boxTeam(match.home), boxTeam(match.away)));
+  }
+
+  function lineScore(match) {
+    const { periods } = detail;
+    if (!periods) return null;
+    const labels = periodLabels(periods.home.length, detail.regulation);
+    const row = (team, side) =>
+      el(
+        'tr',
+        {},
+        el('th', { class: 'sports-linescore__team', scope: 'row' }, crest(team, 'sports-linescore__crest'), el('span', { text: team.short })),
+        ...periods[side].map((points) => el('td', { text: points })),
+        el('td', { class: 'sports-linescore__total', text: team.score ?? '' }),
+      );
+    return el(
+      'table',
+      { class: 'sports-linescore', 'aria-label': 'Score by period' },
+      el(
+        'thead',
+        {},
+        el('tr', {}, el('th', { scope: 'col' }, el('span', { class: 'sports-box__hidden', text: 'Team' })), ...labels.map((label) => el('th', { scope: 'col', text: label })), el('th', { scope: 'col', text: 'T' })),
+      ),
+      el('tbody', {}, row(match.home, 'home'), row(match.away, 'away')),
+    );
+  }
+
+  function boxTeam(team) {
+    const { starters, bench } = boxGroups(team.box);
+    const columns = BOX_COLUMNS;
+    const cellClass = (column) => `sports-box__num${column.extra ? ' sports-box__extra' : ''}${column.key === 'pts' ? ' sports-box__points' : ''}`;
+    const line = (player) =>
+      el(
+        'tr',
+        { class: 'sports-box__row', 'aria-label': boxLineLabel(player) },
+        el(
+          'th',
+          { class: 'sports-box__player', scope: 'row' },
+          el('span', { class: 'sports-box__number', text: player.number ?? '' }),
+          el('span', { class: 'sports-box__name', text: player.name }),
+        ),
+        ...columns.map((column) => el('td', { class: cellClass(column), text: boxValue(player, column.key) })),
+      );
+    const divider = (text) => el('tr', { class: 'sports-box__divider' }, el('th', { colspan: String(columns.length + 1), scope: 'colgroup', text }));
+    return el(
+      'section',
+      { class: 'sports-box__team', 'aria-label': `${team.name} box score` },
+      el(
+        'header',
+        { class: 'sports-box__head' },
+        crest(team, 'sports-box__crest'),
+        el('h3', { class: 'sports-box__title', text: team.name }),
+        team.record && el('span', { class: 'sports-box__record', text: team.record }),
+      ),
+      team.box
+        ? el(
+            'table',
+            { class: 'sports-box__table' },
+            el(
+              'thead',
+              {},
+              el(
+                'tr',
+                {},
+                el('th', { class: 'sports-box__player', scope: 'col', text: 'Starters' }),
+                ...columns.map((column) => el('th', { class: cellClass(column), scope: 'col', title: column.name, 'aria-label': column.name, text: column.label })),
+              ),
+            ),
+            el('tbody', {}, ...starters.map(line), bench.length > 0 && divider('Bench'), ...bench.map(line)),
+            el(
+              'tfoot',
+              {},
+              el(
+                'tr',
+                { class: 'sports-box__row sports-box__row--total' },
+                el('th', { class: 'sports-box__player', scope: 'row', text: 'Team' }),
+                ...columns.map((column) => el('td', { class: cellClass(column), text: column.key === 'min' ? '' : boxValue(team.box.totals, column.key) })),
+              ),
+            ),
+          )
+        : el('p', { class: 'sports-box__none', text: 'No box score from ESPN yet.' }),
+    );
+  }
+
+  function noBox(match, now) {
+    return message(
+      isUpcoming(match) ? 'Not tipped off yet' : 'No box score',
+      isUpcoming(match) ? `The box score fills in by itself once the game starts (${kickoffLabel(match, now)}).` : 'ESPN didn’t publish a box score for this game.',
+    );
   }
 
   // Line-ups
@@ -374,15 +501,32 @@ export function createMatchPage({ sports, matchId, onBack }) {
 
   function stats(match) {
     const [possession, ...rest] = detail.stats[0]?.key === 'possessionPct' ? detail.stats : [null, ...detail.stats];
+    // Basketball before tip-off: ESPN's chance of a win, the seasons so far, and each team's leaders.
+    const { chance } = detail;
+    const season = detail.statsOf === 'season';
+    const leaders = season ? leaderRows(match) : [];
     return el(
       'div',
-      { class: 'sports-stats' },
+      { class: `sports-stats${rest.some((stat) => stat.homeText) ? ' sports-stats--shots' : ''}` },
       el(
         'div',
         { class: 'sports-stats__teams' },
         el('span', { class: 'sports-stats__team sports-stats__team--home' }, crest(match.home, 'sports-stats__crest'), match.home.short),
+        season && el('span', { class: 'sports-stats__of', text: 'This season so far' }),
         el('span', { class: 'sports-stats__team sports-stats__team--away' }, match.away.short, crest(match.away, 'sports-stats__crest')),
       ),
+      chance &&
+        el(
+          'div',
+          { class: 'sports-possession' },
+          el('p', { class: 'sports-possession__label', text: 'ESPN’s chance of winning' }),
+          el(
+            'div',
+            { class: 'sports-possession__bar', role: 'img', 'aria-label': `ESPN’s chance of winning: ${match.home.short} ${chance.home}%, ${match.away.short} ${chance.away}%` },
+            el('span', { class: 'sports-possession__home', style: `flex-grow: ${Math.max(chance.home, 1)}`, text: `${chance.home}%` }),
+            el('span', { class: 'sports-possession__away', style: `flex-grow: ${Math.max(chance.away, 1)}`, text: `${chance.away}%` }),
+          ),
+        ),
       possession &&
         el(
           'div',
@@ -396,6 +540,31 @@ export function createMatchPage({ sports, matchId, onBack }) {
           ),
         ),
       el('ul', { class: 'sports-stats__list' }, ...rest.map((stat) => statRow(stat, match))),
+      leaders.length > 0 && el('h3', { class: 'sports-leaders__title', text: 'Leaders this season' }),
+      leaders.length > 0 && el('ul', { class: 'sports-leaders' }, ...leaders),
+    );
+  }
+
+  // Each team's best in points, rebounds and assists, side by side.
+  function leaderRows(match) {
+    const home = match.home.leaders ?? [];
+    const away = match.away.leaders ?? [];
+    const labels = [...new Set([...home, ...away].map((leader) => leader.label))];
+    const cell = (leader, side) =>
+      el(
+        'span',
+        { class: `sports-leaders__who sports-leaders__who--${side}` },
+        leader && el('span', { class: 'sports-leaders__name', text: leader.name }),
+        leader && el('span', { class: 'sports-leaders__value', text: leader.value }),
+      );
+    return labels.map((label) =>
+      el(
+        'li',
+        { class: 'sports-leaders__row' },
+        cell(home.find((leader) => leader.label === label), 'home'),
+        el('span', { class: 'sports-leaders__label', text: label }),
+        cell(away.find((leader) => leader.label === label), 'away'),
+      ),
     );
   }
 

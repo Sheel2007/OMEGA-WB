@@ -7,6 +7,8 @@ from board.store import ChangeFeed
 
 SITE = sports.SITE_API
 STANDINGS = sports.STANDINGS_API
+HOOPS = sports.BASKETBALL_API + "mens-college-basketball/"
+HOOPS_TABLE = sports.BASKETBALL_STANDINGS_API + "mens-college-basketball/standings?group=7"
 
 
 def at(text):
@@ -127,6 +129,148 @@ BIG_TEN_PAGE = """
 </table>
 </body></html>
 """
+
+
+# Basketball: ESPN numbers a school the same for men and women, and apart from soccer.
+TERPS = team("120", "Maryland", "MD", kind="ncaa", color="ce1126")
+VIRGINIA = team("258", "Virginia", "UVA", kind="ncaa", color="232d4b")
+OHIO_STATE = team("194", "Ohio State", "OSU", kind="ncaa")
+INDIANA = team("84", "Indiana", "IU", kind="ncaa")
+
+HOOPS_STATUSES = {
+    "pre": ("STATUS_SCHEDULED", "pre", "11/13 - 8:00 PM EST", False),
+    "in": ("STATUS_IN_PROGRESS", "in", "2:12 - 2nd", False),
+    "ht": ("STATUS_HALFTIME", "in", "Halftime", False),
+    "end": ("STATUS_END_PERIOD", "in", "End of 1st", False),
+    "post": ("STATUS_FINAL", "post", "Final", True),
+    "ot": ("STATUS_FINAL", "post", "Final/OT", True),
+}
+
+
+def hoops_event(event_id, home, away, date, *, status="pre", score=(None, None), ranks=(99, 99), schedule=True):
+    """A basketball game as ESPN's team schedule (or, schedule=False, its scoreboard) has it."""
+    name, state, detail, completed = HOOPS_STATUSES[status]
+    competitors = []
+    for home_away, who, points, rank, other in (("home", home, score[0], ranks[0], score[1]),
+                                                ("away", away, score[1], ranks[1], score[0])):
+        competitor = {"id": who["id"], "homeAway": home_away, "team": who, "curatedRank": {"current": rank}}
+        if points is not None:
+            competitor["score"] = {"value": float(points), "displayValue": str(points)} if schedule else str(points)
+            competitor["winner"] = completed and points > other
+        competitors.append(competitor)
+    return {
+        "id": event_id,
+        "date": date,
+        "name": "%s at %s" % (away["displayName"], home["displayName"]),
+        "competitions": [{
+            "date": date,
+            "venue": {"fullName": "XFINITY Center"},
+            "notes": [],
+            "status": {"displayClock": "2:12", "period": 2,
+                       "type": {"name": name, "state": state, "completed": completed, "shortDetail": detail}},
+            "competitors": competitors,
+        }],
+    }
+
+
+def hoops_standing(who, conference, overall, streak="-", wins=None):
+    stats = [{"name": "overall", "displayValue": overall}, {"name": "streak", "displayValue": streak}]
+    if conference is not None:
+        stats.append({"name": "vs. Conf.", "displayValue": conference})
+    if wins is not None:
+        stats += [{"name": "wins", "value": float(wins[0])}, {"name": "losses", "value": float(wins[1])}]
+    return {"team": who, "stats": stats}
+
+
+HOOPS_STANDINGS = {"name": "Big Ten Conference", "standings": {"entries": [
+    hoops_standing(INDIANA, "1-1", "9-2", "L1"),
+    hoops_standing(OHIO_STATE, "2-0", "8-3", "W4"),
+    hoops_standing(TERPS, "0-0", "6-4"),
+    {"team": None, "stats": []},
+]}}
+
+BOX_KEYS = ["minutes", "points", "fieldGoalsMade-fieldGoalsAttempted",
+            "threePointFieldGoalsMade-threePointFieldGoalsAttempted", "freeThrowsMade-freeThrowsAttempted", "rebounds",
+            "assists", "turnovers", "steals", "blocks", "offensiveRebounds", "defensiveRebounds", "fouls"]
+
+
+def box_player(name, number, line, *, starter=False, played=True):
+    first, last = name.split(" ", 1)
+    return {"starter": starter, "didNotPlay": not played, "stats": line if played else [],
+            "athlete": {"id": "p%s" % number, "displayName": name, "shortName": "%s. %s" % (first[0], last),
+                        "jersey": number, "position": {"abbreviation": "G"}}}
+
+
+def hoops_box(who, players, totals):
+    return {"team": {"id": who["id"]}, "statistics": [{"keys": BOX_KEYS, "athletes": players, "totals": totals}]}
+
+
+def hoops_summary(home=TERPS, away=VIRGINIA, *, status="post", score=(83, 87)):
+    """A basketball game summary: the box score once it's started, the season's averages before."""
+    name, state, detail, completed = HOOPS_STATUSES[status]
+    played = state != "pre"
+
+    def competitor(home_away, who, points, other, halves, record, rank=None):
+        found = {"homeAway": home_away, "team": who, "record": [{"type": "home", "summary": "9-9"},
+                                                                  {"type": "total", "summary": record}]}
+        if rank:
+            found["rank"] = rank
+        if played:
+            found.update(score=str(points), winner=completed and points > other,
+                         linescores=[{"displayValue": str(half)} for half in halves])
+        return found
+
+    def team_stats(who, values):
+        return {"team": {"id": who["id"]}, "statistics": [{"name": key, "displayValue": value} for key, value in values]}
+
+    if played:
+        teams = [
+            team_stats(home, [("fieldGoalsMade-fieldGoalsAttempted", "24-57"), ("fieldGoalPct", "42"),
+                              ("freeThrowsMade-freeThrowsAttempted", "31-39"), ("freeThrowPct", "79"),
+                              ("totalRebounds", "26"), ("totalTurnovers", "10"), ("avgPoints", "92.5")]),
+            team_stats(away, [("fieldGoalsMade-fieldGoalsAttempted", "33-53"), ("fieldGoalPct", "62"),
+                              ("freeThrowsMade-freeThrowsAttempted", "17-27"), ("freeThrowPct", "63"),
+                              ("totalRebounds", "35"), ("totalTurnovers", "17")]),
+        ]
+        players = [
+            hoops_box(home, [
+                box_player("Pharrel Payne", "21", ["35", "20", "6-10", "0-0", "8-10", "3", "2", "2", "0", "1", "1", "2", "2"],
+                           starter=True),
+                box_player("Adama Tambedou", "14", ["1", "0", "0-0", "0-0", "0-0", "0", "0", "0", "0", "0", "0", "0", "1"]),
+                box_player("Kaden House", "8", ["28", "17", "4-11", "0-2", "9-10", "3", "3", "2", "1", "0", "1", "2", "4"]),
+                box_player("Injured Guard", "3", [], played=False),
+                box_player("DJ Wagner", "2", ["28", "9", "4-7", "1-2", "0-2", "3", "5", "1", "2", "0", "0", "3", "1"],
+                           starter=True),
+            ], ["", "83", "24-57", "4-17", "31-39", "26", "12", "10", "10", "1", "10", "16", "23"]),
+            hoops_box(away, [
+                box_player("Sam Lewis", "5", ["34", "28", "12-16", "0-2", "4-4", "7", "1", "7", "1", "1", "1", "6", "3"],
+                           starter=True),
+            ], ["", "87", "33-53", "4-10", "17-27", "35", "11", "17", "5", "4", "8", "27", "27"]),
+        ]
+        leaders = "points"
+    else:
+        teams = [team_stats(home, [("avgPoints", "92.5"), ("avgPointsAgainst", "74.3"), ("fieldGoalPct", "48"),
+                                   ("avgRebounds", "41.0"), ("streak", "W1")]),
+                 team_stats(away, [("avgPoints", "66.0"), ("avgPointsAgainst", "75.4"), ("fieldGoalPct", "41"),
+                                   ("avgRebounds", "40.8"), ("streak", "L1")])]
+        players = []
+        leaders = "pointsPerGame"
+    return {
+        "header": {"competitions": [{
+            "status": {"type": {"name": name, "state": state, "completed": completed, "shortDetail": detail}},
+            "competitors": [competitor("home", home, score[0], score[1], (47, 36), "1-2"),
+                            competitor("away", away, score[1], score[0], (36, 51), "5-0", rank=6)],
+        }]},
+        "boxscore": {"teams": teams, "players": players},
+        "format": {"regulation": {"periods": 2}},
+        "leaders": [{"team": {"id": home["id"]}, "leaders": [
+            {"name": leaders, "leaders": [{"displayValue": "18.2", "athlete": {"shortName": "P. Payne"}}]},
+            {"name": "blocksPerGame", "leaders": [{"displayValue": "2.0", "athlete": {"shortName": "P. Payne"}}]},
+        ]}],
+        "predictor": {"homeTeam": {"gameProjection": "38.4"}, "awayTeam": {"gameProjection": "61.6"}},
+        "gameInfo": {"venue": {"fullName": "XFINITY Center"}, "attendance": 16908,
+                     "officials": [{"displayName": "Mike Reed"}]},
+    }
 
 
 def roster(who, formation, starters, bench=()):
@@ -291,6 +435,12 @@ def espn_pages():
             table_entry(3, LENS, 0, played=2, note="Eliminated"),
         ]}}]},
         sports.BIG_TEN_URL % "msoc": BIG_TEN_PAGE,
+        HOOPS + "teams/120/schedule": {"events": [
+            hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", ranks=(99, 6)),
+            hoops_event("4002", OHIO_STATE, TERPS, "2026-12-06T17:00Z"),
+        ]},
+        HOOPS_TABLE: HOOPS_STANDINGS,
+        HOOPS + "summary?event=4001": hoops_summary(status="pre"),
         SITE + "eng.1/summary?event=1001": summary(),
         SITE + "uefa.champions/summary?event=2001": summary(ARSENAL, LILLE, status="pre", score=(0, 0),
                                                            with_rosters=False),
@@ -317,12 +467,28 @@ def by_id(snapshot):
 class FollowsTest(unittest.TestCase):
     def test_the_board_follows_arsenal_spurs_chelsea_maryland_men_and_the_champions_league(self):
         follows = sports.follows_from(None)
-        self.assertEqual([t["id"] for t in follows.teams], ["arsenal", "tottenham", "chelsea", "maryland"])
+        self.assertEqual([t["id"] for t in follows.teams],
+                         ["arsenal", "tottenham", "chelsea", "maryland", "maryland-basketball"])
         self.assertEqual(follows.teams[2]["espn"], "363")
         self.assertEqual(follows.teams[3]["leagues"], ("usa.ncaa.m.1",))
+        self.assertEqual(follows.teams[4]["leagues"], ("mens-college-basketball",))
         self.assertEqual([c["id"] for c in follows.competitions], ["ucl"])
-        self.assertEqual(follows.tables, ("eng.1", "uefa.champions", "big-ten"))
+        self.assertEqual(follows.tables, ("eng.1", "uefa.champions", "big-ten", "big-ten-basketball"))
         self.assertEqual(set(follows.teams[0]["leagues"]), {"eng.1", "eng.fa", "eng.league_cup", "uefa.champions"})
+        self.assertEqual([(f["name"], f["sport"]) for f in follows.public()[3:]],
+                         [("Maryland Soccer", "soccer"), ("Maryland Basketball", "basketball"),
+                          ("Champions League", "soccer")])
+
+    def test_basketball_can_be_the_womens_team_or_left_out(self):
+        women = sports.follows_from({"basketball": "women"})
+        self.assertEqual(women.teams[4]["leagues"], ("womens-college-basketball",))
+        self.assertEqual(women.table_leagues["big-ten-basketball"], "womens-college-basketball")
+        off = sports.follows_from({"basketball": False})
+        self.assertEqual([t["id"] for t in off.teams], ["arsenal", "tottenham", "chelsea", "maryland"])
+        self.assertEqual(off.tables, ("eng.1", "uefa.champions", "big-ten"))
+        with self.assertLogs("board.sports", level="WARNING"):
+            self.assertEqual(sports.follows_from({"basketball": "both"}).teams[4]["leagues"],
+                             ("mens-college-basketball",))
 
     def test_the_womens_team_instead(self):
         follows = sports.follows_from({"maryland": "women"})
@@ -494,7 +660,7 @@ class SportsTest(unittest.TestCase):
         self.assertEqual(matches["2003"]["follows"], ["ucl"])
         self.assertEqual(matches["1002"]["table"], "eng.1", "a cup tie shows its team's league")
         self.assertEqual([m["kickoff"] for m in snap["matches"]], sorted(m["kickoff"] for m in snap["matches"]))
-        self.assertEqual(set(snap["tables"]), {"eng.1", "uefa.champions", "big-ten"})
+        self.assertEqual(set(snap["tables"]), {"eng.1", "uefa.champions", "big-ten", "big-ten-basketball"})
         self.assertEqual(api.count("/scoreboard?dates="), len(sports.COMPETITION_DAYS))
         follows = {f["id"]: f for f in snap["follows"]}
         self.assertEqual(follows["arsenal"]["crest"], "soccer:359")
@@ -572,7 +738,7 @@ class SportsTest(unittest.TestCase):
             delay = found.poll()
         snap = found.snapshot()
         self.assertEqual(set(by_id(snap)), set(before))
-        self.assertEqual(set(snap["tables"]), {"eng.1", "uefa.champions", "big-ten"})
+        self.assertEqual(set(snap["tables"]), {"eng.1", "uefa.champions", "big-ten", "big-ten-basketball"})
         self.assertEqual(snap["error"], "offline")
         self.assertLessEqual(delay, sports.ERROR_POLL_SECONDS)
         api.down = False
@@ -640,6 +806,166 @@ class MatchPageTest(unittest.TestCase):
         self.assertEqual(found.match("1001")["home"]["name"], "Arsenal")
         with self.assertRaises(sports.SportsUnavailable):
             found.match("1002")
+
+
+class BasketballTest(unittest.TestCase):
+    def test_a_game_is_a_match_with_its_sport_the_poll_rank_and_no_shootout(self):
+        from_schedule = sports.shape_match(
+            hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", status="post", score=(83, 87), ranks=(99, 6)),
+            "mens-college-basketball")
+        from_board = sports.shape_match(
+            hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", status="post", score=(83, 87), ranks=(99, 6),
+                        schedule=False), "mens-college-basketball")
+        self.assertEqual(from_schedule, from_board)
+        self.assertEqual((from_board["sport"], from_board["competition"], from_board["table"]),
+                         ("basketball", "College Basketball", "big-ten-basketball"))
+        self.assertEqual((from_board["home"]["score"], from_board["away"]["score"]), (83, 87))
+        self.assertEqual((from_board["home"]["rank"], from_board["away"]["rank"]), (None, 6))
+        self.assertEqual((from_board["home"]["winner"], from_board["away"]["winner"]), (False, True))
+        self.assertEqual(from_board["home"]["crest"], "ncaa:120")
+        self.assertEqual(sports.shape_match(event("1", ARSENAL, LEEDS, "2026-10-10T11:30Z"), "eng.1")["sport"], "soccer")
+
+    def test_the_clock_says_how_long_is_left_and_in_which_half(self):
+        def clock(status):
+            game = hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", status=status, score=(40, 38), schedule=False)
+            return sports.shape_match(game, "mens-college-basketball")["status"]
+
+        self.assertEqual(clock("in")["clock"], "2:12 2nd")
+        self.assertEqual((clock("ht")["clock"], clock("ht")["name"]), ("Halftime", "STATUS_HALFTIME"))
+        self.assertEqual(clock("end")["clock"], "End 1st")
+        self.assertEqual((clock("ot")["clock"], clock("ot")["detail"]), (None, "Final/OT"))
+
+    def test_the_conference_table_is_by_conference_record_then_espns_order(self):
+        table = sports.shape_basketball_table(HOOPS_STANDINGS, "big-ten-basketball")
+        rows = table["groups"][0]["rows"]
+        self.assertEqual((table["name"], table["kind"], table["sport"]), ("Big Ten Basketball", "basketball", "basketball"))
+        self.assertEqual([(r["rank"], r["team"]["abbr"], r["won"], r["lost"], r["overall"], r["streak"]) for r in rows],
+                         [(1, "OSU", 2, 0, "8-3", "W4"), (2, "IU", 1, 1, "9-2", "L1"), (3, "MD", 0, 0, "6-4", None)])
+        self.assertEqual(rows[0]["team"]["crest"], "ncaa:194")
+        # Without the written record, ESPN's own win and loss counts.
+        counted = sports.shape_basketball_table(
+            {"standings": {"entries": [hoops_standing(TERPS, None, "6-4", wins=(3, 1))]}}, "big-ten-basketball")
+        self.assertEqual((counted["groups"][0]["rows"][0]["won"], counted["groups"][0]["rows"][0]["played"]), (3, 4))
+        self.assertIsNone(sports.shape_basketball_table({"standings": {"entries": []}}, "big-ten-basketball"))
+        self.assertIsNone(sports.shape_basketball_table("junk", "big-ten-basketball"))
+
+    def test_a_finished_games_page_is_its_box_score_halves_and_team_stats(self):
+        match = sports.shape_match(
+            hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", status="post", score=(83, 87)),
+            "mens-college-basketball")
+        page = sports.shape_basketball_detail(hoops_summary(), match)
+        self.assertEqual((page["periods"], page["regulation"]), ({"home": [47, 36], "away": [36, 51]}, 2))
+        self.assertEqual((page["home"]["record"], page["away"]["record"], page["away"]["rank"]), ("1-2", "5-0", 6))
+        self.assertEqual((page["home"]["color"], page["attendance"], page["venue"]), ("ce1126", 16908, "XFINITY Center"))
+        box = page["home"]["box"]
+        # The starters as ESPN lists them, then the bench by minutes; whoever didn't play is left out.
+        self.assertEqual([p["name"] for p in box["players"]], ["P. Payne", "D. Wagner", "K. House", "A. Tambedou"])
+        payne = box["players"][0]
+        self.assertEqual((payne["full"], payne["number"], payne["starter"], payne["min"], payne["pts"], payne["reb"],
+                          payne["ast"], payne["fg"], payne["tp"], payne["ft"]),
+                         ("Pharrel Payne", "21", True, 35, 20, 3, 2, "6-10", "0-0", "8-10"))
+        self.assertEqual((box["totals"]["pts"], box["totals"]["fg"], box["totals"]["reb"]), (83, "24-57", 26))
+        self.assertNotIn("min", box["totals"])
+        self.assertEqual(page["statsOf"], "game")
+        self.assertEqual(page["stats"][0], {"key": "fieldGoalPct", "label": "Field goals", "unit": "%", "home": 42,
+                                            "away": 62, "homeText": "24-57", "awayText": "33-53"})
+        self.assertEqual([stat["key"] for stat in page["stats"]],
+                         ["fieldGoalPct", "freeThrowPct", "totalRebounds", "totalTurnovers"])
+        self.assertIsNone(page["chance"])
+        # The parts of a soccer page the match page reads are there, empty.
+        self.assertEqual((page["events"], page["home"]["lines"], page["home"]["bench"], page["referee"]), ([], [], [], None))
+        self.assertNotIn("follows", page)
+
+    def test_before_tip_off_the_page_is_the_season_so_far_and_espns_chance(self):
+        match = sports.shape_match(hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z"), "mens-college-basketball")
+        page = sports.shape_basketball_detail(hoops_summary(status="pre"), match)
+        self.assertEqual(page["statsOf"], "season")
+        self.assertEqual([(stat["key"], stat["home"], stat["away"]) for stat in page["stats"]],
+                         [("avgPoints", 92.5, 66), ("avgPointsAgainst", 74.3, 75.4), ("fieldGoalPct", 48, 41),
+                          ("avgRebounds", 41, 40.8)])
+        self.assertEqual(page["chance"], {"home": 38, "away": 62})
+        self.assertEqual(page["home"]["leaders"], [{"label": "Points", "name": "P. Payne", "value": "18.2"}])
+        self.assertEqual((page["home"]["box"], page["periods"], page["home"]["score"]), (None, None, None))
+
+    def test_a_page_espn_sent_nothing_for_is_still_a_page(self):
+        match = sports.shape_match(hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z"), "mens-college-basketball")
+        page = sports.shape_basketball_detail({"boxscore": "?", "leaders": [3], "header": None}, match)
+        self.assertEqual((page["stats"], page["home"]["box"], page["away"]["leaders"], page["chance"]), ([], None, [], None))
+        self.assertEqual(page["home"]["name"], "Maryland")
+
+    def test_the_schedule_tables_and_follow_come_with_everything_else(self):
+        found, api, clock, _ = make()
+        found.poll()
+        snap = found.snapshot()
+        matches = by_id(snap)
+        self.assertEqual((matches["4001"]["follows"], matches["4001"]["competition"]),
+                         (["maryland-basketball"], "College Basketball"))
+        self.assertEqual(matches["4002"]["competition"], "Big Ten Basketball", "both teams are in the table")
+        self.assertEqual(matches["3002"]["competition"], "Big Ten", "soccer's is its own table")
+        self.assertEqual(snap["tables"]["big-ten-basketball"]["kind"], "basketball")
+        self.assertEqual(snap["tables"]["big-ten"]["name"], "Big Ten Soccer")
+        follows = {f["id"]: f for f in snap["follows"]}
+        self.assertEqual((follows["maryland-basketball"]["crest"], follows["maryland-basketball"]["team"]),
+                         ("ncaa:120", "120"))
+        # Results and fixtures are one list; the tournaments are another. No fixture=true.
+        self.assertEqual(api.count("mens-college-basketball/teams/120/schedule"), 2)
+        self.assertEqual(api.count("mens-college-basketball/teams/120/schedule?seasontype=3"), 1)
+        self.assertEqual(api.count("mens-college-basketball/teams/120/schedule?fixture"), 0)
+
+    def test_a_follows_crest_comes_from_its_own_matches(self):
+        # A basketball school ESPN numbers 359, like Arsenal in soccer.
+        clash = team("359", "Bucknell", "BUCK", kind="ncaa")
+        pages = espn_pages()
+        pages[SITE + "all/teams/359/schedule"] = {"events": []}
+        pages[SITE + "all/teams/359/schedule?fixture=true"] = {"events": [
+            event("2001", ARSENAL, LILLE, "2026-10-13T19:00Z", league="uefa.champions", schedule=True)]}
+        pages[HOOPS + "teams/120/schedule"] = {"events": [hoops_event("4003", clash, TERPS, "2026-10-12T23:00Z")]}
+        found, *_ = make(pages)
+        found.poll()
+        follows = {f["id"]: f for f in found.snapshot()["follows"]}
+        self.assertEqual(follows["arsenal"]["crest"], "soccer:359")
+
+    def test_a_game_on_now_is_followed_on_the_big_tens_scoreboard(self):
+        found, api, clock, _ = make()
+        found.poll()
+        clock[0] = at("2026-11-14T01:40Z")
+        # ESPN files it under the evening before, US Eastern; the plain scoreboard only has the top 25.
+        board = HOOPS + "scoreboard?dates=20261113&groups=7"
+        api.pages[board] = {"events": [
+            hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", status="in", score=(40, 38), schedule=False),
+            hoops_event("4999", INDIANA, OHIO_STATE, "2026-11-14T01:00Z", status="in", score=(9, 9), schedule=False),
+        ]}
+        api.pages[HOOPS + "summary?event=4001"] = hoops_summary(status="in", score=(40, 38))
+        self.assertEqual(found.poll(), sports.LIVE_POLL_SECONDS)
+        self.assertEqual(api.count(board), 1)
+        matches = by_id(found.snapshot())
+        self.assertEqual((matches["4001"]["status"]["clock"], matches["4001"]["home"]["score"]), ("2:12 2nd", 40))
+        self.assertNotIn("4999", matches, "the rest of the conference's games aren't followed")
+        # Being a followed team's, its page was read on the same pass, and never from FotMob.
+        self.assertEqual(api.count("summary?event=4001"), 1)
+        self.assertEqual(found.match("4001")["home"]["box"]["totals"]["pts"], 83)
+
+        api.pages[board] = {"events": [
+            hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", status="post", score=(83, 87), schedule=False)]}
+        found.poll()
+        tables_read = api.count(HOOPS_TABLE)
+        clock[0] += sports.TABLE_AFTER_FINAL_SECONDS[0] + 1
+        found.poll()
+        self.assertEqual(api.count(HOOPS_TABLE), tables_read + 1)
+
+    def test_fotmob_is_never_asked_about_basketball(self):
+        class FotMob:
+            asked = []
+
+            def extra(self, match):
+                self.asked.append(match["id"])
+                return None
+
+        found, *_ = make(fotmob=FotMob())
+        found.poll()
+        self.assertEqual(found.match("4001")["statsOf"], "season")
+        found.match("1001")
+        self.assertEqual(FotMob.asked, ["1001"])
 
 
 class CrestTest(unittest.TestCase):

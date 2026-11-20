@@ -1,10 +1,12 @@
 // Words, times and choices for the Sports widget, app and match page. Pure, so
 // it's tested in node.
 //
-// A match is the server's shape (board/sports.py): { id, league, competition,
-// table, kickoff (ms), status: { state: pre|in|post, name, detail, clock,
-// completed }, home, away (each { id, name, short, abbr, crest, color, score,
-// shootout, winner }), note, venue, follows: [follow ids], detail }.
+// A match is the server's shape (board/sports.py): { id, sport: soccer|basketball,
+// league, competition, table, kickoff (ms), status: { state: pre|in|post, name,
+// detail, clock, completed }, home, away (each { id, name, short, abbr, crest,
+// color, score, shootout, winner, and in basketball rank }), note, venue,
+// follows: [follow ids], detail }. A basketball game is a match too: its clock
+// reads "2:12 2nd", it tips off instead of kicking off, and it ends "Final".
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -28,6 +30,15 @@ export const isDone = (match) => match.status.state === 'post';
 export const isUpcoming = (match) => match.status.state === 'pre';
 export const isHalfTime = (match) => match.status.name === 'STATUS_HALFTIME';
 const isFinal = (match) => isDone(match) && match.status.completed;
+export const isBasketball = (match) => match?.sport === 'basketball';
+// What the start is called, and what it is to start.
+const startWord = (match) => (isBasketball(match) ? 'Tip-off' : 'Kickoff');
+// Under a countdown that ticks: "to kickoff", then "kicking off" once it's due.
+export const startCaption = (match, due) => (isBasketball(match) ? (due ? 'tipping off' : 'to tip-off') : due ? 'kicking off' : 'to kickoff');
+// How a finished match is announced.
+export const finishedWord = (match) => (isBasketball(match) ? 'Final' : 'Full time');
+// A team in the top 25 goes by its place: "#6 Virginia".
+export const teamTitle = (team) => (team.rank ? `#${team.rank} ${team.name}` : team.name);
 
 // The follows that are teams (not whole competitions), by follow id.
 function teamFollows(follows) {
@@ -35,8 +46,10 @@ function teamFollows(follows) {
 }
 
 // The ESPN team ids of the teams the board follows, for picking them out of tables.
-export function followedTeamIds(follows) {
-  return new Set(follows.filter((follow) => follow.kind === 'team' && follow.team).map((follow) => follow.team));
+// ESPN's numbers repeat from sport to sport, so a table asks for its own sport's.
+export function followedTeamIds(follows, sport = null) {
+  const teams = follows.filter((follow) => follow.kind === 'team' && follow.team && (!sport || (follow.sport ?? 'soccer') === sport));
+  return new Set(teams.map((follow) => follow.team));
 }
 
 function isTeamMatch(match, teams) {
@@ -174,17 +187,19 @@ export function kickoffLabel(match, now) {
   return `${dayLabel(match.kickoff, now)} ${timeLabel(match.kickoff)}`;
 }
 
-// "Kickoff in 2h 15m" on the day, "Kickoff soon" once it's late to start.
+// "Kickoff in 2h 15m" on the day, "Kickoff soon" once it's late to start
+// ("Tip-off" for basketball).
 export function countdown(match, now) {
   if (!isUpcoming(match)) return null;
+  const start = startWord(match);
   const left = match.kickoff - at(now);
-  if (left <= 0) return 'Kickoff soon';
+  if (left <= 0) return `${start} soon`;
   if (left >= DAY) return null;
   const hours = Math.floor(left / HOUR);
   const minutes = Math.ceil((left % HOUR) / MINUTE);
-  if (hours === 0) return `Kickoff in ${minutes} min`;
-  if (minutes === 0 || minutes === 60) return `Kickoff in ${minutes ? hours + 1 : hours}h`;
-  return `Kickoff in ${hours}h ${minutes}m`;
+  if (hours === 0) return `${start} in ${minutes} min`;
+  if (minutes === 0 || minutes === 60) return `${start} in ${minutes ? hours + 1 : hours}h`;
+  return `${start} in ${hours}h ${minutes}m`;
 }
 
 // Status
@@ -196,18 +211,21 @@ const FINISHED = {
   Pens: 'After penalties',
 };
 
-// In a few words: "63'", "Half-time", "Full time", "Postponed", or when it kicks off.
+// In a few words: "63'", "Half-time", "Full time", "Postponed", or when it kicks
+// off. Basketball: "2:12 2nd", "Half-time", "Final", "Final/OT".
 export function statusText(match, now) {
   if (isLive(match)) return isHalfTime(match) ? 'Half-time' : match.status.clock || match.status.detail || 'Live';
-  if (isDone(match)) return FINISHED[match.status.detail] ?? (match.status.detail || 'Full time');
+  if (isDone(match)) return FINISHED[match.status.detail] ?? (match.status.detail || finishedWord(match));
   return kickoffLabel(match, now);
 }
 
 // The shortest form, for a row in a list: "63'", "HT", "FT", "Pens", "PPD", "3:00 PM".
+// Basketball: "2:12 2nd", "HT", "Final", "F/OT".
 export function shortStatus(match) {
   if (isLive(match)) return isHalfTime(match) ? 'HT' : match.status.clock || 'Live';
   if (isDone(match)) {
     if (!match.status.completed) return /postpone/i.test(match.status.detail) ? 'PPD' : match.status.detail || 'Off';
+    if (isBasketball(match)) return (match.status.detail || 'Final').replace(/^Final\//, 'F/');
     return match.status.detail === 'FT-Pens' ? 'Pens' : match.status.detail || 'FT';
   }
   return timeLabel(match.kickoff);
@@ -304,6 +322,37 @@ export function signed(value) {
   return value > 0 ? `+${value}` : String(value);
 }
 
+// A table comes in three kinds: a league's (played, won, drawn, lost, goal
+// difference, points), college soccer's from the Big Ten's own page (no goal
+// difference, an overall record instead), and a basketball conference's (the
+// conference record, then the overall record and the streak).
+
+// The app's columns, as [label, kind], and a row's cells under the ones after the team.
+export function tableColumns(table) {
+  if (table.kind === 'basketball') return [['#', 'rank'], ['Team', 'team'], ['Conf', 'points'], ['Overall', 'num'], ['Streak', 'num wide']];
+  if (table.kind === 'college') return [['#', 'rank'], ['Team', 'team'], ['GP', 'num'], ['W', 'num'], ['L', 'num'], ['T', 'num'], ['Pts', 'points'], ['Overall', 'num wide']];
+  return [['#', 'rank'], ['Team', 'team'], ['P', 'num'], ['W', 'num wide'], ['D', 'num wide'], ['L', 'num wide'], ['GD', 'num'], ['Pts', 'points']];
+}
+
+export function tableCells(table, row) {
+  if (table.kind === 'basketball') return [`${row.won}-${row.lost}`, row.overall, row.streak];
+  if (table.kind === 'college') return [row.played, row.won, row.lost, row.drawn, row.points, row.overall ?? ''];
+  return [row.played, row.won, row.drawn, row.lost, signed(row.diff), row.points];
+}
+
+// The Sports page's short table has room for three numbers after the team: a
+// quiet one, another quiet one, and the one that counts.
+export function shortTableCells(table, row) {
+  if (table.kind === 'basketball') return ['', row.overall ?? '', `${row.won}-${row.lost}`];
+  return [row.played ?? '', row.diff != null ? signed(row.diff) : `${row.won}-${row.lost}-${row.drawn}`, row.points ?? ''];
+}
+
+// What a screen reader hears for a row of it.
+export function tableRowLabel(table, row) {
+  if (table.kind !== 'basketball') return `${row.rank}. ${row.team.name}, ${row.points} points`;
+  return `${row.rank}. ${row.team.name}, ${row.won}-${row.lost} in the conference${row.overall ? `, ${row.overall} overall` : ''}`;
+}
+
 // The match page
 
 // The goals each side scored, one line per scorer: "Calafiori 62'", "Saka 12', 70' (pen)".
@@ -335,12 +384,25 @@ export function statShare(stat) {
   return total > 0 ? stat.home / total : 0.5;
 }
 
+// "58%", "13"; a shooting stat has what was made too: "24-57 (42%)".
 export function statValue(stat, side) {
-  return `${stat[side]}${stat.unit ?? ''}`;
+  const value = `${stat[side]}${stat.unit ?? ''}`;
+  const made = stat[`${side}Text`];
+  return made ? `${made} (${value})` : value;
 }
 
-// Which side leads a stat (fouls and cards are better low), or null for a tie.
-const LOWER_IS_BETTER = new Set(['foulsCommitted', 'offsides', 'yellowCards', 'redCards', 'bigChancesMissed']);
+// Which side leads a stat (fouls, cards and turnovers are better low), or null for a tie.
+const LOWER_IS_BETTER = new Set([
+  'foulsCommitted',
+  'offsides',
+  'yellowCards',
+  'redCards',
+  'bigChancesMissed',
+  'fouls',
+  'totalTurnovers',
+  'avgTotalTurnovers',
+  'avgPointsAgainst',
+]);
 export function statLeader(stat) {
   if (stat.home === stat.away) return null;
   const homeAhead = stat.home > stat.away;
@@ -358,6 +420,58 @@ export function inkOn(hex) {
   const light = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
   // White's contrast against it, and black's; the better of the two.
   return 1.05 / (light + 0.05) >= (light + 0.05) / 0.05 ? '#ffffff' : '#111111';
+}
+
+// A basketball game's page: the score by period and the box score.
+
+// What each period is called: "1st", "2nd", then "OT", "2OT". The men play two
+// halves and the women four quarters (`regulation`).
+export function periodLabels(count, regulation = 2) {
+  const ordinals = ['1st', '2nd', '3rd', '4th'];
+  return Array.from({ length: count }, (_, i) => {
+    if (i < regulation) return ordinals[i] ?? `${i + 1}`;
+    const extra = i - regulation + 1;
+    return extra === 1 ? 'OT' : `${extra}OT`;
+  });
+}
+
+// The box score's columns: [the player's field, the heading, what it stands for].
+// `extra` ones are left out where there's no room (a phone).
+export const BOX_COLUMNS = [
+  { key: 'min', label: 'MIN', name: 'Minutes', extra: true },
+  { key: 'pts', label: 'PTS', name: 'Points' },
+  { key: 'reb', label: 'REB', name: 'Rebounds' },
+  { key: 'ast', label: 'AST', name: 'Assists' },
+  { key: 'fg', label: 'FG', name: 'Field goals' },
+  { key: 'tp', label: '3PT', name: 'Three-pointers', extra: true },
+  { key: 'ft', label: 'FT', name: 'Free throws', extra: true },
+];
+
+export const boxValue = (line, key) => line?.[key] ?? '–';
+
+// A team's box score as the starters and the bench.
+export function boxGroups(box) {
+  const players = box?.players ?? [];
+  return { starters: players.filter((p) => p.starter), bench: players.filter((p) => !p.starter) };
+}
+
+// Who has scored most, for under the team's name: "P. Payne 20".
+export function topScorers(box, count = 3) {
+  return [...(box?.players ?? [])]
+    .filter((player) => player.pts > 0)
+    .sort((a, b) => b.pts - a.pts)
+    .slice(0, count)
+    .map((player) => `${player.name} ${player.pts}`);
+}
+
+// What a screen reader hears for a player's line.
+export function boxLineLabel(player) {
+  const parts = [`${player.number ? `${player.number} ` : ''}${player.full}`];
+  if (player.pts != null) parts.push(player.pts === 1 ? '1 point' : `${player.pts} points`);
+  if (player.reb != null) parts.push(player.reb === 1 ? '1 rebound' : `${player.reb} rebounds`);
+  if (player.ast != null) parts.push(player.ast === 1 ? '1 assist' : `${player.ast} assists`);
+  if (player.min != null) parts.push(player.min === 1 ? '1 minute' : `${player.min} minutes`);
+  return parts.join(', ');
 }
 
 // FotMob's extras on the match page (board/fotmob.py): ratings, the referee, form.

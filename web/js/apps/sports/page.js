@@ -13,6 +13,7 @@ import {
   countdown,
   dayLabel,
   describe,
+  finishedWord,
   followedTeamIds,
   hasScore,
   isDone,
@@ -21,10 +22,12 @@ import {
   pickFeatured,
   resultsList,
   shootoutText,
-  signed,
+  shortTableCells,
   statusText,
   tableFor,
+  tableRowLabel,
   tableWindow,
+  teamTitle,
   timeLabel,
 } from './format.js';
 import { id as appId, name } from './meta.js';
@@ -133,7 +136,7 @@ export function createSportsPage({ services, openApp }) {
     if (!featured) return state.follows.length ? 'Live scores from ESPN' : 'Sports is turned off in config.json';
     const { match, why } = featured;
     if (why === 'live') return 'Live now';
-    if (why === 'result') return isDone(match) ? `${dayLabel(match.kickoff, now)} · Full time` : 'Latest';
+    if (why === 'result') return isDone(match) ? `${dayLabel(match.kickoff, now)} · ${finishedWord(match)}` : 'Latest';
     const day = dayLabel(match.kickoff, now);
     return day === 'Today' ? 'Game day' : `Next match ${day}`;
   }
@@ -144,8 +147,8 @@ export function createSportsPage({ services, openApp }) {
     featureLive.lastChild.textContent = isLive(match) ? (isHalfTime(match) ? 'HT' : match.status.clock || 'Live') : '';
     setCrest(homeCrest, match.home);
     setCrest(awayCrest, match.away);
-    homeName.textContent = match.home.name;
-    awayName.textContent = match.away.name;
+    homeName.textContent = teamTitle(match.home);
+    awayName.textContent = teamTitle(match.away);
     const scored = hasScore(match);
     feature.classList.toggle('sports-feature--upcoming', !scored);
     homeName.classList.toggle('sports-feature__name--lost', Boolean(match.away.winner));
@@ -197,7 +200,7 @@ export function createSportsPage({ services, openApp }) {
     tablePicker.hidden = ids.length < 2;
     tableTitle.hidden = !tablePicker.hidden;
     const rows = table.groups[0]?.rows ?? [];
-    const wanted = followedTeamIds(state.follows);
+    const wanted = followedTeamIds(state.follows, table.sport);
     // As many rows as the card holds.
     const rowHeight = tableRows.firstElementChild?.offsetHeight || 0;
     const fits = rowHeight ? Math.max(1, Math.floor((tableRows.clientHeight + 1) / rowHeight)) : 8;
@@ -223,10 +226,8 @@ export function createSportsPage({ services, openApp }) {
         rank.textContent = row.rank;
         setCrest(badge, row.team);
         teamName.textContent = row.team.name;
-        played.textContent = row.played ?? '';
-        diff.textContent = row.diff != null ? signed(row.diff) : `${row.won}-${row.lost}-${row.drawn}`;
-        points.textContent = row.points ?? '';
-        li.setAttribute('aria-label', `${row.rank}. ${row.team.name}, ${row.points} points`);
+        [played.textContent, diff.textContent, points.textContent] = shortTableCells(table, row);
+        li.setAttribute('aria-label', tableRowLabel(table, row));
       },
     );
     if (again && !rowHeight && tableRows.firstElementChild?.offsetHeight) renderTable(false);

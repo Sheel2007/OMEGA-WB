@@ -37,8 +37,8 @@ It has eight widgets, and a Sports page:
   through the song it is.
 
 **Sports** follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League
-Cup and Champions League), Maryland soccer in the Big Ten, and every Champions League
-match. It isn't a widget: swipe right on the first home page (or tap the little
+Cup and Champions League), Maryland soccer and Maryland basketball in the Big Ten,
+and every Champions League match. It isn't a widget: swipe right on the first home page (or tap the little
 football before the page dots) and the Sports page slides in, with the match
 that matters most right now, what's coming up, the latest results and a table.
 On a day one of the teams plays, a strip under the clock counts down to kickoff
@@ -50,6 +50,9 @@ While a followed team is playing, the Sports app opens straight onto that match.
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
 theme (Auto, Light, Dark, **Blocks**, a blocky pixel world whose sky follows
+A basketball game's page is its box score instead: the score by half, every
+player's line, and the team stats (before tip-off, both teams' seasons so far
+and ESPN's chance of a win).
 the real time of day and whose land follows the real season, with farm animals
 wandering by in the daytime and monsters at night, and rain or snow falling when
 it really is raining or snowing at home, or **Glass**, an iPadOS-style look
@@ -525,8 +528,12 @@ tables every few hours (and again just after a followed match ends); while a
 followed match is on it checks the score every 30 seconds and keeps that match's
 page fresh. Screens only ever ask the Pi.
 
-It follows Maryland's men's team; to follow the women's team instead, or to turn
-Sports off:
+Maryland basketball comes from the same place: its schedule, live scores and box
+scores, and the Big Ten basketball table, are all ESPN's.
+
+It follows Maryland's men's teams; to follow the women's soccer team instead
+(`maryland`) or the women's basketball team (`basketball`), to leave basketball
+out, or to turn Sports off:
 
 ```json
 { "sports": { "maryland": "women" } }
@@ -571,6 +578,14 @@ both to `config.json`:
 - **Email** works with any SMTP account. For Gmail, turn on 2-Step Verification
   and make an [App Password](https://myaccount.google.com/apppasswords); port 587
   uses STARTTLS and 465 uses SSL.
+```json
+{ "sports": { "basketball": "women" } }
+```
+
+```json
+{ "sports": { "basketball": false } }
+```
+
 - **Texts** go through [Twilio](https://www.twilio.com): the Account SID, Auth
   Token and a Twilio phone number from its console. (The Cup doesn't use carriers'
   email-to-text gateways because they're unreliable and some have shut down. Only

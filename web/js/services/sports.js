@@ -1,5 +1,5 @@
-// SportsService: the teams and competitions the board follows, with their
-// fixtures, scores and tables. The server reads ESPN (and the Big Ten's site) on
+// SportsService: the teams and competitions the board follows (soccer, and
+// Maryland basketball), with their fixtures, scores and tables. The server reads ESPN (and the Big Ten's site) on
 // its own schedule and pushes the result over the live connection (the `sports`
 // stream); screens never talk to ESPN themselves. A match page is asked for
 // when one is opened, and comes from the Pi's copy too.

@@ -1,7 +1,7 @@
 // Sports: the game-day strip under the clock on page 1. On a day a followed team
-// plays, it shows the two teams with a countdown to kickoff that ticks down to the
-// second, then the score and the minute all through the match, then the result
-// for a while after. Matches on at the same time share the card, a row each, and a
+// plays, it shows the two teams with a countdown to kickoff (or tip-off) that
+// ticks down to the second, then the score and the minute all through the match,
+// then the result for a while after. Matches on at the same time share the card, a row each, and a
 // later match's countdown takes over when the last one ends. Any other day it
 // isn't there. Tap a match for its page.
 //
@@ -19,6 +19,7 @@ import {
   isLive,
   isUpcoming,
   shortStatus,
+  startCaption,
   statusText,
   timeLabel,
 } from './format.js';
@@ -29,6 +30,8 @@ const SECOND_MS = 1000;
 const MINUTE_MS = 60 * 1000;
 // As many rows as fit under the clock without reaching the widgets below it.
 const MAX_ROWS = 3;
+// A score longer than "10 – 0" needs the row's tighter layout.
+const WIDE_SCORE = 6;
 
 function createRow(openApp) {
   const label = el('span', { class: 'game-day__label' });
@@ -67,12 +70,14 @@ function createRow(openApp) {
     awayName.textContent = match.away.abbr;
     if (counting) {
       middle.textContent = countdownClock(match, now);
-      caption.textContent = match.kickoff > now.getTime() ? 'to kickoff' : 'kicking off';
+      caption.textContent = startCaption(match, match.kickoff <= now.getTime());
     } else {
       middle.textContent = hasScore(match) ? `${match.home.score} – ${match.away.score}` : 'vs';
       caption.textContent = isLive(match) ? '' : shortStatus(match) === 'FT' ? 'Full time' : statusText(match, now);
     }
     caption.hidden = !caption.textContent;
+    // A basketball score is two or three digits a side: the row tightens round it.
+    node.classList.toggle('game-day__match--wide', !counting && middle.textContent.length > WIDE_SCORE);
     node.setAttribute('aria-label', `Game day. ${describe(match, now)}. Open the match.`);
   }
 

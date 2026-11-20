@@ -515,7 +515,7 @@ class ServerTest(unittest.TestCase):
         state = json.loads(raw)
         self.assertEqual(status, 200)
         self.assertIn("2001", [m["id"] for m in state["matches"]])
-        self.assertEqual(set(state["tables"]), {"eng.1", "uefa.champions", "big-ten"})
+        self.assertEqual(set(state["tables"]), {"eng.1", "uefa.champions", "big-ten", "big-ten-basketball"})
         status, _headers, raw = self.request("/api/sports/match?id=1001")
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(raw)["home"]["formation"], "4-2-3-1")
@@ -549,6 +549,9 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(state["configured"])
         self.assertIn(BEDROOM, [light["id"] for light in state["lights"]])
 
+        # A basketball game's page comes the same way.
+        status, _headers, raw = self.request("/api/sports/match?id=4001")
+        self.assertEqual((status, json.loads(raw)["sport"]), (200, "basketball"))
         status, body = self.post("/api/lights/set", {"id": BEDROOM, "on": True})
         self.assertEqual(status, 200)
         self.assertTrue(next(light for light in body["state"]["lights"] if light["id"] == BEDROOM)["on"])

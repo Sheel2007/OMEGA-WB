@@ -1,26 +1,41 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  BOX_COLUMNS,
+  boxGroups,
+  boxLineLabel,
+  boxValue,
   byDay,
   countdown,
   dayLabel,
   describe,
+  finishedWord,
   followedTeamIds,
   inkOn,
+  isBasketball,
   kickoffLabel,
   liveTeamMatch,
   matchesFor,
+  periodLabels,
   pickFeatured,
   scorers,
   shortDay,
   shortStatus,
+  shortTableCells,
   splitFixtures,
+  startCaption,
   statLeader,
   statShare,
   statusText,
+  statValue,
   subtitle,
+  tableCells,
+  tableColumns,
   tableFor,
+  tableRowLabel,
   tableWindow,
+  teamTitle,
+  topScorers,
   comingList,
   countdownClock,
   gameDayMatches,
@@ -309,4 +324,126 @@ test('form, who is out and minutes played', () => {
 test('fewer big chances missed is better', () => {
   assert.equal(statLeader({ key: 'bigChancesMissed', home: 3, away: 1 }), 'away');
   assert.equal(statLeader({ key: 'xg', home: 2.33, away: 0.62 }), 'home');
+});
+
+// Basketball: Maryland in the Big Ten. A game is a match with its own words.
+
+const HOOPS_FOLLOWS = [...FOLLOWS, { id: 'maryland-basketball', name: 'Maryland Basketball', kind: 'team', team: '120', table: 'big-ten-basketball', sport: 'basketball' }];
+const HOOPS_STATUS = {
+  pre: { state: 'pre', name: 'STATUS_SCHEDULED', detail: '11/20 - 7:00 PM EST', clock: null, completed: false },
+  live: { state: 'in', name: 'STATUS_IN_PROGRESS', detail: '2:12 - 2nd', clock: '2:12 2nd', completed: false },
+  ht: { state: 'in', name: 'STATUS_HALFTIME', detail: 'Halftime', clock: 'Halftime', completed: false },
+  final: { state: 'post', name: 'STATUS_FINAL', detail: 'Final', clock: null, completed: true },
+  ot: { state: 'post', name: 'STATUS_FINAL', detail: 'Final/OT', clock: null, completed: true },
+  ppd: { state: 'post', name: 'STATUS_POSTPONED', detail: 'Postponed', clock: null, completed: false },
+};
+
+function game(id, kickoff, status = 'pre', points = [null, null], extra = {}) {
+  return {
+    ...match(id, kickoff, { follows: ['maryland-basketball'], table: 'big-ten-basketball' }),
+    sport: 'basketball',
+    league: 'mens-college-basketball',
+    competition: 'College Basketball',
+    status: HOOPS_STATUS[status],
+    home: { ...side('120', 'Maryland', points[0]), abbr: 'MD', rank: null },
+    away: { ...side('258', 'Virginia', points[1]), abbr: 'UVA', rank: 6 },
+    ...extra,
+  };
+}
+
+test('basketball tips off, has a clock with the half in it, and ends Final', () => {
+  const live = game('g', local(10, 13, 11), 'live', [61, 58]);
+  assert.equal(isBasketball(live), true);
+  assert.equal(isBasketball(match('x', 0)), false, 'a match that doesn’t say is soccer');
+  assert.equal(countdown(game('g', local(10, 13, 12, 40)), NOW), 'Tip-off in 40 min');
+  assert.equal(countdown(game('g', local(10, 13, 11, 55)), NOW), 'Tip-off soon');
+  assert.equal(startCaption(live, false), 'to tip-off');
+  assert.equal(startCaption(live, true), 'tipping off');
+  assert.equal(startCaption(match('x', 0), false), 'to kickoff');
+  assert.equal(startCaption(match('x', 0), true), 'kicking off');
+  assert.equal(statusText(live, NOW), '2:12 2nd');
+  assert.equal(shortStatus(live), '2:12 2nd');
+  assert.equal(statusText(game('g', 0, 'ht', [30, 28]), NOW), 'Half-time');
+  assert.equal(shortStatus(game('g', 0, 'ht', [30, 28])), 'HT');
+  assert.equal(statusText(game('g', 0, 'final', [83, 87]), NOW), 'Final');
+  assert.equal(shortStatus(game('g', 0, 'final', [83, 87])), 'Final');
+  assert.equal(statusText(game('g', 0, 'ot', [90, 87]), NOW), 'Final/OT');
+  assert.equal(shortStatus(game('g', 0, 'ot', [90, 87])), 'F/OT');
+  assert.equal(shortStatus(game('g', 0, 'ppd')), 'PPD');
+  assert.equal(finishedWord(live), 'Final');
+  assert.equal(finishedWord(match('x', 0)), 'Full time');
+  assert.equal(describe(live, NOW), 'Live, 2:12 2nd: Maryland 61, Virginia 58');
+  assert.equal(describe(game('g', 0, 'final', [83, 87]), NOW), 'Final: Maryland 83, Virginia 87');
+  assert.equal(subtitle({ follows: HOOPS_FOLLOWS, matches: [live] }, NOW), 'Maryland 61–58 Virginia · 2:12 2nd');
+  assert.equal(teamTitle(live.away), '#6 Virginia');
+  assert.equal(teamTitle(live.home), 'Maryland');
+});
+
+test('a game is featured, listed and on the game-day strip like any match', () => {
+  const tonight = game('tonight', local(10, 13, 19));
+  const arsenal = match('ars', local(10, 14, 15));
+  assert.equal(pickFeatured([tonight, arsenal], HOOPS_FOLLOWS, NOW).match.id, 'tonight');
+  assert.deepEqual(gameDayMatches([tonight, arsenal], HOOPS_FOLLOWS, NOW).map((m) => m.id), ['tonight']);
+  assert.deepEqual(matchesFor([tonight, arsenal], 'maryland-basketball').map((m) => m.id), ['tonight']);
+  const live = game('live', local(10, 13, 11), 'live', [61, 58]);
+  assert.equal(liveTeamMatch([arsenal, live], HOOPS_FOLLOWS).id, 'live');
+});
+
+test('a table only picks out the followed teams of its own sport', () => {
+  // ESPN numbers a basketball school 359 too: that isn't Arsenal.
+  assert.deepEqual([...followedTeamIds(HOOPS_FOLLOWS)], ['359', '367', '120']);
+  assert.deepEqual([...followedTeamIds(HOOPS_FOLLOWS, 'basketball')], ['120']);
+  assert.deepEqual([...followedTeamIds(HOOPS_FOLLOWS, 'soccer')], ['359', '367'], 'a follow that doesn’t say is soccer');
+});
+
+test('each kind of table has its own columns', () => {
+  const league = { kind: 'league' };
+  const college = { kind: 'college' };
+  const hoops = { kind: 'basketball' };
+  const row = { rank: 3, team: { name: 'Maryland' }, played: 5, won: 3, drawn: 1, lost: 1, diff: 4, points: 10, overall: '12-4', streak: 'W2' };
+  assert.deepEqual(tableColumns(league).map(([label]) => label), ['#', 'Team', 'P', 'W', 'D', 'L', 'GD', 'Pts']);
+  assert.deepEqual(tableCells(league, row), [5, 3, 1, 1, '+4', 10]);
+  assert.deepEqual(tableColumns(college).map(([label]) => label), ['#', 'Team', 'GP', 'W', 'L', 'T', 'Pts', 'Overall']);
+  assert.deepEqual(tableCells(college, row), [5, 3, 1, 1, 10, '12-4']);
+  assert.deepEqual(tableColumns(hoops).map(([label]) => label), ['#', 'Team', 'Conf', 'Overall', 'Streak']);
+  assert.deepEqual(tableCells(hoops, row), ['3-1', '12-4', 'W2']);
+  for (const table of [league, college, hoops]) assert.equal(tableCells(table, row).length, tableColumns(table).length - 2);
+  assert.deepEqual(shortTableCells(league, row), [5, '+4', 10]);
+  assert.deepEqual(shortTableCells(college, { ...row, diff: null }), [5, '3-1-1', 10]);
+  assert.deepEqual(shortTableCells(hoops, { ...row, points: null }), ['', '12-4', '3-1']);
+  assert.equal(tableRowLabel(league, row), '3. Maryland, 10 points');
+  assert.equal(tableRowLabel(hoops, row), '3. Maryland, 3-1 in the conference, 12-4 overall');
+});
+
+test('a shooting stat shows what was made, and fewer turnovers is better', () => {
+  const shots = { key: 'fieldGoalPct', unit: '%', home: 42, away: 62, homeText: '24-57', awayText: '33-53' };
+  assert.equal(statValue(shots, 'home'), '24-57 (42%)');
+  assert.equal(statValue(shots, 'away'), '33-53 (62%)');
+  assert.equal(statValue({ key: 'totalRebounds', unit: null, home: 26, away: 35 }, 'home'), '26');
+  assert.equal(statValue({ key: 'avgPoints', unit: null, home: 92.5, away: 66 }, 'home'), '92.5');
+  assert.equal(statLeader({ key: 'totalTurnovers', home: 10, away: 17 }), 'home');
+  assert.equal(statLeader({ key: 'avgPointsAgainst', home: 74.3, away: 75.4 }), 'home');
+  assert.equal(statLeader(shots), 'away');
+});
+
+test('the box score: periods, starters and bench, and who scored most', () => {
+  assert.deepEqual(periodLabels(2), ['1st', '2nd']);
+  assert.deepEqual(periodLabels(4), ['1st', '2nd', 'OT', '2OT']);
+  assert.deepEqual(periodLabels(5, 4), ['1st', '2nd', '3rd', '4th', 'OT'], 'the women play quarters');
+  assert.deepEqual(periodLabels(0), []);
+  const player = (name, pts, starter = false, extra = {}) => ({ name, full: `Full ${name}`, number: '7', starter, min: 20, pts, reb: 3, ast: 1, fg: '2-4', tp: '0-1', ft: '1-1', ...extra });
+  const box = { players: [player('A. Mills', 6, true), player('P. Payne', 20, true), player('K. House', 17), player('A. Tambedou', 0), player('M. McNair', 15)], totals: { pts: 58 } };
+  assert.deepEqual(boxGroups(box).starters.map((p) => p.name), ['A. Mills', 'P. Payne']);
+  assert.deepEqual(boxGroups(box).bench.map((p) => p.name), ['K. House', 'A. Tambedou', 'M. McNair']);
+  assert.deepEqual(boxGroups(null), { starters: [], bench: [] });
+  assert.deepEqual(topScorers(box), ['P. Payne 20', 'K. House 17', 'M. McNair 15']);
+  assert.deepEqual(topScorers(box, 1), ['P. Payne 20']);
+  assert.deepEqual(topScorers(null), []);
+  assert.deepEqual(topScorers({ players: [player('A. Tambedou', 0)] }), [], 'nobody has scored yet');
+  assert.deepEqual(BOX_COLUMNS.filter((column) => !column.extra).map((column) => column.label), ['PTS', 'REB', 'AST', 'FG'], 'what a phone keeps');
+  assert.equal(boxValue(box.players[3], 'pts'), 0, 'no points is 0, not a dash');
+  assert.equal(boxValue({ pts: null }, 'pts'), '–');
+  assert.equal(boxValue(null, 'fg'), '–');
+  assert.equal(boxLineLabel(box.players[1]), '7 Full P. Payne, 20 points, 3 rebounds, 1 assist, 20 minutes');
+  assert.equal(boxLineLabel(player('X', 1, false, { number: null, reb: 1, ast: 0, min: 1 })), 'Full X, 1 point, 1 rebound, 0 assists, 1 minute');
 });

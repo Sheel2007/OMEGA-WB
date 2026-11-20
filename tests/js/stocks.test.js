@@ -18,7 +18,7 @@ import {
 import * as meta from '../../web/js/apps/stocks/meta.js';
 import { contrastRatio } from '../../web/js/color.js';
 import { createSettingsService, STORAGE_KEY } from '../../web/js/services/settings.js';
-import { addWidget, CLOCK_AREA, findWidget, LAYOUTS, nearestSize, normalize, resizable, resizeWidget, SPANS } from '../../web/js/widget-layout.js';
+import { addWidget, CLOCK_AREA, findWidget, LAYOUTS, nearestSize, normalize, resizable, resizeWidget, SPANS, stripOnly } from '../../web/js/widget-layout.js';
 
 const OPEN = 1795098600;
 const CLOSE = 1795122000;
@@ -463,22 +463,96 @@ test('a saved layout that says it is another size is put back to mini', async ()
   assert.deepEqual(settings.getPages(), [[{ id: 'stocks', size: 'mini', col: 4, row: 1 }]]);
 });
 
-test('on Glass it is one small square, in its own arrangement, and still cannot be resized', async () => {
+test('on Glass it stands beside the clock and takes no cell of the grid', async () => {
   const widgets = await realWidgets();
   const settings = createSettingsService({ storage: memoryStorage(), widgets, defaultWidgets: DEFAULT_WIDGETS });
   const board = JSON.stringify(settings.getPages());
+  assert.deepEqual(settings.getDocked(), [], 'the board has a column for it');
   settings.setTheme('apple');
-  const glass = findWidget(settings.getPages(), 'stocks');
-  assert.equal(glass.size, 'mini');
-  assert.deepEqual(LAYOUTS.apple.spans[glass.size], { w: 1, h: 1 });
-  assert.deepEqual({ page: glass.page, col: glass.col, row: glass.row }, { page: 0, col: 3, row: 1 }, 'beside the clock there too');
+  // Glass has no one-column strip: the widget is docked in the clock's slot.
+  assert.equal(stripOnly(meta.widgetSizes), true);
+  assert.deepEqual(LAYOUTS.apple.strip, { col: 2, row: 1 }, "the last cell of the clock's slot");
+  assert.deepEqual(settings.getDocked(), ['stocks']);
+  assert.equal(findWidget(settings.getPages(), 'stocks'), null, "it isn't on the grid");
+  assert.ok(settings.getWidgets().includes('stocks'), 'but it is on');
+  assert.deepEqual(settings.get().docked, ['stocks']);
+  // So the top row is as full as it was without it: the clock, then two squares.
+  const top = settings.getPages()[0].filter((item) => item.row === 1);
+  assert.deepEqual(top.map((item) => [item.id, item.col]), [['spotify', 3], ['calendar', 4]]);
+  // Nothing moves or stretches it.
+  const before = JSON.stringify(settings.get());
   settings.resizeWidget('stocks', 'large');
-  assert.equal(findWidget(settings.getPages(), 'stocks').size, 'mini');
-  // Taking it off and putting it back works in both arrangements.
+  settings.moveWidget('stocks', { page: 1, col: 1, row: 1 });
+  assert.equal(settings.addWidget('stocks'), null, "it's already on");
+  assert.equal(JSON.stringify(settings.get()), before);
+
+  // Taking it off takes it off the board too, and Undo puts it back where it was there.
+  const glassPages = JSON.stringify(settings.getPages());
   const from = settings.removeWidget('stocks');
+  assert.equal(from.docked, true);
+  assert.deepEqual(settings.getDocked(), []);
+  assert.equal(settings.getWidgets().includes('stocks'), false);
+  assert.equal(JSON.stringify(settings.getPages()), glassPages, 'the rest of Glass is as it was');
+  settings.setTheme('dark');
   assert.equal(findWidget(settings.getPages(), 'stocks'), null);
+  settings.setTheme('apple');
   settings.restoreWidget('stocks', from);
-  assert.deepEqual(findWidget(settings.getPages(), 'stocks'), glass);
+  assert.deepEqual(settings.getDocked(), ['stocks']);
   settings.setTheme('dark');
   assert.equal(JSON.stringify(settings.getPages()), board, "the board's layout is as it was");
+
+  // Added from the menu while on Glass: beside the clock (page 1), and in a strip on the board.
+  settings.removeWidget('stocks');
+  settings.setTheme('apple');
+  assert.equal(settings.addWidget('stocks'), 0);
+  assert.deepEqual(settings.getDocked(), ['stocks']);
+  assert.equal(JSON.stringify(settings.getPages()), glassPages);
+  settings.setTheme('dark');
+  assert.deepEqual(findWidget(settings.getPages(), 'stocks'), { page: 0, id: 'stocks', size: 'mini', col: 4, row: 1 });
+});
+
+test('a Glass board that already has its arrangement keeps it: Stocks docks without taking a square', async () => {
+  const widgets = await realWidgets();
+  const widgetsSince = { spotify: 8, stocks: 11 };
+  // A full first page on both layouts, as a board in use has.
+  const pages = [
+    [
+      { id: 'spotify', size: 'mini', col: 4, row: 1 },
+      { id: 'calendar', size: 'medium', col: 5, row: 1 },
+      { id: 'weather', size: 'medium', col: 9, row: 1 },
+      { id: 'unspeakable', size: 'small', col: 1, row: 3 },
+      { id: 'grocery', size: 'small', col: 4, row: 3 },
+      { id: 'lights', size: 'medium', col: 7, row: 3 },
+    ],
+  ];
+  const applePages = [
+    [
+      { id: 'spotify', size: 'small', col: 3, row: 1 },
+      { id: 'calendar', size: 'small', col: 4, row: 1 },
+      { id: 'weather', size: 'medium', col: 1, row: 2 },
+      { id: 'unspeakable', size: 'small', col: 3, row: 2 },
+      { id: 'grocery', size: 'small', col: 4, row: 2 },
+    ],
+    [{ id: 'lights', size: 'small', col: 1, row: 1 }],
+  ];
+  const settings = createSettingsService({
+    storage: saved({ version: 10, theme: 'apple', pages, applePages }),
+    widgets,
+    defaultWidgets: DEFAULT_WIDGETS,
+    widgetsSince,
+  });
+  assert.deepEqual(settings.getPages(), applePages, 'every square where it was');
+  assert.deepEqual(settings.getDocked(), ['stocks']);
+
+  // A screen that saved Stocks as a square on Glass (the first version did) loses the square, not the widget.
+  const squared = [[...applePages[0]], [...applePages[1], { id: 'stocks', size: 'mini', col: 2, row: 1 }]];
+  const withStocks = [[...pages[0], { id: 'stocks', size: 'mini', col: 11, row: 3 }]];
+  const again = createSettingsService({
+    storage: saved({ version: 11, theme: 'apple', pages: withStocks, applePages: squared }),
+    widgets,
+    defaultWidgets: DEFAULT_WIDGETS,
+    widgetsSince,
+  });
+  assert.deepEqual(again.getPages(), applePages);
+  assert.deepEqual(again.getDocked(), ['stocks']);
 });

@@ -31,6 +31,11 @@ export const LAYOUTS = {
     // iOS has nothing narrower than its small widget, so mini is a small square here.
     spans: { mini: { w: 1, h: 1 }, small: { w: 1, h: 1 }, medium: { w: 2, h: 1 }, large: { w: 2, h: 2 } },
     clock: { col: 1, row: 1, w: 2, h: 1 },
+    // This grid has no one-column strip, but the time leaves a gap at the end of
+    // the clock's slot. A widget that only comes as a strip (stripOnly: Stocks)
+    // stands there, in this cell, and takes no place on the grid: it isn't in this
+    // layout's pages at all (SettingsService lists it as docked).
+    strip: { col: 2, row: 1 },
   },
 };
 
@@ -334,6 +339,13 @@ export function cellFromPoint(point, { left, top, width, height, colGap = 0, row
 export function nearestSize(sizes, spans, want, current) {
   const cost = (size) => Math.abs(spans[size].w - want.w) + Math.abs(spans[size].h - want.h);
   return [...sizes].sort((a, b) => cost(a) - cost(b) || (b === current) - (a === current) || SIZES.indexOf(a) - SIZES.indexOf(b))[0];
+}
+
+// Whether a widget that comes in `sizes` only exists as the mini strip. On a
+// layout with a `strip` cell (Glass) it's docked beside the clock instead of
+// being placed on the grid.
+export function stripOnly(sizes) {
+  return Array.isArray(sizes) && sizes.length === 1 && sizes[0] === 'mini';
 }
 
 // Whether a widget that comes in `sizes` can be resized at all. One that comes in

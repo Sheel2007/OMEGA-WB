@@ -330,6 +330,7 @@ const widgets = createWidgetHost({
   context,
   pager,
   getLayout: () => services.settings.getLayout(),
+  getDocked: () => services.settings.getDocked(),
   onRender: () => glass.refresh(),
 });
 // On a phone the widgets are never built: the app icons take their place, so there

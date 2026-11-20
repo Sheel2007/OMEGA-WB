@@ -33,6 +33,7 @@ test('starts from defaults when nothing is saved', () => {
   assert.deepEqual(settings.get(), {
     theme: 'auto',
     pages: [[at('shopping', 'large', 4, 1), at('weather', 'medium', 9, 1)]],
+    docked: [],
     widgets: ['shopping', 'weather'],
     scenery: true,
     asker: null,
@@ -271,6 +272,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   assert.deepEqual(tampered.get(), {
     theme: 'dark',
     pages: [[at('unspeakable', 'small', 4, 1)], [at('games', 'small', 1, 1)]],
+    docked: [],
     widgets: ['unspeakable', 'games'],
     scenery: true,
     asker: null,

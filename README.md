@@ -430,6 +430,10 @@ else moves, and if you take it off it stays off (**Widgets → Stocks → Add**
 brings it back). If it lands somewhere else, long-press it and drag it beside
 the clock. New screens start with it there. It can't be resized.
 
+In the **Glass** theme it doesn't take a square: it stands in the gap between
+the time and the widget beside the clock, and that's the only place it goes
+there (it can be taken off in edit mode, but not moved).
+
 Prices come from Yahoo Finance's chart data, which is unofficial: if it changes
 or goes away the widget says **No data** and nothing else is affected. The Pi
 asks every two minutes while the market is open and every half hour when it's

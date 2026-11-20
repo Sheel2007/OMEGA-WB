@@ -18,6 +18,7 @@ import {
   placeWidget,
   removeWidget,
   resizeWidget,
+  stripOnly,
   widgetOrder,
 } from '../widget-layout.js';
 
@@ -33,7 +34,8 @@ const SCHEMA_VERSION = 11;
 // in the first free spot that fits it, leaving everything else where it was.
 // Version 10 renamed the Notes widget to Unspeakable (RENAMED_WIDGETS), so a saved
 // board keeps the widget, in its place, instead of losing it as an unknown id.
-// Version 11 picks up Stocks, the same way as Spotify.
+// Version 11 picks up Stocks, the same way as Spotify. On the Glass layout Stocks
+// has no place on the grid: it's docked beside the clock (see `docks` below).
 const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const FIRST_PLACED_VERSION = 7;
 const MAX_ASKER_LENGTH = 30;
@@ -93,7 +95,18 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
       .map((ids) => ids.filter((id) => typeof id === 'string' && known(id) && !seen.has(id) && seen.add(id)));
   }
 
-  const sameWidgets = (a, b) => JSON.stringify(widgetOrder(a).sort()) === JSON.stringify(widgetOrder(b).sort());
+  // A widget that only comes as the strip beside the clock (Stocks) has a column
+  // of its own on the board, and none on a layout whose grid has no such column
+  // (Glass, which says so with `strip`). There it's docked: shown at the end of the
+  // clock's slot, and kept out of that layout's pages. Whether it's on at all is
+  // the board's pages' say, as for every widget.
+  const docks = (layout, id) => Boolean(layout.strip) && stripOnly(specOf(id)?.sizes);
+  const dockedOn = (layout, state) => widgetOrder(state.pages).filter((id) => docks(layout, id));
+  const gridIds = (layout, pages) => widgetOrder(pages).filter((id) => !docks(layout, id));
+
+  // Whether another layout's saved pages still hold the widgets the board has.
+  const sameWidgets = (other, pages, layout) =>
+    JSON.stringify(widgetOrder(other).sort()) === JSON.stringify(gridIds(layout, pages).sort());
 
   // The pages for `theme`'s layout. A layout this screen hasn't used yet starts as
   // the board's pages laid out in order on its grid, each widget the size it is there.
@@ -102,7 +115,8 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
     const saved = state[FIELD[grid.id]];
     if (saved) return saved;
     const sizeOnBoard = (id) => findWidget(state.pages, id)?.size ?? defaultSize(id);
-    return fromOrder(state.pages.map((items) => items.map((item) => item.id)), sizeOnBoard, grid);
+    const ordered = state.pages.map((items) => items.map((item) => item.id).filter((id) => !docks(grid, id)));
+    return fromOrder(ordered, sizeOnBoard, grid);
   }
 
   function validAsker(name) {
@@ -141,10 +155,16 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
   function withNewPlacements(pages, layout, version) {
     let next = pages;
     for (const id of defaultWidgets) {
-      if (!known(id) || findWidget(next, id) || (widgetsSince[id] ?? 0) <= version) continue;
+      if (!known(id) || docks(layout, id) || findWidget(next, id) || (widgetsSince[id] ?? 0) <= version) continue;
       next = addWidget(next, { id, size: defaultSize(id) }, layout).pages;
     }
     return next;
+  }
+
+  // Saved pages for a layout that docks some widgets, without those widgets.
+  function withoutDocked(pages, layout) {
+    if (!widgetOrder(pages).some((id) => docks(layout, id))) return pages;
+    return normalize(pages.map((items) => items.filter((item) => !docks(layout, item.id))), layout, specOf);
   }
 
   function load() {
@@ -157,6 +177,7 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
       if (version >= FIRST_PLACED_VERSION) {
         pages = normalize(renameWidgets(saved.pages), LAYOUTS.board, specOf) ?? defaults().pages;
         apple = normalize(renameWidgets(saved.applePages), LAYOUTS.apple, specOf);
+        apple = apple && withoutDocked(apple, LAYOUTS.apple);
         if (version < SCHEMA_VERSION) {
           pages = withNewPlacements(pages, LAYOUTS.board, version);
           apple = apple && withNewPlacements(apple, LAYOUTS.apple, version);
@@ -169,7 +190,7 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
         theme: validTheme(saved.theme),
         pages,
         // Thrown away (and worked out again) if it's lost track of which widgets are on.
-        applePages: apple && sameWidgets(apple, pages) ? apple : null,
+        applePages: apple && sameWidgets(apple, pages, LAYOUTS.apple) ? apple : null,
         scenery: typeof saved.scenery === 'boolean' ? saved.scenery : true,
         asker: validAsker(saved.asker),
       };
@@ -189,13 +210,16 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
   }
 
   const active = () => pagesFor(current, current.theme);
+  // The widgets docked beside the clock on the layout in use (none on the board's).
+  const docked = () => dockedOn(layoutFor(current.theme), current);
 
   function get() {
     const pages = active();
     return {
       theme: current.theme,
       pages: pages.map((items) => items.map((item) => ({ ...item }))),
-      widgets: widgetOrder(pages),
+      docked: docked(),
+      widgets: [...widgetOrder(pages), ...docked()],
       scenery: current.scenery,
       asker: current.asker,
     };
@@ -211,6 +235,7 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
   }
 
   const pageOf = (id) => findWidget(active(), id)?.page ?? -1;
+  const isOn = (id) => pageOf(id) !== -1 || docked().includes(id);
   const onScreen = () => layoutFor(current.theme);
   const setActive = (pages) => update({ [FIELD[onScreen().id]]: pages });
 
@@ -225,14 +250,17 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
     update(changes);
   }
 
-  // Other layouts get a new widget in their first free spot, at its default size.
-  const addElsewhere = (id) => (pages, grid) => addWidget(pages, { id, size: defaultSize(id) }, grid).pages;
+  // Other layouts get a new widget in their first free spot, at its default size
+  // (unless it's docked there, which needs no spot).
+  const addElsewhere = (id) => (pages, grid) => (docks(grid, id) ? pages : addWidget(pages, { id, size: defaultSize(id) }, grid).pages);
 
   return {
     get,
     getTheme: () => current.theme,
     getPages: () => get().pages,
-    getWidgets: () => widgetOrder(active()),
+    getWidgets: () => [...widgetOrder(active()), ...docked()],
+    // Widgets shown beside the clock instead of on the grid (Stocks, on Glass).
+    getDocked: () => docked(),
     // The grid the home screen is laid out on for the current theme.
     getLayout: () => layoutFor(current.theme),
     getScenery: () => current.scenery,
@@ -258,7 +286,12 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
     // otherwise on the first page with room (or a new page at the end). Returns the
     // page it ended up on, or null if it couldn't be added.
     addWidget(id, { page } = {}) {
-      if (!known(id) || pageOf(id) !== -1) return null;
+      if (!known(id) || isOn(id)) return null;
+      if (docks(onScreen(), id)) {
+        // Beside the clock here (page 1); on the board's pages it takes a strip.
+        update({ pages: addWidget(current.pages, { id, size: defaultSize(id) }, LAYOUTS.board).pages });
+        return 0;
+      }
       const added = addWidget(active(), { id, size: defaultSize(id) }, onScreen(), { page });
       updatePages(added.pages, addElsewhere(id));
       return pageOf(id);
@@ -266,14 +299,24 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
 
     // Returns where it was ({ page, col, row, size }), for Undo.
     removeWidget(id) {
+      if (docked().includes(id)) {
+        // It's on because the board's pages have it: take it off those.
+        const { pages, from } = removeWidget(current.pages, id);
+        update({ pages: normalize(pages, LAYOUTS.board, specOf) });
+        return { ...from, docked: true };
+      }
       const { pages, from } = removeWidget(active(), id);
       if (from) updatePages(normalize(pages, onScreen(), specOf), (other) => removeWidget(other, id).pages);
       return from;
     },
 
     restoreWidget(id, from) {
-      if (!known(id) || pageOf(id) !== -1 || !from) return;
+      if (!known(id) || isOn(id) || !from) return;
       const size = specOf(id).sizes.includes(from.size) ? from.size : defaultSize(id);
+      if (from.docked) {
+        update({ pages: placeWidget(current.pages, { id, size }, from, LAYOUTS.board) });
+        return;
+      }
       updatePages(placeWidget(active(), { id, size }, from, onScreen()), addElsewhere(id));
     },
 

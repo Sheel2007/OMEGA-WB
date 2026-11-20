@@ -12,7 +12,8 @@ export function gridArea({ col, row, w, h }) {
 
 // getLayout() is the grid for the current theme (LAYOUTS in widget-layout.js);
 // onRender() is called once widgets are where they'll be shown.
-export function createWidgetHost({ track, apps, context, pager, getLayout, onRender }) {
+// getDocked() is the widgets shown beside the clock instead of on the grid.
+export function createWidgetHost({ track, apps, context, pager, getLayout, getDocked = () => [], onRender }) {
   const mounted = new Map();
   const firstPage = track.firstElementChild;
   const clock = firstPage.querySelector('.clock');
@@ -49,7 +50,11 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, onRen
   // ghost: { id, element } puts `element` (the drop placeholder) where widget `id`
   // would go, while the widget itself is being dragged around.
   function render(pages, { ghost = null } = {}) {
-    const wanted = new Set(widgetOrder(pages));
+    const layout = getLayout();
+    // A grid with no one-column strip (Glass) stands a strip widget at the end of
+    // the clock's slot instead. There's room for one.
+    const docked = layout.strip ? getDocked().slice(0, 1) : [];
+    const wanted = new Set([...widgetOrder(pages), ...docked]);
     for (const [id, widget] of mounted) {
       if (wanted.has(id)) continue;
       widget.destroy();
@@ -57,19 +62,34 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, onRen
       mounted.delete(id);
     }
 
-    const layout = getLayout();
     track.style.setProperty('--grid-cols', layout.grid.cols);
     track.style.setProperty('--grid-rows', layout.grid.rows);
     clock.style.gridArea = gridArea(layout.clock);
     const added = [];
+    // The stylesheet makes room: the time comes down a size, and the widget is a strip.
+    firstPage.classList.toggle('home-page--docked', docked.length > 0);
+    let afterClock = clock;
+    for (const id of docked) {
+      const widget = widgetFor(id);
+      widget.node.style.gridArea = gridArea({ ...layout.strip, w: 1, h: 1 });
+      setSize(widget.node, 'mini');
+      widget.node.classList.add('widget--docked');
+      if (afterClock.nextSibling !== widget.node) firstPage.insertBefore(widget.node, afterClock.nextSibling);
+      afterClock = widget.node;
+      if (widget.isNew) {
+        widget.isNew = false;
+        added.push(widget.node);
+      }
+    }
     pages.forEach((items, p) => {
       const pageEl = pageElement(p);
-      let previous = p === 0 ? clock : null;
+      let previous = p === 0 ? afterClock : null;
       for (const { id, size, col, row } of items) {
         const widget = widgetFor(id);
         const node = ghost?.id === id ? ghost.element : widget.node;
         node.style.gridArea = gridArea({ col, row, ...layout.spans[size] });
         setSize(widget.node, size);
+        widget.node.classList.remove('widget--docked');
         const expected = previous ? previous.nextSibling : pageEl.firstChild;
         if (expected !== node) pageEl.insertBefore(node, expected);
         previous = node;

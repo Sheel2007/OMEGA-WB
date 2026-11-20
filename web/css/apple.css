@@ -318,6 +318,26 @@
   display: none;
 }
 
+/* A strip widget (Stocks) has no column of its own on this grid: it stands at the
+   end of the clock's slot, in the gap the time leaves (home.js puts it in the
+   slot's last cell and marks the page). The digits are all one width, so the time
+   always ends in the same place, a little short of the strip; the padding keeps
+   the date and the game-day strip clear of it too. */
+
+:root[data-theme="apple"] .home-page > .widget--docked {
+  z-index: 1;
+  justify-self: end;
+  width: var(--dock-width);
+}
+
+:root[data-theme="apple"] .home-page--docked {
+  --dock-width: 6.6rem;
+}
+
+:root[data-theme="apple"] .home-page--docked > .clock {
+  padding-right: calc(var(--dock-width) + 1.2rem);
+}
+
 /* App library: the whole wallpaper frosts over as the apps come up. It's the
    same pre-made copy the cards use (lined up by glass.js), never a live blur:
    this is the biggest surface on the board, ?glass=live included. */

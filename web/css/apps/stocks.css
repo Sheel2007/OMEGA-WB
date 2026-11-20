@@ -220,60 +220,14 @@
   letter-spacing: 0;
 }
 
-/* Glass: mini is a square there (LAYOUTS.apple), about three times as wide, so
-   the name sits top left in the widget's accent like the other cards' headers,
-   the index goes on one line, and each company's move sits beside its ticker. */
+/* Glass: there it's docked at the end of the clock's slot (LAYOUTS.apple.strip), a
+   strip the same shape as the board's, so it's laid out the same way. Only the
+   name takes the widget's accent, like the other cards' headers. */
 
 :root[data-theme="apple"] .stocks-widget {
   --widget-accent: var(--accent-stocks);
-  padding: 1rem 1.1rem;
-  text-align: left;
 }
 
 :root[data-theme="apple"] .stocks-widget__name {
   color: var(--widget-accent);
-}
-
-:root[data-theme="apple"] .stocks-widget__index {
-  flex-direction: row;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0 0.6rem;
-  margin-top: 0.5rem;
-}
-
-:root[data-theme="apple"] .stocks-widget__arrow {
-  width: 1.9rem;
-  height: 1.6rem;
-}
-
-:root[data-theme="apple"] .stocks-widget__change {
-  margin: 0;
-  font-size: 3rem;
-}
-
-:root[data-theme="apple"] .stocks-widget__status {
-  margin: 0 0 0 auto;
-  font-size: var(--fs-body);
-}
-
-:root[data-theme="apple"] .stocks-widget__chart {
-  margin: 0.8rem 0;
-}
-
-:root[data-theme="apple"] .stocks-widget__list {
-  --stock-rows: 3;
-  gap: 0.35rem;
-}
-
-:root[data-theme="apple"] .stocks-widget__row {
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: baseline;
-  font-size: var(--fs-body);
-  line-height: 1.3;
-}
-
-:root[data-theme="apple"] .stocks-widget__note {
-  text-align: center;
 }

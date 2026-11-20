@@ -15,7 +15,7 @@ import * as meta from './meta.js';
 const ROTATE_MS = 6000;
 const STEP_MS = 320;
 // Rows in the DOM. How many of them show is the theme's call: stocks.css sets
-// --stock-rows (two in the board's strip, more on the Glass theme's square).
+// --stock-rows (two in the strip, four when the Glass theme's dock is wide).
 const MAX_ROWS = 4;
 const DEFAULT_ROWS = 2;
 // The line's own units (its viewBox); CSS stretches it to the space it gets.

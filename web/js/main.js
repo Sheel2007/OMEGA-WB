@@ -191,6 +191,7 @@ const clockPeriod = clockTime.querySelector('.clock__period');
 // The Blocks theme's clock, drawn in blocks; CSS shows it only on that theme.
 const clockBlocks = clockTime.querySelector('.clock__blocks');
 const clockDate = document.querySelector('.clock__date');
+const clockBox = clockTime.closest('.clock');
 const statusTime = document.querySelector('.statusbar__time');
 
 // The hour and minutes, and AM or PM to go beside them. Taking the parts rather
@@ -214,6 +215,9 @@ function tick() {
   const label = period ? `${time} ${period}` : time;
   if (statusTime.textContent !== label) {
     clockHM.textContent = time;
+    // How many digits the time has: "6:22" is one digit shorter than "12:45", and
+    // on Glass the widget docked beside the clock is wider by that digit (apple.css).
+    clockBox.dataset.digits = String(time.match(/\p{Nd}/gu)?.length ?? 4);
     clockPeriod.textContent = period;
     // Fixed markup from block-text.js's own glyphs (the time itself never goes in);
     // empty, so the text shows instead, if this locale writes the time some other way.

@@ -220,9 +220,8 @@
   letter-spacing: 0;
 }
 
-/* Glass: there it's docked at the end of the clock's slot (LAYOUTS.apple.strip), a
-   strip the same shape as the board's, so it's laid out the same way. Only the
-   name takes the widget's accent, like the other cards' headers. */
+/* Glass: there it's docked at the end of the clock's slot (LAYOUTS.apple.strip).
+   Only the name takes the widget's accent, like the other cards' headers. */
 
 :root[data-theme="apple"] .stocks-widget {
   --widget-accent: var(--accent-stocks);
@@ -230,4 +229,61 @@
 
 :root[data-theme="apple"] .stocks-widget__name {
   color: var(--widget-accent);
+}
+
+/* While the time has a one-digit hour the dock is more than twice as wide
+   (apple.css), and then it's laid out like the other cards rather than as a
+   strip: the name top left, the arrow beside a bigger number, a wider line, and
+   four companies at a time with each one's move beside its ticker. At "12:45"
+   it's the strip above again. The card is the container (`dock`), so this only
+   ever applies there. */
+
+@container dock (min-width: 11rem) {
+  .stocks-widget__name {
+    padding: 0 0.2rem;
+    text-align: left;
+  }
+
+  .stocks-widget__index {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.6rem;
+    margin-top: 0.9rem;
+    padding: 0 0.2rem;
+    text-align: left;
+  }
+
+  .stocks-widget__arrow {
+    width: 2.2rem;
+    height: 1.9rem;
+  }
+
+  .stocks-widget__change {
+    margin: 0;
+    font-size: 3.5rem;
+  }
+
+  .stocks-widget__status {
+    grid-column: 1 / -1;
+    margin-top: 0.5rem;
+  }
+
+  .stocks-widget__chart {
+    margin: 0.9rem 0.2rem;
+  }
+
+  .stocks-widget__list {
+    --stock-rows: 4;
+    gap: 0.45rem;
+    padding: 0 0.2rem;
+  }
+
+  .stocks-widget__row {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 1.1rem;
+    line-height: 1.2;
+  }
 }

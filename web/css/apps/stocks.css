@@ -1,0 +1,279 @@
+/* Stocks widget: the AI Index in the one-column strip beside the clock (mini is
+   its only size). A card like the other widgets, so its green and red sit on the
+   theme's surface, where they're checked for contrast, rather than on the sky.
+   Top to bottom: the name, an arrow and the day's move, what that number is
+   (today, the last close, or an old reading), the day's line, and a few of the
+   companies. Everything is centred: the strip is about 130px wide.
+
+   --stock-way is the colour of whichever way something is going; each row sets
+   its own. Up and down are never told apart by colour alone: the index has an
+   arrow, the companies a + or −. */
+
+.stocks-widget {
+  --stock-way: var(--text-2);
+  padding: 1rem 0.5rem 0.9rem;
+  text-align: center;
+}
+
+.stocks-widget.is-up,
+.stocks-widget__row.is-up {
+  --stock-way: var(--stock-up);
+}
+
+.stocks-widget.is-down,
+.stocks-widget__row.is-down {
+  --stock-way: var(--stock-down);
+}
+
+.stocks-widget__row.is-flat {
+  --stock-way: var(--text-2);
+}
+
+.stocks-widget__name {
+  flex: none;
+  margin: 0;
+  font-size: var(--fs-caption);
+  font-weight: 750;
+  line-height: 1.2;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.stocks-widget__data {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.stocks-widget__data[hidden],
+.stocks-widget__note[hidden] {
+  display: none;
+}
+
+/* The index: arrow, number, and what the number is. */
+
+.stocks-widget__index {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 0.7rem;
+}
+
+.stocks-widget__arrow {
+  display: block;
+  width: 1.7rem;
+  height: 1.4rem;
+  color: var(--stock-way);
+}
+
+.stocks-widget__arrow svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.stocks-widget__change {
+  margin: 0.35rem 0 0;
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--stock-way);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stocks-widget__unit {
+  margin-left: 0.04em;
+  font-size: 0.5em;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.stocks-widget__status {
+  margin: 0.35rem 0 0;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--text-2);
+}
+
+/* The day's line, against a dashed line at yesterday's close. Static: it's
+   redrawn when a new reading arrives, and nothing about it animates. */
+
+.stocks-widget__chart {
+  position: relative;
+  flex: 1 1 3rem;
+  min-height: 0;
+  margin: 0.7rem 0.2rem;
+}
+
+.stocks-widget__chart--empty {
+  visibility: hidden;
+}
+
+.stocks-widget__chart svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.stocks-widget__line {
+  stroke: var(--stock-way);
+  stroke-width: 0.18rem;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.stocks-widget__baseline {
+  stroke: var(--line);
+  stroke-width: 0.1rem;
+  stroke-dasharray: 0.3rem 0.3rem;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The companies: --stock-rows at a time (widget.js reads it), stepping through
+   the rest; the chart above takes the height that's left. In the strip a ticker
+   and its move don't fit side by side, so each row is the ticker over its move. */
+
+.stocks-widget__list {
+  --stock-rows: 2;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stocks-widget__row {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: var(--fs-caption);
+  line-height: 1.15;
+}
+
+.stocks-widget__row[hidden] {
+  display: none;
+}
+
+.stocks-widget__ticker {
+  font-weight: 750;
+  color: var(--text);
+}
+
+.stocks-widget__move {
+  font-weight: 700;
+  color: var(--stock-way);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Loading, no data, and turned off: a word in the middle of the strip with a
+   line under it saying why. */
+
+.stocks-widget__note {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.stocks-widget__note-title {
+  margin: 0;
+  font-size: var(--fs-item);
+  font-weight: 750;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.stocks-widget__note-hint {
+  margin: 0;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+/* Blocks: square corners on the line, and the block digits are wide, so the big
+   number comes down a little to stay inside the strip. */
+
+[data-theme="blocks"] .stocks-widget__line {
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+[data-theme="blocks"] .stocks-widget__change {
+  font-size: 1.9rem;
+  letter-spacing: 0;
+}
+
+/* Glass: mini is a square there (LAYOUTS.apple), about three times as wide, so
+   the name sits top left in the widget's accent like the other cards' headers,
+   the index goes on one line, and each company's move sits beside its ticker. */
+
+:root[data-theme="apple"] .stocks-widget {
+  --widget-accent: var(--accent-stocks);
+  padding: 1rem 1.1rem;
+  text-align: left;
+}
+
+:root[data-theme="apple"] .stocks-widget__name {
+  color: var(--widget-accent);
+}
+
+:root[data-theme="apple"] .stocks-widget__index {
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 0.6rem;
+  margin-top: 0.5rem;
+}
+
+:root[data-theme="apple"] .stocks-widget__arrow {
+  width: 1.9rem;
+  height: 1.6rem;
+}
+
+:root[data-theme="apple"] .stocks-widget__change {
+  margin: 0;
+  font-size: 3rem;
+}
+
+:root[data-theme="apple"] .stocks-widget__status {
+  margin: 0 0 0 auto;
+  font-size: var(--fs-body);
+}
+
+:root[data-theme="apple"] .stocks-widget__chart {
+  margin: 0.8rem 0;
+}
+
+:root[data-theme="apple"] .stocks-widget__list {
+  --stock-rows: 3;
+  gap: 0.35rem;
+}
+
+:root[data-theme="apple"] .stocks-widget__row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--fs-body);
+  line-height: 1.3;
+}
+
+:root[data-theme="apple"] .stocks-widget__note {
+  text-align: center;
+}

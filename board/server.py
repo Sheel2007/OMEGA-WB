@@ -21,6 +21,7 @@ from .lights import LightsUnavailable
 from .products import ProductsUnavailable, fold, query_text
 from .spotify import NowPlaying, SpotifyAccount, SpotifyError
 from .sports import Sports, SportsUnavailable, follows_from
+from .stocks import Stocks
 from .store import NotFound, ValidationError
 from .weather import WeatherUnavailable
 
@@ -109,7 +110,7 @@ class BoardServer(ThreadingHTTPServer):
 
     def __init__(self, address, *, unspeakable, calendar, calendar_sources, google, feed, weather, kiosk,
                  lights, roommate_games, grocery, products, store_products, product_images, photos, spotify=None,
-                 sports=None, web_dir=WEB_DIR, location=None, public_url=None, jukebox=None):
+                 sports=None, stocks=None, web_dir=WEB_DIR, location=None, public_url=None, jukebox=None):
         self.grocery = grocery
         self.products = products
         self.store_products = store_products
@@ -120,6 +121,8 @@ class BoardServer(ThreadingHTTPServer):
         self.spotify = spotify or NowPlaying(SpotifyAccount())
         # Left out, the board follows nothing (and never goes online for it).
         self.sports = sports or Sports(follows_from(False))
+        # Left out, the Stocks widget is off (and never goes online for it).
+        self.stocks = stocks or Stocks(None)
         # None unless config.json asks for the jukebox, which is what switches it on.
         self.jukebox = jukebox
         self.roommate_games = roommate_games
@@ -145,7 +148,7 @@ class BoardServer(ThreadingHTTPServer):
         return {"unspeakable": self.unspeakable, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
                 "roommate-games": self.roommate_games, "grocery": self.grocery, "spotify": self.spotify,
-                "sports": self.sports,
+                "sports": self.sports, "stocks": self.stocks,
                 # Only on the stream when config.json asks for it.
                 **({"jukebox": self.jukebox} if self.jukebox is not None else {})}
 
@@ -193,6 +196,7 @@ class BoardServer(ThreadingHTTPServer):
         self.roommate_games.stop()
         self.store_products.stop()
         self.spotify.stop()
+        self.stocks.stop()
         self.sports.stop()
         super().shutdown()
 
@@ -234,6 +238,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         # Where Spotify sends people back to after they sign in.
         "/api/spotify/done": "spotify_done",
         "/api/spotify/art": "spotify_art",
+        "/api/stocks": "stocks_state",
         "/api/sports": "sports_state",
         "/api/sports/match": "sports_match",
         "/api/sports/crest": "sports_crest",
@@ -511,6 +516,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         except ValueError as err:
             return self._send_error(HTTPStatus.BAD_REQUEST, str(err))
         self._send_image(image)
+
+    def stocks_state(self):
+        self._send_json(HTTPStatus.OK, self.server.stocks.snapshot())
 
     def sports_state(self):
         self._send_json(HTTPStatus.OK, self.server.sports.snapshot())

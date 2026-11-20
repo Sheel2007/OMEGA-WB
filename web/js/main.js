@@ -24,6 +24,7 @@ import { createUnspeakableService } from './services/unspeakable.js';
 import { createRoommateGamesService } from './services/roommate-games.js';
 import { createSettingsService } from './services/settings.js';
 import { createSpotifyService } from './services/spotify.js';
+import { createStocksService } from './services/stocks.js';
 import { createSportsService } from './services/sports.js';
 import { createGameDay } from './apps/sports/game-day.js';
 import { dotGlyph as sportsDot, name as sportsName } from './apps/sports/meta.js';
@@ -73,7 +74,7 @@ try {
 // Services: the only code that talks to the server or to storage.
 
 const live = createLiveConnection({
-  streams: ['unspeakable', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify', 'sports', 'jukebox'],
+  streams: ['unspeakable', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify', 'sports', 'stocks', 'jukebox'],
   onServerRestart: () => location.reload(),
 });
 const services = {
@@ -84,6 +85,7 @@ const services = {
   roommateGames: createRoommateGamesService({ live }),
   grocery: createGroceryService({ live }),
   spotify: createSpotifyService({ live }),
+  stocks: createStocksService({ live }),
   sports: createSportsService({ live }),
   weather: createWeatherService(),
   games: createGamesStore(),

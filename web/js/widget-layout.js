@@ -335,3 +335,10 @@ export function nearestSize(sizes, spans, want, current) {
   const cost = (size) => Math.abs(spans[size].w - want.w) + Math.abs(spans[size].h - want.h);
   return [...sizes].sort((a, b) => cost(a) - cost(b) || (b === current) - (a === current) || SIZES.indexOf(a) - SIZES.indexOf(b))[0];
 }
+
+// Whether a widget that comes in `sizes` can be resized at all. One that comes in
+// a single size (Stocks is only ever the mini strip) gets no corner to stretch
+// in edit mode: there's nothing for it to snap to.
+export function resizable(sizes) {
+  return Array.isArray(sizes) && new Set(sizes.filter((size) => SIZES.includes(size))).size > 1;
+}

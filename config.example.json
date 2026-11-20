@@ -56,7 +56,10 @@
   "_spotify": "Optional. Shows what's playing on one Spotify account. Make an app at developer.spotify.com/dashboard, tick 'Web API', and add the redirect URI http://127.0.0.1:8080/api/spotify/done (with your port if it isn't 8080). Paste its Client ID here (no secret needed), then tap Connect on the Spotify widget on the board's own screen.",
   "spotify": { "client_id": "your spotify client id" },
 
-  "_sports": "Optional. The Sports widget follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League Cup, Champions League), Maryland soccer in the Big Ten, and every Champions League match, from ESPN and bigten.org (no account needed). 'maryland' is \"men\" (the default) or \"women\". Match pages also get the referee's record, predicted line-ups, injuries, player ratings and stats from FotMob; 'fotmob': false leaves that out. \"sports\": false turns it all off.",
+  "_stocks": "Optional. The Stocks widget shows the AI Index: the biggest listed AI companies as one equal-weighted fund, with prices from Yahoo Finance (no account or key needed). Leave this out for the companies below; 'symbols' is the list of tickers in the basket (up to 20), so change it to follow something else. \"stocks\": false turns the widget off, and then the board never asks for prices.",
+  "stocks": { "symbols": ["NVDA", "MSFT", "GOOGL", "AMZN", "META", "AVGO", "TSM", "AMD", "ORCL", "PLTR"] },
+
+  "_sports": "Optional. The Sports widget follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League Cup, Champions League), Maryland soccer and Maryland basketball in the Big Ten, and every Champions League match, from ESPN and bigten.org (no account needed). 'maryland' (soccer) is \"men\" (the default) or \"women\"; 'basketball' is \"men\" (the default), \"women\", or false to leave basketball out. Match pages also get the referee's record, predicted line-ups, injuries, player ratings and stats from FotMob; 'fotmob': false leaves that out. \"sports\": false turns it all off.",
   "sports": { "maryland": "men" },
 
   "_jukebox": "Optional, and off unless you turn it on. A hidden way to play the sound of any YouTube video on the board from a phone: tap the date above the clock five times quickly. Without this setting the addresses it uses don't exist at all. There's no password on it, so only turn it on while only the house can reach the board.",

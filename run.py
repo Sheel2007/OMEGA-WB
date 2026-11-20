@@ -26,6 +26,7 @@ from board.notify import Notifier, settings_from as notify_settings_from
 from board.products import ProductLookup
 from board.spotify import NowPlaying, SpotifyAccount
 from board.sports import Sports, follows_from
+from board.stocks import Stocks, symbols_from as stock_symbols_from
 from board.store_products import StoreProducts
 from board.roommate_games import RoommateGames
 from board.server import ROOT, BoardServer, lan_address, phone_address
@@ -168,6 +169,8 @@ def main():
     )
     spotify = spotify_from(config, args.data, feed)
     sports = Sports(follows_from(config.get("sports")), feed=feed, fotmob=fotmob_from(config))
+    # The AI Index for the Stocks widget; "stocks": false in config.json turns it off.
+    stocks = Stocks(stock_symbols_from(config.get("stocks")), feed=feed)
     # Not asked for in config.json, no jukebox: the addresses aren't there to find.
     jukebox = Jukebox(feed=feed) if enabled_from(config) else None
     server = BoardServer(
@@ -187,6 +190,7 @@ def main():
         product_images=ProductImages(os.path.join(args.data, "grocery-images"), products),
         photos=photos,
         spotify=spotify,
+        stocks=stocks,
         sports=sports,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
@@ -200,6 +204,7 @@ def main():
         grocery_texts.start()
     store_products.start()
     spotify.start()
+    stocks.start()
     sports.start()
 
     # systemd stops services with SIGTERM; exit the same clean way as Ctrl+C.
@@ -221,6 +226,7 @@ def main():
             grocery_texts.stop()
         store_products.stop()
         spotify.stop()
+        stocks.stop()
         sports.stop()
         server.server_close()
 

@@ -64,6 +64,7 @@ html {
   --icon-roommate-games: linear-gradient(160deg, #25b8a2 0%, #0f7f73 55%, #0b625a 100%);
   --icon-grocery: linear-gradient(155deg, #ff8fb4 0%, #f2477f 52%, #c8235e 100%);
   --icon-spotify: linear-gradient(155deg, #3fe07a 0%, #1db954 50%, #138a3e 100%);
+  --icon-stocks: linear-gradient(155deg, #f5a623 0%, #d9730d 55%, #a8500a 100%);
   --icon-sports: linear-gradient(160deg, #66708a 0%, #363d52 55%, #222736 100%);
   /* Zen: a sunset sky behind its sun and hill. */
   --icon-zen: linear-gradient(170deg, #4b4c9e 0%, #b0628a 55%, #f0a060 100%);
@@ -169,6 +170,9 @@ html {
   --glass-line: rgb(15 29 63 / 0.1);
   --glass-sheen: linear-gradient(165deg, rgb(255 255 255 / 0.6) 0%, rgb(255 255 255 / 0.12) 38%, rgb(255 255 255 / 0) 60%);
   --glass-shadow: 0 0.1rem 0.25rem rgb(16 32 72 / 0.06), 0 1.2rem 3rem rgb(16 32 72 / 0.16);
+  /* Stocks: a price that's up or down, as text on a card (4.5:1 or better in every theme). */
+  --stock-up: #17703c;
+  --stock-down: #b42318;
   --grocery-accent: #c8235e;
   --grocery-accent-pressed: #a51b4c;
   --store-traderjoes: #b3261e;
@@ -234,6 +238,8 @@ html {
   --glass-line: rgb(255 255 255 / 0.12);
   --glass-sheen: linear-gradient(165deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.03) 40%, rgb(255 255 255 / 0) 60%);
   --glass-shadow: 0 0.1rem 0.3rem rgb(0 0 0 / 0.22), 0 1.2rem 3rem rgb(0 0 0 / 0.36);
+  --stock-up: #6ee09c;
+  --stock-down: #ff9a91;
   --grocery-accent: #ff8fb8;
   --grocery-accent-pressed: #ffb3cf;
   --store-traderjoes: #ff8a80;
@@ -305,6 +311,7 @@ html {
   --icon-lights: #3a4590;
   --icon-roommate-games: #0f7a76;
   --icon-spotify: #178a43;
+  --icon-stocks: #b8600c;
   --icon-sports: #363d52;
   --icon-zen: #4b4c9e;
 
@@ -343,6 +350,8 @@ html {
   --glass-line: var(--hairline);
   --glass-sheen: none;
   --glass-shadow: var(--shadow);
+  --stock-up: #2a6b1e;
+  --stock-down: #a32617;
   --grocery-accent: #a3204f;
   --grocery-accent-pressed: #861a41;
   --store-traderjoes: #a32617;
@@ -402,6 +411,8 @@ html {
   --lamp-off-glyph: #cfd1d8;
   --lamp-off-dot: #3a3e4a;
 
+  --stock-up: #8fd47a;
+  --stock-down: #ff9a91;
   --grocery-accent: #ff9cc4;
   --grocery-accent-pressed: #ffc0da;
   --store-traderjoes: #ff9a91;
@@ -468,6 +479,9 @@ html {
   --accent-roommate-games: #5ee0c4;
   --accent-grocery: #ff8cba;
   --accent-spotify: #4fdc84;
+  --accent-stocks: #ffb340;
+  --stock-up: #4fdc84;
+  --stock-down: #ff9a90;
 
   --sealed-text: #17140a;
   --sealed-card: #cfc8b8;

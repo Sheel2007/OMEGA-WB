@@ -51,7 +51,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(ids(again.getPages()), [['weather', 'unspeakable']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 10);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 11);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -262,7 +262,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   const corrupt = createSettingsService(options(memoryStorage({ [STORAGE_KEY]: '{nope' })));
   assert.deepEqual(ids(corrupt.getPages()), [['shopping', 'weather']]);
 
-  const future = createSettingsService(options(saved({ version: 11, theme: 'dark' })));
+  const future = createSettingsService(options(saved({ version: 12, theme: 'dark' })));
   assert.equal(future.getTheme(), 'auto');
 
   const tampered = createSettingsService(

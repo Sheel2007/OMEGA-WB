@@ -9,7 +9,7 @@
 // far it's been pulled (resizeWidget). The widgets in the way move aside as a live
 // preview. Nothing is saved until the finger lifts.
 import { animateLayout, el, haptic, icons } from './ui.js';
-import { cellFromPoint, findWidget, nearestSize, placeWidget, removeWidget, resizeWidget } from './widget-layout.js';
+import { cellFromPoint, findWidget, nearestSize, placeWidget, removeWidget, resizable, resizeWidget } from './widget-layout.js';
 
 // A finger this close to the side of the pages, or a widget pushed this far past
 // it, carries the widget to the next page after a short pause. The pages peek
@@ -76,6 +76,8 @@ export function createHomeEditor({ home, pager, host, settings, apps, onRemoveWi
         onclick: () => onRemoveWidget(id),
       }),
     );
+    // A widget that only comes in one size has nothing to stretch to: no corner.
+    if (!resizable(appOf(id)?.widgetSizes)) return [remove];
     // A corner to pull, like an iPhone's. Keyboard users press it to step through
     // the sizes (a keyboard click has detail 0; pointers stretch it instead).
     const handle = el('button', {

@@ -5,7 +5,7 @@ looks like an iPad home screen: a big clock, widgets, and every app a swipe up a
 wallpaper follows the real sky, so it's blue during the day, glows at sunset,
 and turns to stars at night, with the widgets switching to dark mode after dark.
 
-It has eight widgets, and a Sports page:
+It has nine widgets, and a Sports page:
 
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
   Google Calendars. Anyone can add an event on the board or from their phone and
@@ -35,6 +35,11 @@ It has eight widgets, and a Sports page:
   circle with the song's name under it. It starts as a slim one-column widget that
   fits the gap beside the clock, and grows to show the artist, album and how far
   through the song it is.
+- **Stocks.** The AI Index: the biggest listed AI companies (Nvidia, Microsoft,
+  Alphabet, Amazon, Meta, Broadcom, TSMC, AMD, Oracle and Palantir) as one fund.
+  A slim strip made for the column beside the clock, and only that size: how far
+  the fund has moved today with an arrow, a small line of its day, and each
+  company's own move, two at a time.
 
 **Sports** follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League
 Cup and Champions League), Maryland soccer and Maryland basketball in the Big Ten,
@@ -45,14 +50,14 @@ On a day one of the teams plays, a strip under the clock counts down to kickoff
 to the second, then shows the score and the minute all through the match. Tap
 any match for its match page: the score and who scored, the line-ups on a pitch
 with goals, assists, cards and substitutions, the team stats and a timeline.
+A basketball game's page is its box score instead: the score by half, every
+player's line, and the team stats (before tip-off, both teams' seasons so far
+and ESPN's chance of a win).
 While a followed team is playing, the Sports app opens straight onto that match.
 
 The home screen has pages you swipe between, like an iPad, and you can arrange
 the widgets yourself. The menu button in the top-right corner switches the
 theme (Auto, Light, Dark, **Blocks**, a blocky pixel world whose sky follows
-A basketball game's page is its box score instead: the score by half, every
-player's line, and the team stats (before tip-off, both teams' seasons so far
-and ESPN's chance of a win).
 the real time of day and whose land follows the real season, with farm animals
 wandering by in the daytime and monsters at night, and rain or snow falling when
 it really is raining or snowing at home, or **Glass**, an iPadOS-style look
@@ -131,7 +136,8 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   the left or right side of the screen: the pages peek over, and after a moment
   it's carried across (or to a new page past the last one). To resize, pull the
   curved bracket in a widget's bottom-right corner: it stretches with your finger
-  and snaps to the nearest size when you let go. Tap − to remove a widget, **Add
+  and snaps to the nearest size when you let go (Stocks comes in one size, so it
+  has no bracket). Tap − to remove a widget, **Add
   widget** to add one, and **Done** when you're finished. Phones show the apps as
   icons rather than widgets, so there's nothing to arrange on one.
 - **Games:** tap a game on the Games widget. Choose **2 players** to take turns
@@ -396,6 +402,39 @@ The sign-in is saved in `data/google.json`, readable only by the user the server
 runs as. **Disconnect Google** in the app removes it; you can also revoke the
 board from your [Google account's app list](https://myaccount.google.com/permissions).
 
+### Stocks
+
+The Stocks widget shows the **AI Index**: ten of the biggest listed AI companies
+as one fund. It needs no account and no setup. (OpenAI and Anthropic are private
+companies, so they can't be in it.)
+
+- **The index is equal-weighted**: every company counts the same. It stands at
+  100 at the previous close, so the big number is simply the average of the
+  companies' own moves since then. A company whose price can't be read is left
+  out rather than guessed, and if fewer than half can be read the widget says
+  **No data** instead of showing a lopsided number.
+- **Under the number** it says what the number is: **Today** while the US
+  market is open, **Closed** for the last close's move, or **Offline** when the
+  prices can't be reached and it's showing the last ones it read (for at most
+  an hour).
+- **To change the companies**, list their tickers in `config.json`; to turn the
+  widget off, set it to `false`:
+
+  ```json
+  { "stocks": { "symbols": ["NVDA", "MSFT", "GOOGL", "AMZN", "META", "AVGO", "TSM", "AMD", "ORCL", "PLTR"] } }
+  ```
+
+A board that's already arranged gains the widget once, in the first free
+one-column strip, which is the gap beside the clock if that's empty; nothing
+else moves, and if you take it off it stays off (**Widgets → Stocks → Add**
+brings it back). If it lands somewhere else, long-press it and drag it beside
+the clock. New screens start with it there. It can't be resized.
+
+Prices come from Yahoo Finance's chart data, which is unofficial: if it changes
+or goes away the widget says **No data** and nothing else is affected. The Pi
+asks every two minutes while the market is open and every half hour when it's
+closed, and nothing is saved to the SD card.
+
 ### Spotify
 
 The Spotify widget shows what one Spotify account is playing (on any device:
@@ -540,6 +579,14 @@ out, or to turn Sports off:
 ```
 
 ```json
+{ "sports": { "basketball": "women" } }
+```
+
+```json
+{ "sports": { "basketball": false } }
+```
+
+```json
 { "sports": false }
 ```
 
@@ -578,14 +625,6 @@ both to `config.json`:
 - **Email** works with any SMTP account. For Gmail, turn on 2-Step Verification
   and make an [App Password](https://myaccount.google.com/apppasswords); port 587
   uses STARTTLS and 465 uses SSL.
-```json
-{ "sports": { "basketball": "women" } }
-```
-
-```json
-{ "sports": { "basketball": false } }
-```
-
 - **Texts** go through [Twilio](https://www.twilio.com): the Account SID, Auth
   Token and a Twilio phone number from its console. (The Cup doesn't use carriers'
   email-to-text gateways because they're unreliable and some have shut down. Only
@@ -671,7 +710,8 @@ board/                  server: JSON stores, HTTP API + live updates, weather,
                         the Roommate Cup and its emails and texts (notify.py),
                         the grocery list, its product lookups (products.py), the stores'
                         product list for predictions and the pictures (grocery_images.py),
-                        and the sports scores, tables and match pages (sports.py)
+                        and the sports scores, tables and match pages (sports.py),
+                        and the AI Index's prices (stocks.py)
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks / Glass themes

@@ -11,20 +11,25 @@ import * as unspeakable from './unspeakable/index.js';
 import * as roommateGames from './roommate-games/index.js';
 import * as spotify from './spotify/index.js';
 import * as sports from './sports/index.js';
+import * as stocks from './stocks/index.js';
 import * as weather from './weather/index.js';
 import * as zen from './zen/index.js';
 
-export const APPS = [calendar, weather, spotify, unspeakable, games, lights, roommateGames, grocery, sports, zen];
+export const APPS = [calendar, weather, spotify, stocks, unspeakable, games, lights, roommateGames, grocery, sports, zen];
 
 // New screens start with all of them, and this order is what page 1 lays out as:
-// the clock top left with a mini Spotify in the column right beside it, then the
-// Calendar and Weather, and Unspeakable, Games and Lights along the bottom. The Roommate
+// the clock top left, the mini Stocks strip in the column right beside it and a
+// mini Spotify in the next, then the Calendar and Weather (which fills the top
+// row exactly), and Unspeakable, Games and Lights along the bottom. The Roommate
 // Cup and Grocery start page 2. Sports has no widget: it's the page before page 1.
 // Screens that saved a layout before a widget existed pick it up here too, at the
 // place this order puts it (see SCHEMA_VERSION 3 in services/settings.js).
-export const DEFAULT_WIDGETS = ['spotify', 'calendar', 'weather', 'unspeakable', 'games', 'lights', 'roommate-games', 'grocery'];
+export const DEFAULT_WIDGETS = ['stocks', 'spotify', 'calendar', 'weather', 'unspeakable', 'games', 'lights', 'roommate-games', 'grocery'];
 
 // The settings version each widget arrived in, for widgets added after version 3.
 // A screen saved on an older version picks these up once, so a widget someone has
-// since taken off the board stays off.
-export const WIDGETS_SINCE = { lights: 4, 'roommate-games': 5, grocery: 6, spotify: 8 };
+// since taken off the board stays off. A board that already has its layout keeps
+// it exactly: the new widget goes in the first free spot that fits it (for Stocks,
+// the first free one-column strip, which is the column beside the clock if that's
+// empty), and nothing else moves.
+export const WIDGETS_SINCE = { lights: 4, 'roommate-games': 5, grocery: 6, spotify: 8, stocks: 11 };

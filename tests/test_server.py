@@ -20,12 +20,14 @@ from board.roommate_games import RoommateGames
 from board.server import BoardHandler, BoardServer, phone_address
 from board.spotify import NowPlaying, SpotifyAccount
 from board.sports import Sports
+from board.stocks import Stocks
 from board.store import ChangeFeed
 from board.products import ProductsUnavailable
 from board.weather import WeatherUnavailable
 from tests.test_lights import BEDROOM, DEVICES, FakeClient
 from tests.test_spotify import FakeSpotify
 from tests.test_sports import NOW, FakeESPN, espn_pages
+from tests.test_stocks import MIDDAY, FakeYahoo, chart
 
 
 class FakeWeather:
@@ -115,6 +117,9 @@ class ServerTest(unittest.TestCase):
         cls.sports = Sports(fetch=FakeESPN(espn_pages()), fetch_crest=lambda url: (b"\x89PNG", "image/png"),
                             clock=lambda: NOW, feed=feed)
         cls.sports.poll()
+        cls.yahoo = FakeYahoo({"AAA": chart("AAA", 110.0, 100.0), "BBB": chart("BBB", 49.0, 50.0)})
+        cls.stocks = Stocks(("AAA", "BBB"), fetch=cls.yahoo, clock=lambda: MIDDAY, feed=feed, gap=0)
+        cls.stocks.poll()
         cls.server = BoardServer(
             ("127.0.0.1", 0),
             unspeakable=UnspeakableLedger(os.path.join(cls.tmp.name, "data", "unspeakable.json"), feed=feed),
@@ -134,6 +139,7 @@ class ServerTest(unittest.TestCase):
             photos=cls.photos,
             spotify=cls.spotify,
             sports=cls.sports,
+            stocks=cls.stocks,
             jukebox=Jukebox(feed=feed),
             web_dir=web,
             location={"latitude": 1.5, "longitude": 2},
@@ -253,12 +259,12 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 10)
+            events = self._read_events(stream, 11)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
                              {"unspeakable", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify",
-                              "sports", "jukebox"})
+                              "sports", "stocks", "jukebox"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/unspeakable/add", {"text": "live incident"})
@@ -504,6 +510,30 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(page("javascript:alert(1)", port), "/")
         self.assertEqual(page(None, port), "/")
 
+    def test_stocks_are_the_index_and_its_companies(self):
+        status, _headers, raw = self.request("/api/stocks")
+        self.assertEqual(status, 200)
+        state = json.loads(raw)
+        self.assertTrue(state["enabled"])
+        self.assertEqual(state["market"], "open")
+        self.assertEqual(state["index"]["count"], 2)
+        self.assertEqual([c["symbol"] for c in state["constituents"]], ["AAA", "BBB"])
+        self.assertIsNone(state["error"])
+
+    def test_a_new_price_goes_out_on_the_event_stream(self):
+        sock = self._open_stream("/api/events")
+        try:
+            stream = sock.makefile("rb")
+            first = dict(self._read_events(stream, 11)[1:])["stocks"]
+            self.yahoo.charts["AAA"] = chart("AAA", first["constituents"][0]["price"] + 1, 100.0)
+            self.stocks.poll()
+            name, state = self._read_events(stream, 1)[0]
+            self.assertEqual(name, "stocks")
+            self.assertGreater(state["version"], first["version"])
+            self.assertEqual(state["constituents"][0]["price"], first["constituents"][0]["price"] + 1)
+        finally:
+            sock.close()
+
     def test_spotify_covers_are_only_ones_the_board_has_shown(self):
         status, _headers, _raw = self.request("/api/spotify/art?id=nope")
         self.assertEqual(status, 400)
@@ -519,6 +549,9 @@ class ServerTest(unittest.TestCase):
         status, _headers, raw = self.request("/api/sports/match?id=1001")
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(raw)["home"]["formation"], "4-2-3-1")
+        # A basketball game's page comes the same way.
+        status, _headers, raw = self.request("/api/sports/match?id=4001")
+        self.assertEqual((status, json.loads(raw)["sport"]), (200, "basketball"))
         self.assertEqual(self.request("/api/sports/match?id=424242")[0], 404)
         self.assertEqual(self.request("/api/sports/match?id=x/../1")[0], 400)
 
@@ -549,9 +582,6 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(state["configured"])
         self.assertIn(BEDROOM, [light["id"] for light in state["lights"]])
 
-        # A basketball game's page comes the same way.
-        status, _headers, raw = self.request("/api/sports/match?id=4001")
-        self.assertEqual((status, json.loads(raw)["sport"]), (200, "basketball"))
         status, body = self.post("/api/lights/set", {"id": BEDROOM, "on": True})
         self.assertEqual(status, 200)
         self.assertTrue(next(light for light in body["state"]["lights"] if light["id"] == BEDROOM)["on"])

@@ -109,10 +109,10 @@
    --slide only for those two changes, so a page that loads with nothing on shows
    the disc already put away. */
 .spotify-widget {
-  --sleeve-paper: #f4f0e6;
-  --sleeve-flap: #ebe5d7;
-  --sleeve-edge: #c9c1ae;
-  --sleeve-back: #d6cebb;
+  --sleeve-paper: #1b1b1d;
+  --sleeve-flap: #27272a;
+  --sleeve-edge: #4b4b50;
+  --sleeve-back: #0d0d0f;
   --sleeve-ease: cubic-bezier(0.3, 0.7, 0.2, 1);
 }
 
@@ -285,11 +285,7 @@
       transparent 21.5%);
 }
 
-/* Blocks: square paper in the same black outline, with the lines drawn black. */
-[data-theme="blocks"] .spotify-widget {
-  --sleeve-edge: #1d1d1d;
-}
-
+/* Blocks: square paper in the same black outline. */
 [data-theme="blocks"] .spotify-widget__sleeve {
   border-radius: 0;
   box-shadow: 0 0 0 0.2rem #1d1d1d;

@@ -10,6 +10,7 @@ import logging
 import os
 import signal
 import sys
+from datetime import datetime
 
 from board.calendar import CalendarChoices, CalendarSources, CalendarStore, local_zone, sources_from
 from board.fotmob import fotmob_from
@@ -22,6 +23,7 @@ from board.kiosk import Kiosk
 from board.lights import Lights, settings_from as lights_settings_from
 from board.screen import Screen, settings_from as screen_settings_from
 from board.unspeakable import UnspeakableLedger
+from board.countdown import Countdowns
 from board.notify import Notifier, settings_from as notify_settings_from
 from board.products import ProductLookup
 from board.spotify import NowPlaying, SpotifyAccount
@@ -192,6 +194,8 @@ def main():
         spotify=spotify,
         stocks=stocks,
         sports=sports,
+        # What day it is decides which countdowns are too far off or long gone.
+        countdown=Countdowns(os.path.join(args.data, "countdowns.json"), today=lambda: datetime.now(zone).date()),
         location=location,
         public_url=phone_address(config.get("hostname"), port),
         jukebox=jukebox,

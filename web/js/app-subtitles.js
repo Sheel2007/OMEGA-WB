@@ -1,6 +1,7 @@
 // What each app's icon says under its name, on the phone's home screen and in the
 // board's app library: enough to know whether it's worth opening.
 import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
+import { nextLabel as countdownNext } from './apps/countdown/format.js';
 import { summaryLabel as grocerySummary } from './apps/grocery/format.js';
 import { statusLabel as lightsStatus } from './apps/lights/format.js';
 import { countLabel as ledgerCount } from './apps/unspeakable/format.js';
@@ -35,6 +36,12 @@ const SUBTITLES = {
     const line = (state) => set(grocerySummary(state.items, state.currency));
     line(grocery.getState());
     return grocery.subscribe(line);
+  },
+
+  countdown: ({ countdown }) => (set) => {
+    const line = (state) => set(countdownNext(state.countdowns, dayKey(new Date())));
+    line(countdown.getState());
+    return countdown.subscribe(line);
   },
 
   sports: ({ sports }) => (set) => sports.subscribe((state) => set(sportsLine(state, new Date()))),

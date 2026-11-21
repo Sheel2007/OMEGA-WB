@@ -40,6 +40,11 @@ It has nine widgets, and a Sports page:
   A slim strip made for the column beside the clock, and only that size: how far
   the fund has moved today with an arrow, a small line of its day, and each
   company's own move, two at a time.
+- **Countdown.** The days the house is waiting for (finals, a break, the next
+  semester, a trip), shared by every screen. The widget leads with the next one in
+  big numbers, and the bigger sizes list the ones after it. Add a day from the
+  app, on the board or a phone; days that have been stay at the bottom of the app
+  until someone clears them.
 
 **Sports** follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League
 Cup and Champions League), Maryland soccer and Maryland basketball in the Big Ten,
@@ -414,7 +419,8 @@ companies, so they can't be in it.)
   out rather than guessed, and if fewer than half can be read the widget says
   **No data** instead of showing a lopsided number.
 - **Under the number** it says what the number is: **Today** while the US
-  market is open, **Closed** for the last close's move, or **Offline** when the
+  market is open, the trading day of the last close's move (**Fri close**) while
+  it's closed, or **Offline** when the
   prices can't be reached and it's showing the last ones it read (for at most
   an hour).
 - **To change the companies**, list their tickers in `config.json`; to turn the
@@ -715,7 +721,7 @@ board/                  server: JSON stores, HTTP API + live updates, weather,
                         the grocery list, its product lookups (products.py), the stores'
                         product list for predictions and the pictures (grocery_images.py),
                         and the sports scores, tables and match pages (sports.py),
-                        and the AI Index's prices (stocks.py)
+                        the AI Index's prices (stocks.py) and the countdowns (countdown.py)
 web/
   index.html            the board: a 1920×1080 canvas (phones get a one-column layout)
   css/tokens.css        colours, type sizes and the Light / Dark / Blocks / Glass themes

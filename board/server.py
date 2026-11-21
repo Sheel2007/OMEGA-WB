@@ -13,6 +13,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from . import qr
+from .countdown import Countdowns
 from .google import GoogleError
 from .grocery import STORES
 from .grocery_images import MAX_PHOTO_BYTES
@@ -110,7 +111,8 @@ class BoardServer(ThreadingHTTPServer):
 
     def __init__(self, address, *, unspeakable, calendar, calendar_sources, google, feed, weather, kiosk,
                  lights, roommate_games, grocery, products, store_products, product_images, photos, spotify=None,
-                 sports=None, stocks=None, web_dir=WEB_DIR, location=None, public_url=None, jukebox=None):
+                 sports=None, stocks=None, countdown=None, web_dir=WEB_DIR, location=None, public_url=None,
+                 jukebox=None):
         self.grocery = grocery
         self.products = products
         self.store_products = store_products
@@ -123,6 +125,8 @@ class BoardServer(ThreadingHTTPServer):
         self.sports = sports or Sports(follows_from(False))
         # Left out, the Stocks widget is off (and never goes online for it).
         self.stocks = stocks or Stocks(None)
+        # Left out, the countdowns live in memory only (nothing written to disk).
+        self.countdown = countdown or Countdowns()
         # None unless config.json asks for the jukebox, which is what switches it on.
         self.jukebox = jukebox
         self.roommate_games = roommate_games
@@ -148,7 +152,7 @@ class BoardServer(ThreadingHTTPServer):
         return {"unspeakable": self.unspeakable, "calendar": self.calendar,
                 "calendar-sources": self.calendar_sources, "lights": self.lights,
                 "roommate-games": self.roommate_games, "grocery": self.grocery, "spotify": self.spotify,
-                "sports": self.sports, "stocks": self.stocks,
+                "sports": self.sports, "stocks": self.stocks, "countdown": self.countdown,
                 # Only on the stream when config.json asks for it.
                 **({"jukebox": self.jukebox} if self.jukebox is not None else {})}
 
@@ -239,6 +243,7 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/spotify/done": "spotify_done",
         "/api/spotify/art": "spotify_art",
         "/api/stocks": "stocks_state",
+        "/api/countdown": "countdown_state",
         "/api/sports": "sports_state",
         "/api/sports/match": "sports_match",
         "/api/sports/crest": "sports_crest",
@@ -253,6 +258,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
         "/api/unspeakable/restore": "unspeakable_restore",
         "/api/unspeakable/look": "unspeakable_look",
         "/api/unspeakable/attempt": "unspeakable_attempt",
+        "/api/countdown/add": "countdown_add",
+        "/api/countdown/remove": "countdown_remove",
+        "/api/countdown/restore": "countdown_restore",
         "/api/calendar/add": "calendar_add",
         "/api/calendar/remove": "calendar_remove",
         "/api/calendar/restore": "calendar_restore",
@@ -374,6 +382,9 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def unspeakable_state(self):
         self._send_json(HTTPStatus.OK, self.server.unspeakable.snapshot())
+
+    def countdown_state(self):
+        self._send_json(HTTPStatus.OK, self.server.countdown.snapshot())
 
     def calendar_state(self):
         self._send_json(HTTPStatus.OK, self.server.calendar.snapshot())
@@ -587,6 +598,15 @@ class BoardHandler(SimpleHTTPRequestHandler):
 
     def unspeakable_attempt(self, body):
         return self.server.unspeakable.attempt()
+
+    def countdown_add(self, body):
+        return self.server.countdown.add(body.get("title"), body.get("date"), countdown_id=body.get("id"))
+
+    def countdown_remove(self, body):
+        return self.server.countdown.remove(body.get("id"))
+
+    def countdown_restore(self, body):
+        return self.server.countdown.restore(body.get("ids"))
 
     def calendar_add(self, body):
         """Puts a new event on a connected Google calendar, or on the board's own list."""

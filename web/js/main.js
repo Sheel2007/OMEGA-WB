@@ -21,6 +21,7 @@ import { createLightsService } from './services/lights.js';
 import { createJukeboxService } from './services/jukebox.js';
 import { createLiveConnection } from './services/live.js';
 import { createUnspeakableService } from './services/unspeakable.js';
+import { createCountdownService } from './services/countdown.js';
 import { createRoommateGamesService } from './services/roommate-games.js';
 import { createSettingsService } from './services/settings.js';
 import { createSpotifyService } from './services/spotify.js';
@@ -74,11 +75,12 @@ try {
 // Services: the only code that talks to the server or to storage.
 
 const live = createLiveConnection({
-  streams: ['unspeakable', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify', 'sports', 'stocks', 'jukebox'],
+  streams: ['unspeakable', 'calendar', 'calendar-sources', 'lights', 'roommate-games', 'grocery', 'spotify', 'sports', 'stocks', 'countdown', 'jukebox'],
   onServerRestart: () => location.reload(),
 });
 const services = {
   unspeakable: createUnspeakableService({ live }),
+  countdown: createCountdownService({ live }),
   jukebox: createJukeboxService({ live }),
   calendar: createCalendarService({ live }),
   lights: createLightsService({ live }),
@@ -520,6 +522,7 @@ compact.addEventListener('change', () => scene?.setPaused('compact', compact.mat
 appHost.start();
 live.start();
 services.unspeakable.refresh();
+services.countdown.refresh();
 services.calendar.refresh();
 services.lights.refresh();
 services.roommateGames.refresh();

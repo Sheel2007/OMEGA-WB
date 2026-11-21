@@ -195,6 +195,23 @@ class ServerTest(unittest.TestCase):
         status, _ = self.post("/api/unspeakable/add", {"text": "x" * 20000})
         self.assertEqual(status, 413)
 
+    def test_countdowns_are_added_removed_and_put_back(self):
+        status, body = self.post("/api/countdown/add", {"title": "UMD finals", "date": "2099-12-14"})
+        self.assertEqual(status, 400, "more than five years ahead")
+        self.assertIn("years", body["error"]["message"])
+        status, body = self.post("/api/countdown/add", {"title": "  ", "date": "2026-12-14"})
+        self.assertEqual(status, 400)
+        status, body = self.post("/api/countdown/add", {"title": "Next semester", "date": "2027-01-27", "id": "c0ffee01"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["countdown"]["id"], "c0ffee01")
+        status, _, raw = self.request("/api/countdown")
+        self.assertIn("Next semester", [c["title"] for c in json.loads(raw)["countdowns"]])
+        status, body = self.post("/api/countdown/remove", {"id": "c0ffee01"})
+        self.assertNotIn("c0ffee01", [c["id"] for c in body["state"]["countdowns"]])
+        status, body = self.post("/api/countdown/restore", {"ids": ["c0ffee01"]})
+        self.assertEqual(body["restored"], ["c0ffee01"])
+        self.post("/api/countdown/remove", {"id": "c0ffee01"})
+
     def test_unknown_api_route_is_404(self):
         status, _, _ = self.request("/api/nope")
         self.assertEqual(status, 404)
@@ -259,12 +276,12 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            events = self._read_events(stream, 11)
+            events = self._read_events(stream, 12)
             self.assertEqual(events[0][0], "hello")
             self.assertEqual(events[0][1]["boot"], self.server.boot_id)
             self.assertEqual({name for name, _ in events[1:]},
                              {"unspeakable", "calendar", "calendar-sources", "lights", "roommate-games", "grocery", "spotify",
-                              "sports", "stocks", "jukebox"})
+                              "sports", "stocks", "countdown", "jukebox"})
             versions = {name: state["version"] for name, state in events[1:]}
 
             self.post("/api/unspeakable/add", {"text": "live incident"})
@@ -524,7 +541,7 @@ class ServerTest(unittest.TestCase):
         sock = self._open_stream("/api/events")
         try:
             stream = sock.makefile("rb")
-            first = dict(self._read_events(stream, 11)[1:])["stocks"]
+            first = dict(self._read_events(stream, 12)[1:])["stocks"]
             self.yahoo.charts["AAA"] = chart("AAA", first["constituents"][0]["price"] + 1, 100.0)
             self.stocks.poll()
             name, state = self._read_events(stream, 1)[0]

@@ -4,6 +4,7 @@
 // screen, mount(root, context). Apps with mount() are in the app library. Sports and
 // Zen have no widget; Zen is immersive (it opens over the world, not a panel).
 import * as calendar from './calendar/index.js';
+import * as countdown from './countdown/index.js';
 import * as games from './games/index.js';
 import * as grocery from './grocery/index.js';
 import * as lights from './lights/index.js';
@@ -15,16 +16,16 @@ import * as stocks from './stocks/index.js';
 import * as weather from './weather/index.js';
 import * as zen from './zen/index.js';
 
-export const APPS = [calendar, weather, spotify, stocks, unspeakable, games, lights, roommateGames, grocery, sports, zen];
+export const APPS = [calendar, weather, spotify, stocks, unspeakable, games, lights, roommateGames, grocery, countdown, sports, zen];
 
 // New screens start with all of them, and this order is what page 1 lays out as:
 // the clock top left, the mini Stocks strip in the column right beside it and a
 // mini Spotify in the next, then the Calendar and Weather (which fills the top
 // row exactly), and Unspeakable, Games and Lights along the bottom. The Roommate
-// Cup and Grocery start page 2. Sports has no widget: it's the page before page 1.
+// Cup, Grocery and Countdown start page 2. Sports has no widget: it's the page before page 1.
 // Screens that saved a layout before a widget existed pick it up here too, at the
 // place this order puts it (see SCHEMA_VERSION 3 in services/settings.js).
-export const DEFAULT_WIDGETS = ['stocks', 'spotify', 'calendar', 'weather', 'unspeakable', 'games', 'lights', 'roommate-games', 'grocery'];
+export const DEFAULT_WIDGETS = ['stocks', 'spotify', 'calendar', 'weather', 'unspeakable', 'games', 'lights', 'roommate-games', 'grocery', 'countdown'];
 
 // The settings version each widget arrived in, for widgets added after version 3.
 // A screen saved on an older version picks these up once, so a widget someone has
@@ -32,4 +33,4 @@ export const DEFAULT_WIDGETS = ['stocks', 'spotify', 'calendar', 'weather', 'uns
 // it exactly: the new widget goes in the first free spot that fits it (for Stocks,
 // the first free one-column strip, which is the column beside the clock if that's
 // empty), and nothing else moves.
-export const WIDGETS_SINCE = { lights: 4, 'roommate-games': 5, grocery: 6, spotify: 8, stocks: 11 };
+export const WIDGETS_SINCE = { lights: 4, 'roommate-games': 5, grocery: 6, spotify: 8, stocks: 11, countdown: 12 };

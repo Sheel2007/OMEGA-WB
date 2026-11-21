@@ -23,7 +23,7 @@ import {
 } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
 // versions 4, 5 and 6 pick up the ones named in `widgetsSince` (Lights, the
@@ -36,7 +36,8 @@ const SCHEMA_VERSION = 11;
 // board keeps the widget, in its place, instead of losing it as an unknown id.
 // Version 11 picks up Stocks, the same way as Spotify. On the Glass layout Stocks
 // has no place on the grid: it's docked beside the clock (see `docks` below).
-const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+// Version 12 picks up Countdown, in the first free spot that fits it.
+const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const FIRST_PLACED_VERSION = 7;
 const MAX_ASKER_LENGTH = 30;
 const RENAMED_THEMES = { retro: 'blocks' };

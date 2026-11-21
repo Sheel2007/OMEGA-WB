@@ -65,6 +65,8 @@ html {
   --icon-grocery: linear-gradient(155deg, #ff8fb4 0%, #f2477f 52%, #c8235e 100%);
   --icon-spotify: linear-gradient(155deg, #3fe07a 0%, #1db954 50%, #138a3e 100%);
   --icon-stocks: linear-gradient(155deg, #f5a623 0%, #d9730d 55%, #a8500a 100%);
+  /* Countdown: lime, with a dark hourglass on it. */
+  --icon-countdown: linear-gradient(155deg, #e4fb7a 0%, #b5e548 55%, #7fb52a 100%);
   --icon-sports: linear-gradient(160deg, #66708a 0%, #363d52 55%, #222736 100%);
   /* Zen: a sunset sky behind its sun and hill. */
   --icon-zen: linear-gradient(170deg, #4b4c9e 0%, #b0628a 55%, #f0a060 100%);
@@ -312,6 +314,7 @@ html {
   --icon-roommate-games: #0f7a76;
   --icon-spotify: #178a43;
   --icon-stocks: #b8600c;
+  --icon-countdown: #9ccc3a;
   --icon-sports: #363d52;
   --icon-zen: #4b4c9e;
 
@@ -480,6 +483,7 @@ html {
   --accent-grocery: #ff8cba;
   --accent-spotify: #4fdc84;
   --accent-stocks: #ffb340;
+  --accent-countdown: #d4f565;
   --stock-up: #4fdc84;
   --stock-down: #ff9a90;
 

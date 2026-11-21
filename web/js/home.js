@@ -66,7 +66,7 @@ export function createWidgetHost({ track, apps, context, pager, getLayout, getDo
     track.style.setProperty('--grid-rows', layout.grid.rows);
     clock.style.gridArea = gridArea(layout.clock);
     const added = [];
-    // The stylesheet makes room: the time comes down a size, and the widget is a strip.
+    // The stylesheet makes room: the widget is one fixed width, and a two-digit hour comes down to fit beside it.
     firstPage.classList.toggle('home-page--docked', docked.length > 0);
     let afterClock = clock;
     for (const id of docked) {

@@ -409,13 +409,14 @@
 
 /* A strip widget (Stocks) has no column of its own on this grid: it stands at the
    end of the clock's slot, in the gap the time leaves (home.js puts it in the
-   slot's last cell and marks the page). The digits are all one width, so the time
-   ends in one of two places: "12:45" leaves room for an 8.3rem strip, and a time
-   with a one-digit hour ("6:22", 18 hours of the day) ends a whole digit sooner,
-   which the widget takes too (main.js counts the digits on the clock). Both
-   widths stop 1rem short of the time, the same gap as between two cards. The padding
-   keeps the date and the game-day strip clear of it. The card is a container, so
-   the widget's own stylesheet lays it out for whichever width it has. */
+   slot's last cell and marks the page). It's always 13rem wide, the narrowest it
+   still lays out as a card (stocks.css), so it doesn't jump in size at 10:00 and
+   1:00. The digits are all one width, so the time ends in one of two places: a
+   one-digit hour ("6:22", 18 hours of the day) leaves room to spare at the full
+   size, and while the hour has two ("12:45") the time comes down just enough to
+   stop 1rem short of the card, the same gap as between two cards (main.js counts
+   the digits on the clock). The padding keeps the date and the game-day strip
+   clear of it. */
 
 :root[data-theme="apple"] .home-page > .widget--docked {
   z-index: 1;
@@ -425,15 +426,17 @@
 }
 
 :root[data-theme="apple"] .home-page--docked {
-  --dock-width: 8.3rem;
-}
-
-:root[data-theme="apple"] .home-page--docked:has(> .clock[data-digits="3"]) {
-  --dock-width: 16.5rem;
+  --dock-width: 13rem;
 }
 
 :root[data-theme="apple"] .home-page--docked > .clock {
   padding-right: calc(var(--dock-width) + 1.2rem);
+}
+
+@media (min-width: 901px) and (min-height: 561px) {
+  :root[data-theme="apple"] .home-page--docked > .clock:not([data-digits="3"]) .clock__time {
+    font-size: 11.7rem;
+  }
 }
 
 /* App library: the whole wallpaper frosts over as the apps come up. It's the

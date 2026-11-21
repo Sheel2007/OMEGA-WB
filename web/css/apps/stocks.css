@@ -231,14 +231,14 @@
   color: var(--widget-accent);
 }
 
-/* While the time has a one-digit hour the dock is more than twice as wide
-   (apple.css), and then it's laid out like the other cards rather than as a
-   strip: the name top left, the arrow beside a bigger number, a wider line, and
-   four companies at a time with each one's move beside its ticker. At "12:45"
-   it's the strip above again. The card is the container (`dock`), so this only
-   ever applies there. */
+/* Docked on Glass it's 13rem wide at any time of day (apple.css), and laid out
+   like the other cards rather than as a strip: the name top left, the arrow
+   beside a bigger number, a wider line, and four companies at a time with each
+   one's move beside its ticker. The number is never more than four characters
+   ("12.3", "7.95") in tabular digits, so it always fits. The card is the
+   container (`dock`), so this only ever applies there. */
 
-@container dock (min-width: 11rem) {
+@container dock (min-width: 10rem) {
   .stocks-widget__name {
     padding: 0 0.2rem;
     text-align: left;
@@ -261,7 +261,7 @@
 
   .stocks-widget__change {
     margin: 0;
-    font-size: 3.5rem;
+    font-size: 3.1rem;
   }
 
   .stocks-widget__status {

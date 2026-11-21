@@ -544,6 +544,218 @@
   color: var(--text-2);
 }
 
+/* Countdowns in the widget (services.countdown): the next one big above the agenda
+   at small, the next big with the two after it in a line at medium, three across
+   at large. Rows in the agenda that are countdowns wear the countdown colour. */
+
+.calendar-widget,
+.calendar-app {
+  /* The big numbers: the theme's text everywhere, lime on Glass (apple.css). */
+  --countdown-number: var(--text);
+  /* Countdown rows among the events. */
+  --countdown-accent: var(--accent-text);
+}
+
+.calendar-widget__countdowns {
+  flex: none;
+  margin: 0.1rem 0 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.calendar-widget__heroes {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.calendar-widget__hero {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "number unit"
+    "number title"
+    "number date";
+  align-items: center;
+  align-content: center;
+  column-gap: 1rem;
+}
+
+/* Small and medium show one big; large shows all three. */
+.calendar-widget__hero:nth-child(n + 2) {
+  display: none;
+}
+
+.calendar-widget__hero-number {
+  grid-area: number;
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-size: 4.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 0.9;
+  color: var(--countdown-number);
+}
+
+/* "Today" is a word, not a number. */
+.calendar-widget__hero--today .calendar-widget__hero-number {
+  font-size: 2.4rem;
+  letter-spacing: -0.02em;
+}
+
+.calendar-widget__hero-unit {
+  grid-area: unit;
+  align-self: end;
+  font-size: var(--fs-caption);
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.calendar-widget__hero-title {
+  grid-area: title;
+  overflow: hidden;
+  font-size: var(--fs-item);
+  font-weight: 750;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-widget__hero-date {
+  grid-area: date;
+  align-self: start;
+  overflow: hidden;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-widget__then {
+  display: none;
+  margin: 0.4rem 0 0;
+  overflow: hidden;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget--medium .calendar-widget__then:not([hidden]) {
+  display: block;
+}
+
+.calendar-widget__then-item {
+  white-space: nowrap;
+}
+
+.calendar-widget__then-item + .calendar-widget__then-item::before {
+  content: "· ";
+}
+
+/* Medium on the board is no taller than small, so the two after the next one stand
+   to the right of its number instead of under it. (Glass, where medium is wide and
+   short, has its own layout in apple.css.) */
+:root:not([data-theme="apple"]) .widget--medium .calendar-widget__countdowns {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+:root:not([data-theme="apple"]) .widget--medium .calendar-widget__heroes {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+:root:not([data-theme="apple"]) .widget--medium .calendar-widget__then:not([hidden]) {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  min-width: 0;
+  max-width: 45%;
+  margin: 0;
+}
+
+:root:not([data-theme="apple"]) .widget--medium .calendar-widget__then-item {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:root:not([data-theme="apple"]) .widget--medium .calendar-widget__then-item::before {
+  content: none;
+}
+
+.calendar-widget__then b {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--countdown-number);
+}
+
+.calendar-widget__item.calendar-widget__item--countdown {
+  --event: var(--countdown-accent);
+}
+
+.calendar-widget__item--countdown :is(.calendar-widget__title, .calendar-widget__time) {
+  color: var(--countdown-accent);
+}
+
+/* Large: three across, each standing on its own number. */
+
+.widget--large .calendar-widget__countdowns {
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.widget--large .calendar-widget__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "number"
+    "unit"
+    "title"
+    "date";
+  align-content: start;
+  padding: 0 1.1rem;
+  border-left: 1px solid var(--hairline);
+}
+
+.widget--large .calendar-widget__hero:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.widget--large .calendar-widget__hero:last-child {
+  padding-right: 0;
+}
+
+.widget--large .calendar-widget__hero-number {
+  font-size: 6rem;
+}
+
+.widget--large .calendar-widget__hero--today .calendar-widget__hero-number {
+  font-size: 3rem;
+}
+
+.widget--large .calendar-widget__hero-unit {
+  margin-top: 0.4rem;
+}
+
+.widget--large .calendar-widget__hero-to {
+  display: none;
+}
+
 /* Phones */
 
 @media (max-width: 900px), (max-height: 560px) {

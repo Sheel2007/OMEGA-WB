@@ -114,7 +114,9 @@ export function animateLayout(root, mutate, { selector = '[data-key]' } = {}) {
   root.querySelectorAll(selector).forEach((node) => {
     if (node.hidden || node.closest('[hidden]')) return;
     const was = before.get(node.dataset.key);
-    if (!was) {
+    // A node that was hidden (fitRows hides the rows that don't fit) measured as an
+    // empty box at the corner of the screen: it arrives like a new one, not from there.
+    if (!was || (was.width === 0 && was.height === 0)) {
       node.animate(
         [{ opacity: 0, transform: 'translateY(-0.6rem) scale(0.97)' }, { opacity: 1, transform: 'none' }],
         { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' },

@@ -10,6 +10,7 @@ import {
   addMinutes,
   countLabel,
   dayDate,
+  dayHeading,
   dayKey,
   dayLabel,
   daysBetween,
@@ -650,7 +651,7 @@ export function mount(root, { services, kiosk }) {
         createDay,
         (node, day) => {
           const [heading, list] = node.children;
-          heading.textContent = dayLabel(day.key, today);
+          heading.textContent = dayHeading(day.key, today);
           reconcile(list, day.events, (event) => `${event.id}:${event.dayOffset ?? 0}`, createEvent, (row, event) =>
             updateEvent(row, event, today),
           );

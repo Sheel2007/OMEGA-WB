@@ -91,6 +91,23 @@ export function dayBadge(key, today) {
   return monthDayFormat.format(dayDate(key));
 }
 
+// How many days away a day is, for the badge on each row of the widget: "Today",
+// "Tmrw", then "2 days", "31 days". Every event reads as a countdown.
+export function daysBadge(key, today) {
+  const away = daysBetween(today, key);
+  if (away <= 0) return 'Today';
+  if (away === 1) return 'Tmrw';
+  return `${away} days`;
+}
+
+// A day's heading in the app, with how far off it is from the day after tomorrow
+// on: "Tuesday, October 6 · in 4 days".
+export function dayHeading(key, today) {
+  const away = daysBetween(today, key);
+  const label = dayLabel(key, today);
+  return away > 1 ? `${label} · in ${away} days` : label;
+}
+
 // How far off the next thing is, for the line under the widget's title.
 export function nextLabel(events, today) {
   const next = events.find((event) => event.date >= today);

@@ -679,7 +679,8 @@
 
 .calendar-widget__item {
   display: grid;
-  grid-template-columns: 4.2rem minmax(0, 1fr) auto;
+  /* Wide enough for "31 days" in the badge. */
+  grid-template-columns: 5.4rem minmax(0, 1fr) auto;
   align-items: baseline;
   column-gap: 0.6rem;
   min-height: 2.5rem;

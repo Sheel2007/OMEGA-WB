@@ -141,3 +141,10 @@ test('a counted-down event that runs for days is a countdown on its first day on
     ['2026-12-22', 'b'], ['2026-12-23', null], ['2026-12-24', null],
   ]);
 });
+
+test("an event is a countdown's when the countdown is linked to it, whatever its name", () => {
+  const events = mergeEvents({ feed: [{ id: 'g:me:f', title: 'Finals week', date: '2026-12-14' }] });
+  const linked = { ...finals, event: 'g:me:f' };
+  assert.equal(sameThing(events[0], linked), true);
+  assert.deepEqual(markCountdowns(events, [linked], NOW).map((e) => [e.title, e.countdown?.id]), [['Finals week', 'a']]);
+});

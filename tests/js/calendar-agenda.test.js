@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   countLabel,
   dayBadge,
+  dayHeading,
   dayKey,
   dayLabel,
+  daysBadge,
   daysBetween,
   formatTime,
   groupByDay,
@@ -70,6 +72,20 @@ test('dayBadge is short enough for a widget row', () => {
   assert.equal(dayBadge('2026-10-03', TODAY), 'Tmrw');
   assert.match(dayBadge('2026-10-06', TODAY), /^Tue/);
   assert.match(dayBadge('2026-12-25', TODAY), /Dec\s*25/);
+});
+
+test('daysBadge says how many days away an event is, in words for the next two', () => {
+  assert.equal(daysBadge(TODAY, TODAY), 'Today');
+  assert.equal(daysBadge('2026-10-03', TODAY), 'Tmrw');
+  assert.equal(daysBadge('2026-10-04', TODAY), '2 days');
+  assert.equal(daysBadge('2026-12-25', TODAY), '84 days');
+});
+
+test('dayHeading adds how many days away a day is, from the day after tomorrow on', () => {
+  assert.equal(dayHeading(TODAY, TODAY), 'Today');
+  assert.equal(dayHeading('2026-10-03', TODAY), 'Tomorrow');
+  assert.match(dayHeading('2026-10-06', TODAY), /^Tuesday.* · in 4 days$/);
+  assert.match(dayHeading('2026-12-25', TODAY), /Dec\s*25.* · in 84 days$/);
 });
 
 test('nextLabel counts today first, then says how far off the next thing is', () => {

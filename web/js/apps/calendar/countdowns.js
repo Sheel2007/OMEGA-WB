@@ -91,7 +91,10 @@ export function countdownTitle(title) {
 // An event and a countdown are the same thing when they're on the same day under the
 // same name. The event's name is cut the way countdownTitle() cuts it, so a long
 // event counted down to from the app still matches the countdown made from it.
+// A countdown linked to an event (board/countdown_sync.py, or the hourglass) is that
+// event's, whatever either is called now.
 export function sameThing(event, countdown) {
+  if (countdown.event && event.id === countdown.event) return true;
   return event.date === countdown.date && fold(countdownTitle(event.title)) === fold(countdown.title);
 }
 

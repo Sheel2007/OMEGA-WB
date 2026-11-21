@@ -3,8 +3,8 @@
 // next one at small, one and the two after it in a line at medium, three across at
 // large. A countdown shown up there never shows again as a row.
 import { animateLayout, appIcon, el, fitRows, icons, reconcile } from '../../ui.js';
-import { dayBadge, dayKey, formatTime, mergeEvents, msUntilMidnight, nextLabel } from './agenda.js';
-import { bigNumber, dateLabel, leftLabel, spoken, widgetRows } from './countdowns.js';
+import { dayKey, daysBadge, formatTime, mergeEvents, msUntilMidnight, nextLabel } from './agenda.js';
+import { bigNumber, dateLabel, spoken, widgetRows } from './countdowns.js';
 import * as meta from './meta.js';
 
 // fitRows() hides whichever of these don't fit the widget's height.
@@ -107,10 +107,10 @@ export function createWidget({ services, openApp }) {
     const [day, title, time] = row.children;
     row.dataset.color = event.color ?? 'ours';
     row.classList.toggle('calendar-widget__item--countdown', Boolean(event.countdown));
-    day.textContent = repeated ? '' : dayBadge(event.day, today);
+    // Every row says how many days away it is; a countdown's row is coloured too.
+    day.textContent = repeated ? '' : daysBadge(event.day, today);
     title.textContent = event.title;
-    if (event.countdown) time.textContent = leftLabel(event.countdown.left);
-    else time.textContent = event.time ? formatTime(event.time) : '';
+    time.textContent = event.time ? formatTime(event.time) : '';
   }
 
   // The medium widget's line under its one big number: "Winter break 31 · Next semester 67".

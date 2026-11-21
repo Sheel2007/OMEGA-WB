@@ -21,10 +21,14 @@ export function createWidget({ services }) {
   // What the Apple theme shows instead of `message`: an empty reading, never setup
   // instructions (those go to the console).
   const bar = (kind) => el('span', { class: `weather-widget__bar weather-widget__bar--${kind}` });
+  // Once the board has tried and failed, the empty reading says so in one word
+  // (in place of the conditions bar), so it never looks like it's still loading.
+  const offline = el('p', { class: 'weather-widget__placeholder-note', text: 'Offline', hidden: true });
+  const labelBar = bar('label');
   const placeholder = el(
     'div',
     { class: 'weather-widget__placeholder', role: 'img', 'aria-label': 'No forecast yet' },
-    el('div', { class: 'weather-widget__placeholder-now' }, el('p', { class: 'weather-widget__temp', text: '—°' }), el('div', { class: 'weather-widget__placeholder-lines' }, bar('label'), bar('range'))),
+    el('div', { class: 'weather-widget__placeholder-now' }, el('p', { class: 'weather-widget__temp', text: '—°' }), el('div', { class: 'weather-widget__placeholder-lines' }, offline, labelBar, bar('range'))),
     el('div', { class: 'weather-widget__placeholder-days' }, Array.from({ length: DAYS_SHOWN }, () => bar('day'))),
   );
   let logged = null;
@@ -72,6 +76,10 @@ export function createWidget({ services }) {
     if (error && error !== logged) console.warn(`Weather: ${error}`);
     logged = error;
     if (!hasForecast) {
+      const failed = Boolean(error) && !loading;
+      offline.hidden = !failed;
+      labelBar.hidden = failed;
+      placeholder.setAttribute('aria-label', failed ? 'No forecast: offline' : 'No forecast yet');
       status.textContent = '';
       message.textContent = loading ? 'Checking the sky…' : error || 'No forecast right now.';
       return;

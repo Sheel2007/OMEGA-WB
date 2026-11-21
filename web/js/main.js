@@ -342,7 +342,13 @@ const widgets = createWidgetHost({
 const phoneHome = compact.matches
   ? createPhoneHome({ apps: APPS, openApp: (id, options) => appHost.openApp(id, options), services })
   : null;
-if (phoneHome) home.insertBefore(phoneHome.node, home.querySelector('.page-dots'));
+if (phoneHome) {
+  home.insertBefore(phoneHome.node, home.querySelector('.page-dots'));
+  // The menu button floats over the page; once the page scrolls under it, it steps
+  // aside (base.css) and comes back at the top. One passive listener for the page's life.
+  const statusbar = document.querySelector('.statusbar');
+  home.addEventListener('scroll', () => statusbar.classList.toggle('statusbar--scrolled', home.scrollTop > 24), { passive: true });
+}
 
 // The jukebox. The board plays, a phone asks; neither exists unless the server has
 // a passphrase for it, in which case nothing ever arrives on its stream and both

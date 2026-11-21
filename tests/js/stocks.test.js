@@ -85,8 +85,11 @@ test("a company's move carries its sign, so colour is never the only clue", () =
 test('the line under the number says what the number is', () => {
   assert.equal(statusOf(reading(1)), 'open');
   assert.equal(statusLabel(reading(1)), 'Today');
-  assert.equal(statusLabel(reading(1, { market: 'closed' })), 'Closed');
-  assert.equal(statusLabel(reading(1, { market: null })), 'Closed', 'not known to be open is not "today"');
+  const ny = { timeZone: 'America/New_York' };
+  assert.equal(statusLabel(reading(1, { market: 'closed' }), ny), 'Thu close', 'names the trading day the move is from');
+  assert.equal(statusLabel(reading(1, { market: null }), ny), 'Thu close', 'not known to be open is not "today"');
+  assert.equal(statusLabel(reading(1, { market: 'closed', series: null })), 'Closed', 'no trading day to name');
+  assert.equal(statusLabel(reading(1, { market: 'closed', series: { start: CLOSE, end: OPEN } })), 'Closed');
   assert.equal(statusLabel(reading(1, { error: 'x' })), 'Offline');
   assert.equal(statusLabel(reading(1, { market: 'closed', error: 'x' })), 'Offline');
   assert.equal(statusOf(nothing), null);

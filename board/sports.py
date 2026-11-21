@@ -519,12 +519,23 @@ def shape_espn_table(raw, table_id):
 RECORD = re.compile(r"^(\d+)-(\d+)(?:-(\d+))?$")
 
 
+def _win_share(record):
+    """The share of games won in a "W-L" record (0.0 to 1.0), or -1 if it can't be read."""
+    found = RECORD.match(record or "")
+    if not found:
+        return -1
+    won, lost = int(found.group(1)), int(found.group(2))
+    return won / (won + lost) if won + lost else 0
+
+
 def shape_basketball_table(raw, table_id):
     """ESPN's standings for one basketball conference, or None if there are none.
 
     A row is a team's conference record (won, lost), with its overall record and
     streak beside it. ESPN's order is kept (it breaks ties its own way), behind
-    the conference record.
+    the conference record. Before anyone has played a conference game (all of
+    November and December) that record is 0-0 for everyone, so the overall record
+    orders the table instead.
     """
     rows = []
     for entry in _list(_dict(_dict(raw).get("standings")).get("entries"))[:MAX_TABLE_ROWS]:
@@ -560,7 +571,10 @@ def shape_basketball_table(raw, table_id):
         })
     if not rows:
         return None
-    rows.sort(key=lambda row: -(row["won"] / row["played"]) if row["played"] else 0)
+    if any(row["played"] for row in rows):
+        rows.sort(key=lambda row: -(row["won"] / row["played"]) if row["played"] else 0)
+    else:
+        rows.sort(key=lambda row: -_win_share(row["overall"]))
     for index, row in enumerate(rows):
         row["rank"] = index + 1
     return {"id": table_id, "name": TABLE_NAMES.get(table_id, table_id), "kind": "basketball", "sport": "basketball",

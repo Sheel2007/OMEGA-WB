@@ -849,6 +849,23 @@ class BasketballTest(unittest.TestCase):
         self.assertIsNone(sports.shape_basketball_table({"standings": {"entries": []}}, "big-ten-basketball"))
         self.assertIsNone(sports.shape_basketball_table("junk", "big-ten-basketball"))
 
+    def test_before_any_conference_game_the_table_is_by_overall_record(self):
+        # In November every team is 0-0 in the Big Ten, so the conference record says
+        # nothing; ESPN's order then looks random. Overall record decides until then.
+        early = {"standings": {"entries": [
+            hoops_standing(INDIANA, "0-0", "2-2"),
+            hoops_standing(OHIO_STATE, "0-0", "4-1"),
+            hoops_standing(TERPS, "0-0", "5-0"),
+            hoops_standing(VIRGINIA, "0-0", "4-1"),
+        ]}}
+        rows = sports.shape_basketball_table(early, "big-ten-basketball")["groups"][0]["rows"]
+        self.assertEqual([(r["rank"], r["team"]["abbr"]) for r in rows],
+                         [(1, "MD"), (2, "OSU"), (3, "UVA"), (4, "IU")], "ties keep ESPN's order")
+        # An unreadable overall record goes to the bottom rather than breaking the sort.
+        odd = {"standings": {"entries": [hoops_standing(INDIANA, "0-0", None), hoops_standing(TERPS, "0-0", "1-3")]}}
+        rows = sports.shape_basketball_table(odd, "big-ten-basketball")["groups"][0]["rows"]
+        self.assertEqual([r["team"]["abbr"] for r in rows], ["MD", "IU"])
+
     def test_a_finished_games_page_is_its_box_score_halves_and_team_stats(self):
         match = sports.shape_match(
             hoops_event("4001", TERPS, VIRGINIA, "2026-11-14T01:00Z", status="post", score=(83, 87)),

@@ -264,6 +264,13 @@
   border-top: 1px solid var(--hairline);
 }
 
+:root[data-theme="apple"] .weather-widget__placeholder-note {
+  margin: 0;
+  font-size: var(--fs-caption);
+  line-height: 1;
+  color: var(--text-quiet);
+}
+
 /* Still bars, not a shimmer: nothing on the board loops. */
 :root[data-theme="apple"] .weather-widget__bar {
   display: block;

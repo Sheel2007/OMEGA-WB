@@ -747,6 +747,44 @@
   white-space: nowrap;
 }
 
+/* Phones: the strip is the width of the screen, so the crests, the gaps and the
+   score give up a little so three-letter names ("WAG") are never cut short. */
+@media (max-width: 900px), (max-height: 560px) {
+  .game-day__match {
+    padding-inline: 0.8rem;
+  }
+
+  .game-day__teams {
+    gap: 0.5rem;
+  }
+
+  .game-day__team {
+    gap: 0.4rem;
+  }
+
+  .game-day__crest {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+
+  .game-day__score > :first-child {
+    font-size: 2rem;
+  }
+
+  .game-day__match--wide .game-day__teams {
+    gap: 0.35rem;
+  }
+
+  .game-day__match--wide .game-day__crest {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .game-day__match--wide .game-day__score > :first-child {
+    font-size: 1.8rem;
+  }
+}
+
 /* A row each, the minute or FT and then the teams, low enough for three of them
    to clear the widgets under the clock. */
 

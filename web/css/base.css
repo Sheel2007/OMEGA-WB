@@ -646,6 +646,18 @@ input {
     display: none;
   }
 
+  /* Scrolled down the phone home: the menu button would sit on the cards, so it
+     fades out until the page is back at the top (main.js sets the class). */
+  .board-menu {
+    transition: opacity 0.2s ease;
+  }
+
+  /* Only the button: an Offline warning beside it stays put. */
+  .statusbar--scrolled .board-menu:not(.board-menu--open) {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   /* The board's iPad-style swipe-home bar. A phone has its own gesture there and
      the app already has a Home button, so it only takes up room. */
   .app-shell__indicator {

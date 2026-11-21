@@ -45,8 +45,20 @@ export function statusOf(state) {
 
 const STATUS_LABELS = { open: 'Today', closed: 'Closed', offline: 'Offline' };
 
-export function statusLabel(state) {
-  return STATUS_LABELS[statusOf(state)] ?? '';
+// While the market is closed the number is the last trading day's move, so the
+// line names that day ("Fri close"): on a Saturday, or before Monday's bell, plain
+// "Closed" reads as today. The day is taken from the middle of the series' trading
+// day, in the board's own time zone unless one is given (tests pass one).
+export function statusLabel(state, { timeZone } = {}) {
+  const status = statusOf(state);
+  if (status === 'closed') {
+    const { start, end } = state.series ?? {};
+    if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+      const day = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone }).format(new Date(((start + end) / 2) * 1000));
+      return `${day} close`;
+    }
+  }
+  return STATUS_LABELS[status] ?? '';
 }
 
 // The few words the strip shows instead of numbers (a word, and a line under it

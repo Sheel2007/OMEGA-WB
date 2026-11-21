@@ -24,6 +24,7 @@ from board.lights import Lights, settings_from as lights_settings_from
 from board.screen import Screen, settings_from as screen_settings_from
 from board.unspeakable import UnspeakableLedger
 from board.countdown import Countdowns
+from board.countdown_sync import CountdownSync
 from board.notify import Notifier, settings_from as notify_settings_from
 from board.products import ProductLookup
 from board.spotify import NowPlaying, SpotifyAccount
@@ -132,13 +133,19 @@ def main():
     zone = local_zone(config.get("timezone"))
     feed = ChangeFeed()
     account = google_from(config, args.data)
+    calendar = CalendarStore(os.path.join(args.data, "calendar.json"), feed=feed)
+    # What day it is decides which countdowns are too far off or long gone.
+    countdowns = Countdowns(os.path.join(args.data, "countdowns.json"), today=lambda: datetime.now(zone).date(), feed=feed)
     sources = CalendarSources(
         sources_from(config.get("calendars")),
         account=account,
         choices=CalendarChoices(os.path.join(args.data, "calendar-choices.json"), feed=feed),
         zone=zone,
         feed=feed,
+        # After every sync, each countdown gets (or follows) its event on Google Calendar.
+        after_refresh=lambda: countdown_sync.sync(),
     )
+    countdown_sync = CountdownSync(countdowns, sources, board_events=lambda: calendar.snapshot()["events"])
     screen = screen_settings_from(config.get("screen"))
     lights = Lights(
         os.path.join(args.data, "lights.json"),
@@ -178,7 +185,7 @@ def main():
     server = BoardServer(
         (args.host, port),
         unspeakable=UnspeakableLedger(os.path.join(args.data, "unspeakable.json"), feed=feed),
-        calendar=CalendarStore(os.path.join(args.data, "calendar.json"), feed=feed),
+        calendar=calendar,
         calendar_sources=sources,
         google=account,
         feed=feed,
@@ -194,8 +201,7 @@ def main():
         spotify=spotify,
         stocks=stocks,
         sports=sports,
-        # What day it is decides which countdowns are too far off or long gone.
-        countdown=Countdowns(os.path.join(args.data, "countdowns.json"), today=lambda: datetime.now(zone).date(), feed=feed),
+        countdown=countdowns,
         location=location,
         public_url=phone_address(config.get("hostname"), port),
         jukebox=jukebox,

@@ -10,6 +10,7 @@ import urllib.request
 
 from board.calendar import CalendarSources, CalendarStore
 from board.jukebox import Jukebox
+from board import google
 from board.google import GoogleAccount
 from board.grocery import GroceryList
 from board.grocery_images import Photos, ProductImages
@@ -211,6 +212,50 @@ class ServerTest(unittest.TestCase):
         status, body = self.post("/api/countdown/restore", {"ids": ["c0ffee01"]})
         self.assertEqual(body["restored"], ["c0ffee01"])
         self.post("/api/countdown/remove", {"id": "c0ffee01"})
+
+    def test_hourglass_link_is_kept_and_not_deleted(self):
+        deleted = []
+        sources = self.server.calendar_sources
+        sources.remove = lambda event_id: deleted.append(event_id) or {"id": event_id}
+        try:
+            status, body = self.post("/api/countdown/add", {"title": "Rent due", "date": "2027-01-24",
+                                                            "event": "g:me@example.com:rent"})
+            self.assertEqual(status, 200)
+            self.assertEqual((body["countdown"]["event"], body["countdown"]["made"]), ("g:me@example.com:rent", False))
+            self.post("/api/countdown/remove", {"id": body["countdown"]["id"]})
+            self.assertEqual(deleted, [], "an event that was already there stays")
+        finally:
+            del sources.remove
+
+    def test_removing_a_countdown_deletes_the_event_the_board_made(self):
+        deleted = []
+        sources = self.server.calendar_sources
+        countdowns = self.server.countdown
+        sources.remove = lambda event_id: deleted.append(event_id) or {"id": event_id}
+        try:
+            made = self.post("/api/countdown/add", {"title": "Spring break", "date": "2027-03-15"})[1]["countdown"]
+            countdowns.link(made["id"], "g:me@example.com:spring", made=True)
+            self.post("/api/countdown/remove", {"id": made["id"]})
+            self.assertEqual(deleted, ["g:me@example.com:spring"])
+            back = self.post("/api/countdown/restore", {"ids": [made["id"]]})[1]
+            restored = next(c for c in back["state"]["countdowns"] if c["id"] == made["id"])
+            self.assertNotIn("event", restored, "Undo brings it back unlinked, so the next sync makes a new event")
+            self.post("/api/countdown/remove", {"id": made["id"]})
+
+            def down(event_id):
+                raise google.GoogleError("Google is down.")
+
+            sources.remove = down
+            kept = self.post("/api/countdown/add", {"title": "Spring break", "date": "2027-03-16"})[1]["countdown"]
+            countdowns.link(kept["id"], "g:me@example.com:spring2", made=True)
+            status, _ = self.post("/api/countdown/remove", {"id": kept["id"]})
+            self.assertEqual(status, 200, "the countdown goes even if its event couldn't")
+            back = self.post("/api/countdown/restore", {"ids": [kept["id"]]})[1]
+            restored = next(c for c in back["state"]["countdowns"] if c["id"] == kept["id"])
+            self.assertEqual(restored["event"], "g:me@example.com:spring2", "still linked, so no second event")
+            self.post("/api/countdown/remove", {"id": kept["id"]})
+        finally:
+            del sources.remove
 
     def test_a_new_countdown_goes_out_on_the_event_stream_at_once(self):
         sock = self._open_stream("/api/events")

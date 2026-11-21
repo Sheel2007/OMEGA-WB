@@ -18,12 +18,14 @@ export function createCountdownService({ live }) {
     subscribe: synced.subscribe,
     refresh: synced.refresh,
 
-    // `date` is a "YYYY-MM-DD" day.
-    addCountdown(rawTitle, date) {
+    // `date` is a "YYYY-MM-DD" day; `event` the calendar event it's counted down
+    // from (the hourglass), which it then stands for instead of getting its own.
+    addCountdown(rawTitle, date, { event } = {}) {
       const title = rawTitle.trim().replace(/\s+/g, ' ');
       const id = newId();
-      return synced.mutate('add', { title, date, id }, (s) => {
-        s.countdowns.push({ id, title, date, created: new Date().toISOString() });
+      const link = event ? { event, made: false } : {};
+      return synced.mutate('add', { title, date, id, ...(event ? { event } : {}) }, (s) => {
+        s.countdowns.push({ id, title, date, created: new Date().toISOString(), ...link });
         s.countdowns.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
         return s;
       });

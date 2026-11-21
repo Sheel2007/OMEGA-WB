@@ -373,9 +373,10 @@ export function mount(root, { services, kiosk }) {
   // Countdowns
 
   // Adds one and says so, with an Undo. Rejects (after saying why) if it couldn't.
-  async function countDownTo(text, day) {
+  // `event` is the calendar event it stands for, when there is one.
+  async function countDownTo(text, day, event) {
     try {
-      const result = await countdown.addCountdown(text, day);
+      const result = await countdown.addCountdown(text, day, { event });
       const added = result?.countdown?.id;
       toast(
         `Counting down to ${text}`,
@@ -408,7 +409,7 @@ export function mount(root, { services, kiosk }) {
       return;
     }
     const text = countdownTitle(node.dataset.eventTitle);
-    countDownTo(text, node.dataset.eventDay).catch(() => {});
+    countDownTo(text, node.dataset.eventDay, node.dataset.eventId).catch(() => {});
   }
 
   function createCountdown() {

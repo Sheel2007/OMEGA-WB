@@ -239,7 +239,7 @@ class CalendarSourcesTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    def build(self, urls=(), account=None, choices=None):
+    def build(self, urls=(), account=None, choices=None, after_refresh=None):
         def fetch(url):
             self.fetched.append(url)
             page = self.pages[url]
@@ -255,7 +255,21 @@ class CalendarSourcesTest(unittest.TestCase):
             feed=self.feed,
             fetch=fetch,
             today=lambda: TODAY,
+            after_refresh=after_refresh,
         )
+
+    def test_after_each_refresh_the_countdowns_get_their_turn(self):
+        calls = []
+
+        def after():
+            calls.append(len(sources.snapshot()["events"]))
+            raise RuntimeError("a broken countdown sync must not break the calendar")
+
+        account = FakeAccount(events={"me@example.com": [all_day("e1", "Dentist", "2026-10-20")]})
+        sources = self.build(account=account, after_refresh=after)
+        snapshot = sources.refresh()
+        self.assertEqual(calls, [1], "runs once, after the new events are in the snapshot")
+        self.assertEqual([e["title"] for e in snapshot["events"]], ["Dentist"])
 
     def test_nothing_connected_is_not_an_error(self):
         snapshot = self.build().refresh()

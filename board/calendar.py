@@ -375,7 +375,7 @@ class CalendarSources:
     label = "calendars"
 
     def __init__(self, ical_sources=(), *, account=None, choices=None, zone=None, feed=None,
-                 fetch=fetch_text, now=time.monotonic, today=date.today):
+                 fetch=fetch_text, now=time.monotonic, today=date.today, after_refresh=None):
         self._ical = list(ical_sources or [])
         self._account = account
         self._choices = choices
@@ -384,6 +384,8 @@ class CalendarSources:
         self._fetch = fetch
         self._now = now
         self._today = today
+        # Run after every refresh, on this thread (the countdowns, board/countdown_sync.py).
+        self._after_refresh = after_refresh
         self._lock = threading.Lock()
         # Held while reading the calendars, so "Sync now" can't race the background thread.
         self._refreshing = threading.Lock()
@@ -475,6 +477,11 @@ class CalendarSources:
             self._version += 1
         if self._feed is not None:
             self._feed.notify()
+        if self._after_refresh is not None:
+            try:
+                self._after_refresh()
+            except Exception:  # The countdowns going wrong must not stop the calendar.
+                log.exception("Keeping the countdowns on the calendar failed")
         return self.snapshot()
 
     def _read_google(self, today, window_end, calendars, events):

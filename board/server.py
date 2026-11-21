@@ -600,10 +600,26 @@ class BoardHandler(SimpleHTTPRequestHandler):
         return self.server.unspeakable.attempt()
 
     def countdown_add(self, body):
-        return self.server.countdown.add(body.get("title"), body.get("date"), countdown_id=body.get("id"))
+        # `event`: the calendar event it was counted down from (the hourglass). One
+        # without gets an event of its own on the next calendar sync, started now.
+        result = self.server.countdown.add(body.get("title"), body.get("date"), countdown_id=body.get("id"),
+                                           event=body.get("event"))
+        self.server.calendar_sources.refresh_soon()
+        return result
 
     def countdown_remove(self, body):
-        return self.server.countdown.remove(body.get("id"))
+        result = self.server.countdown.remove(body.get("id"))
+        gone = result["countdown"]
+        # Only an event the board made for the countdown goes with it.
+        if gone.get("made") and gone.get("event"):
+            try:
+                self.server.calendar_sources.remove(gone["event"])
+            except (GoogleError, ValidationError, NotFound, OSError):
+                log.warning("Couldn't take %r off the calendar", gone["title"], exc_info=True)
+            else:
+                # So Undo brings the countdown back without a link to the deleted event.
+                self.server.countdown.forget_event(gone["id"])
+        return result
 
     def countdown_restore(self, body):
         return self.server.countdown.restore(body.get("ids"))

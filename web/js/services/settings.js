@@ -23,7 +23,7 @@ import {
 } from '../widget-layout.js';
 
 export const STORAGE_KEY = 'widget-board:settings';
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 // Version 1 kept one flat list of widgets and called the Blocks theme "retro";
 // version 2 added pages; version 3 picks up widgets the board has gained since;
 // versions 4, 5 and 6 pick up the ones named in `widgetsSince` (Lights, the
@@ -36,8 +36,9 @@ const SCHEMA_VERSION = 12;
 // board keeps the widget, in its place, instead of losing it as an unknown id.
 // Version 11 picks up Stocks, the same way as Spotify. On the Glass layout Stocks
 // has no place on the grid: it's docked beside the clock (see `docks` below).
-// Version 12 picks up Countdown, in the first free spot that fits it.
-const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+// Version 12 picked up Countdown, in the first free spot that fits it.
+// Version 13 folds Countdown into Calendar (`foldCountdown`).
+const UPGRADABLE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const FIRST_PLACED_VERSION = 7;
 const MAX_ASKER_LENGTH = 30;
 const RENAMED_THEMES = { retro: 'blocks' };
@@ -57,6 +58,25 @@ export function renameWidgets(raw) {
         })
       : page,
   );
+}
+
+// Countdown became part of Calendar. A screen that had Countdown and no Calendar
+// gets Calendar in Countdown's place (same cell, same size); one that had both just
+// loses Countdown, and nothing else moves. Same shapes as renameWidgets.
+export function foldCountdown(raw) {
+  if (!Array.isArray(raw)) return raw;
+  const idOf = (item) => (typeof item === 'string' ? item : item && typeof item === 'object' ? item.id : null);
+  const hasCalendar = raw.some((page) => Array.isArray(page) && page.some((item) => idOf(item) === 'calendar'));
+  let swapped = hasCalendar;
+  return raw.map((page) => {
+    if (!Array.isArray(page)) return page;
+    return page.flatMap((item) => {
+      if (idOf(item) !== 'countdown') return [item];
+      if (swapped) return [];
+      swapped = true;
+      return [typeof item === 'string' ? 'calendar' : { ...item, id: 'calendar' }];
+    });
+  });
 }
 
 function browserStorage() {
@@ -176,15 +196,15 @@ export function createSettingsService({ storage = browserStorage(), widgets, def
       let pages;
       let apple = null;
       if (version >= FIRST_PLACED_VERSION) {
-        pages = normalize(renameWidgets(saved.pages), LAYOUTS.board, specOf) ?? defaults().pages;
-        apple = normalize(renameWidgets(saved.applePages), LAYOUTS.apple, specOf);
+        pages = normalize(renameWidgets(foldCountdown(saved.pages)), LAYOUTS.board, specOf) ?? defaults().pages;
+        apple = normalize(renameWidgets(foldCountdown(saved.applePages)), LAYOUTS.apple, specOf);
         apple = apple && withoutDocked(apple, LAYOUTS.apple);
         if (version < SCHEMA_VERSION) {
           pages = withNewPlacements(pages, LAYOUTS.board, version);
           apple = apple && withNewPlacements(apple, LAYOUTS.apple, version);
         }
       } else {
-        const raw = renameWidgets(version === 1 ? [saved.widgets] : saved.pages);
+        const raw = renameWidgets(foldCountdown(version === 1 ? [saved.widgets] : saved.pages));
         pages = fromOrder(withNewWidgets(cleanPages(raw) ?? [defaultWidgets.filter(known)], version), defaultSize, LAYOUTS.board);
       }
       return {

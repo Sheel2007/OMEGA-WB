@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSettingsService, STORAGE_KEY } from '../../web/js/services/settings.js';
+import { createSettingsService, foldCountdown, STORAGE_KEY } from '../../web/js/services/settings.js';
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -52,7 +52,7 @@ test('saves changes and reads them back on the next load', () => {
   assert.equal(again.getTheme(), 'blocks');
   assert.equal(again.getScenery(), false);
   assert.deepEqual(ids(again.getPages()), [['weather', 'unspeakable']]);
-  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 12);
+  assert.equal(JSON.parse(storage.raw(STORAGE_KEY)).version, 13);
 });
 
 test('version 1 settings are upgraded, and Retro becomes Blocks', () => {
@@ -263,7 +263,7 @@ test('falls back to safe values for corrupt, unknown or tampered data', () => {
   const corrupt = createSettingsService(options(memoryStorage({ [STORAGE_KEY]: '{nope' })));
   assert.deepEqual(ids(corrupt.getPages()), [['shopping', 'weather']]);
 
-  const future = createSettingsService(options(saved({ version: 13, theme: 'dark' })));
+  const future = createSettingsService(options(saved({ version: 14, theme: 'dark' })));
   assert.equal(future.getTheme(), 'auto');
 
   const tampered = createSettingsService(
@@ -395,4 +395,31 @@ test('an older board that still listed Notes by id picks it up as Unspeakable', 
     options(saved({ version: 2, theme: 'light', pages: [['shopping', 'notes'], ['weather']] })),
   );
   assert.deepEqual(ids(settings.getPages()), [['shopping', 'unspeakable'], ['weather']]);
+});
+
+// Countdown was folded into Calendar (version 13). The board no longer has a
+// Countdown widget, so `options()` doesn't list one, just as the real board doesn't.
+test('a version 12 screen with only Countdown gets Calendar in its place, on Glass too', () => {
+  const settings = createSettingsService(options(saved({
+    version: 12, theme: 'apple',
+    pages: [[at('weather', 'medium', 4, 1)], [at('countdown', 'large', 1, 1)]],
+    applePages: [[at('weather', 'medium', 1, 2)], [at('countdown', 'large', 1, 1)]],
+  })));
+  assert.deepEqual(settings.get().pages, [[at('weather', 'medium', 1, 2)], [at('calendar', 'large', 1, 1)]]);
+  settings.setTheme('light');
+  assert.deepEqual(settings.get().pages, [[at('weather', 'medium', 4, 1)], [at('calendar', 'large', 1, 1)]]);
+});
+
+test('a version 12 screen with both drops Countdown and moves nothing else', () => {
+  const settings = createSettingsService(options(saved({
+    version: 12, theme: 'light',
+    pages: [[at('calendar', 'small', 4, 1), at('countdown', 'small', 6, 1), at('weather', 'medium', 8, 1)]],
+  })));
+  assert.deepEqual(settings.get().pages, [[at('calendar', 'small', 4, 1), at('weather', 'medium', 8, 1)]]);
+});
+
+test('an old screen that listed Countdown by id gets Calendar', () => {
+  assert.deepEqual(foldCountdown([['weather', 'countdown']]), [['weather', 'calendar']]);
+  assert.deepEqual(foldCountdown([['calendar'], ['countdown']]), [['calendar'], []]);
+  assert.equal(foldCountdown(null), null);
 });

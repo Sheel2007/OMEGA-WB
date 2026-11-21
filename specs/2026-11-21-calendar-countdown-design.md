@@ -245,3 +245,54 @@ page 2.
   mockup is a guide, and the 10-foot type minimums in `CLAUDE.md` win.
 - The hourglass glyph: reuse the Countdown icon's hourglass shape.
 - How the "Been and gone" list collapses.
+
+---
+
+# Follow-up (2026-11-21): countdowns in Google Calendar, days left on every event
+
+Noah asked for countdowns to show up in the actual calendar, and for calendar events
+to show up as countdowns. He picked:
+
+- **Countdowns go into Google Calendar.** This replaces the first design's non-goal.
+- **Every event shows how many days away it is.** The big numbers stay for marked
+  countdowns only.
+
+## Countdowns → Google Calendar
+
+- **The link:** a countdown can remember the event it stands for, as `event` (the
+  calendar's event id) and `made` (true when the board created that event).
+  `data/countdowns.json` keeps both fields. Countdowns without a link keep their old
+  shape.
+- **The sync step** (`board/countdown_sync.py`, `CountdownSync.sync()`) runs after
+  every calendar refresh, on the calendar thread. It only runs while a Google account
+  is linked and has a writable calendar. For each countdown still to come:
+  - **Linked, and the event is among those the board can see:** if the event's first
+    day or name changed on a phone, the countdown follows it. The name is cut to 40
+    characters.
+  - **Not linked, and an event has the same day and name** (the same rule as
+    `sameThing`): link to it, with `made: false`.
+  - **Not linked, no such event:** create an all-day event on the account's target
+    calendar (`CalendarSources.add(None, {title, date})`) and link it with
+    `made: true`.
+  - **Google fails:** nothing changes, and the next sync tries again.
+- **Countdowns beyond the 120 days the board reads:** only an unlinked countdown ever
+  gets an event, so these never get a second one.
+- **The hourglass** sends the event's id with the new countdown, so the link
+  (`made: false`) exists from the start.
+- **Removing a countdown** deletes its event only when `made` is true. When that
+  deletion works, the copy kept for Undo drops its link. Undo then gives back a
+  countdown with no link, and the next sync makes a fresh event (or links to the old
+  one, if it survived).
+- **Deleted on a phone:** the countdown stays. The board can't tell a deleted event
+  from one it doesn't read.
+- **What's left alone:** a countdown never renames or moves its event.
+
+## Days left on every event
+
+- **Widget rows:** the day label becomes days away: TODAY, TMRW, 3 DAYS, 31 DAYS.
+  This is `daysBadge()` in `agenda.js`. Countdown rows keep their colour, and their
+  right-hand column no longer repeats the days.
+- **App:** each day's heading adds "· in N days" after its name (`dayHeading()` in
+  `agenda.js`). Today and Tomorrow need no count.
+- **Matching:** the screens also treat an event as a countdown's when
+  `countdown.event` is that event's id, not only by day and name.

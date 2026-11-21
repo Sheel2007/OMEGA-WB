@@ -73,3 +73,56 @@ class CountdownTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CountdownLinkTest(unittest.TestCase):
+    """A countdown can stand for a calendar event (board/countdown_sync.py keeps them in step)."""
+
+    def test_without_a_link_a_countdown_keeps_its_shape(self):
+        countdown = store().add("UMD finals", "2026-12-14")["countdown"]
+        self.assertEqual(set(countdown), {"id", "title", "date", "created"})
+
+    def test_the_hourglass_links_an_existing_event(self):
+        countdowns = store()
+        countdown = countdowns.add("Rent due", "2026-11-24", event="g:me@example.com:abc")["countdown"]
+        self.assertEqual((countdown["event"], countdown["made"]), ("g:me@example.com:abc", False))
+        with self.assertRaises(ValidationError):
+            countdowns.add("Rent due", "2026-11-24", event="x" * 301)
+
+    def test_link_follow_and_upcoming(self):
+        countdowns = store()
+        finals = countdowns.add("UMD finals", "2026-12-14")["countdown"]
+        countdowns.add("Friendsgiving", "2026-11-15")
+        countdowns.link(finals["id"], "g:cal:e1", made=True)
+        version = countdowns.snapshot()["version"]
+        countdowns.follow(finals["id"], "UMD finals", "2026-12-14")
+        self.assertEqual(countdowns.snapshot()["version"], version, "nothing changed, nothing written")
+        countdowns.follow(finals["id"], "Finals week", "2026-12-15")
+        coming = countdowns.upcoming()
+        self.assertEqual([(c["title"], c["date"], c["event"], c["made"]) for c in coming],
+                         [("Finals week", "2026-12-15", "g:cal:e1", True)])
+
+    def test_the_link_survives_a_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "countdowns.json")
+            first = store(path)
+            made = first.add("Winter break", "2026-12-22")["countdown"]
+            first.link(made["id"], "g:cal:w", made=True)
+            again = store(path)
+            self.assertEqual({(c["event"], c["made"]) for c in again.snapshot()["countdowns"]}, {("g:cal:w", True)})
+
+    def test_forget_event_only_after_delete(self):
+        countdowns = store()
+        made = countdowns.add("Winter break", "2026-12-22")["countdown"]
+        countdowns.link(made["id"], "g:cal:w", made=True)
+        countdowns.remove(made["id"])
+        countdowns.forget_event(made["id"])
+        countdowns.restore([made["id"]])
+        back = countdowns.snapshot()["countdowns"][0]
+        self.assertNotIn("event", back)
+        self.assertNotIn("made", back)
+        kept = countdowns.add("Next semester", "2027-01-27")["countdown"]
+        countdowns.link(kept["id"], "g:cal:n", made=True)
+        countdowns.remove(kept["id"])
+        countdowns.restore([kept["id"]])
+        self.assertIn("g:cal:n", [c.get("event") for c in countdowns.snapshot()["countdowns"]])

@@ -242,7 +242,7 @@
 .agenda__event {
   position: relative;
   display: grid;
-  grid-template-columns: 13rem minmax(0, 1fr) auto;
+  grid-template-columns: 13rem minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: 1rem;
   min-height: 4.4rem;
@@ -333,6 +333,204 @@
 .agenda__remove:active {
   background: var(--fill);
   color: var(--danger);
+}
+
+/* Countdowns in the app: the hourglass on every event, countdown rows in the
+   agenda, the form's switch and the Countdowns panel. */
+
+.agenda__count {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: var(--radius-control);
+  color: var(--text-3);
+}
+
+.agenda__count svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.agenda__count:active {
+  background: var(--fill);
+}
+
+.agenda__count[aria-pressed="true"] {
+  background: var(--fill);
+  color: var(--countdown-accent);
+}
+
+.agenda__event.agenda__event--countdown {
+  --event: var(--countdown-accent);
+}
+
+.agenda__event--countdown .agenda__when {
+  color: var(--countdown-accent);
+  font-weight: 750;
+}
+
+.agenda__event--countdown .agenda__title {
+  font-weight: 750;
+}
+
+.when-row__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: var(--hit);
+  padding: 0.3rem 0.4rem 0.3rem 1.1rem;
+  border: var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: 650;
+}
+
+.when-row__switch:focus-visible {
+  outline: 0.15rem solid var(--focus);
+  outline-offset: 0.1rem;
+}
+
+.when-row__switch-track {
+  position: relative;
+  flex: none;
+  width: 3.6rem;
+  height: 2.1rem;
+  border-radius: var(--radius-pill);
+  background: var(--fill-strong);
+  transition: background-color 0.2s;
+}
+
+.when-row__switch-track::after {
+  content: "";
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s var(--ease-out);
+}
+
+.when-row__switch[aria-checked="true"] .when-row__switch-track {
+  background: var(--accent);
+}
+
+.when-row__switch[aria-checked="true"] .when-row__switch-track::after {
+  transform: translateX(1.5rem);
+}
+
+[data-theme="blocks"] :is(.when-row__switch, .when-row__switch-track),
+[data-theme="blocks"] .when-row__switch-track::after {
+  border-radius: 0;
+}
+
+.countdown-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.countdown-list__item {
+  display: grid;
+  grid-template-columns: 6.4rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.9rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.countdown-list__item:first-child {
+  border-top: 0;
+}
+
+.countdown-list__number {
+  font-family: var(--font-display);
+  font-stretch: var(--display-stretch);
+  font-size: 3.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-align: right;
+  color: var(--countdown-number);
+}
+
+.countdown-list__item--today .countdown-list__number {
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.countdown-list--done .countdown-list__number {
+  color: var(--text-2);
+}
+
+.countdown-list__what {
+  min-width: 0;
+}
+
+.countdown-list__title {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--fs-item);
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.countdown-list__date {
+  margin: 0.15rem 0 0;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.countdown-list__remove {
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  border-radius: var(--radius-control);
+  color: var(--text-3);
+}
+
+.countdown-list__remove svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.countdown-list__remove:active {
+  background: var(--fill);
+  color: var(--danger);
+}
+
+.countdown-list__hint {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+}
+
+.countdown-list__done {
+  margin-top: 0.6rem;
+}
+
+.countdown-list__summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text-2);
+  cursor: pointer;
 }
 
 /* Which calendars are syncing */
@@ -854,7 +1052,7 @@
   }
 
   .agenda__event {
-    grid-template-columns: 8.5rem minmax(0, 1fr) auto;
+    grid-template-columns: 8.5rem minmax(0, 1fr) auto auto;
     min-height: 3.5rem;
     column-gap: 0.7rem;
   }

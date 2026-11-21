@@ -1,4 +1,7 @@
 // Calendar: the full-screen app — what's coming up, and the form for adding to it.
+// The days the house is counting down to (services.countdown, their own list on the
+// Pi) live here too: the form's Count down to this switch adds one, the Countdowns
+// panel lists them, and every event's hourglass counts down to it.
 import { createKeyboard } from '../../keyboard.js';
 import { fetchQrSvg } from '../../services/board.js';
 import { BOARD_CALENDAR } from '../../services/calendar.js';
@@ -19,6 +22,16 @@ import {
   shiftDay,
   timeLabel,
 } from './agenda.js';
+import {
+  bigNumber,
+  dateLabel,
+  finished,
+  leftLabel,
+  markCountdowns,
+  MAX_COUNTDOWN_TITLE,
+  spoken,
+  upcoming as upcomingCountdowns,
+} from './countdowns.js';
 import { id, name } from './meta.js';
 
 // Quick buttons for today and the week after it; anything further out uses the date picker.
@@ -34,12 +47,16 @@ const LENGTHS = [
 const SPANS = [1, 2, 3, 7];
 // The farthest ahead the date pickers allow, matching what the server accepts.
 const YEARS_AHEAD = 5;
+// The longest event title the server takes (board/calendar.py MAX_TITLE_LENGTH).
+const MAX_EVENT_TITLE = 80;
 const chipFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 const updatedFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
 export function mount(root, { services, kiosk }) {
-  const { calendar } = services;
+  const { calendar, countdown } = services;
   let firstRender = true;
+  // While on, the form adds a countdown (a name and a day) instead of an event.
+  let counting = false;
   let keyboard = null;
   let unmounted = false;
   let midnight = null;
@@ -91,8 +108,23 @@ export function mount(root, { services, kiosk }) {
   const calendarChips = el('div', { class: 'when-row__chips' });
   const calendarRow = row('Goes on', calendarChips);
 
+  const countdownSwitch = el(
+    'button',
+    {
+      class: 'when-row__switch',
+      type: 'button',
+      role: 'switch',
+      'aria-checked': 'false',
+      onclick: () => setCounting(!counting),
+    },
+    el('span', { class: 'when-row__switch-text', text: 'Count down to this' }),
+    el('span', { class: 'when-row__switch-track', 'aria-hidden': 'true' }),
+  );
+  // No label of its own: the switch says what it does.
+  const countdownRow = row('', countdownSwitch);
+
   const whenRow = row('When', dayChips, datePicker);
-  const formRows = el('div', { class: 'calendar-app__when' }, whenRow, timeRow, detailRow, calendarRow);
+  const formRows = el('div', { class: 'calendar-app__when' }, whenRow, countdownRow, timeRow, detailRow, calendarRow);
 
   // The agenda
 
@@ -107,6 +139,27 @@ export function mount(root, { services, kiosk }) {
   );
 
   // The side
+
+  const countdownList = el('ul', { class: 'countdown-list', 'aria-label': 'Counting down' });
+  const countdownHint = el('p', {
+    class: 'countdown-list__hint',
+    text: 'Switch on Count down to this when you add something.',
+  });
+  const doneList = el('ul', { class: 'countdown-list countdown-list--done', 'aria-label': 'Been and gone' });
+  const done = el(
+    'details',
+    { class: 'countdown-list__done' },
+    el('summary', { class: 'countdown-list__summary', text: 'Been and gone' }),
+    doneList,
+  );
+  const countdownPanel = el(
+    'section',
+    { class: 'panel panel--countdowns' },
+    el('h2', { class: 'panel__title', text: 'Countdowns' }),
+    countdownList,
+    countdownHint,
+    done,
+  );
 
   const sourceList = el('ul', { class: 'source-list' });
   const sourceNote = el('p', { class: 'source-list__note' });
@@ -158,7 +211,7 @@ export function mount(root, { services, kiosk }) {
       formRows,
       el('div', { class: 'calendar-app__scroll' }, agenda, overflow, empty),
     ),
-    el('aside', { class: 'calendar-app__side' }, calendars, phone),
+    el('aside', { class: 'calendar-app__side' }, countdownPanel, calendars, phone),
   );
   root.append(view);
 
@@ -234,7 +287,10 @@ export function mount(root, { services, kiosk }) {
 
     const targets = writableTargets();
     const usual = targets.find((target) => target.id === calendar.getAccount().target) ?? targets[0];
-    calendarRow.hidden = targets.length < 2;
+    // A countdown is a name and a day: no time, details or calendar to pick.
+    timeRow.hidden = counting;
+    detailRow.hidden = counting;
+    calendarRow.hidden = counting || targets.length < 2;
     chips(calendarChips, targets, {
       key: (target) => target.id,
       label: (target) => target.name,
@@ -250,11 +306,35 @@ export function mount(root, { services, kiosk }) {
     return writable.length ? [...writable, { id: BOARD_CALENDAR, name: 'This board' }] : [];
   }
 
+  function setCounting(on) {
+    counting = on;
+    countdownSwitch.setAttribute('aria-checked', String(on));
+    title.maxLength = on ? MAX_COUNTDOWN_TITLE : MAX_EVENT_TITLE;
+    title.placeholder = on ? 'What are we counting down to?' : 'Add an event';
+    title.setAttribute('aria-label', on ? 'Countdown to add' : 'Event to add');
+    renderForm();
+  }
+
   async function addEvent() {
     const text = title.value.trim();
     if (!text) {
       nudge(form);
       title.focus();
+      return;
+    }
+    if (counting) {
+      const day = draft.date;
+      clearForm();
+      try {
+        await countDownTo(text, day);
+        keyboard?.hide();
+        setCounting(false);
+      } catch {
+        if (!title.value) {
+          title.value = text;
+          title.dispatchEvent(new Event('input'));
+        }
+      }
       return;
     }
     const fields = {
@@ -286,6 +366,91 @@ export function mount(root, { services, kiosk }) {
   function clearForm() {
     for (const input of [title, where, notes]) input.value = '';
     title.dispatchEvent(new Event('input'));
+  }
+
+  // Countdowns
+
+  // Adds one and says so, with an Undo. Rejects (after saying why) if it couldn't.
+  async function countDownTo(text, day) {
+    try {
+      const result = await countdown.addCountdown(text, day);
+      const added = result?.countdown?.id;
+      toast(
+        `Counting down to ${text}`,
+        added
+          ? { action: 'Undo', onAction: () => countdown.removeCountdown(added).catch((err) => toast(err.message)) }
+          : undefined,
+      );
+    } catch (err) {
+      toast(err.message);
+      throw err;
+    }
+  }
+
+  function removeCountdown(countdownId, label) {
+    countdown.removeCountdown(countdownId).then(
+      () =>
+        toast(`${label} removed`, {
+          action: 'Undo',
+          onAction: () => countdown.restoreCountdowns([countdownId]).catch((err) => toast(err.message)),
+        }),
+      (err) => toast(err.message),
+    );
+  }
+
+  // The hourglass on an event: count down to it, or stop.
+  function toggleCountdown(node) {
+    const counted = node.dataset.countdownId;
+    if (counted) {
+      removeCountdown(counted, node.dataset.eventTitle);
+      return;
+    }
+    const text = node.dataset.eventTitle.slice(0, MAX_COUNTDOWN_TITLE).trim();
+    countDownTo(text, node.dataset.eventDay).catch(() => {});
+  }
+
+  function createCountdown() {
+    const node = el('li', { class: 'countdown-list__item' });
+    node.append(
+      el('span', { class: 'countdown-list__number', 'aria-hidden': 'true' }),
+      el(
+        'div',
+        { class: 'countdown-list__what', 'aria-hidden': 'true' },
+        el('p', { class: 'countdown-list__title' }),
+        el('p', { class: 'countdown-list__date' }),
+      ),
+      el('button', {
+        class: 'countdown-list__remove',
+        type: 'button',
+        html: icons.close,
+        onclick: () => removeCountdown(node.dataset.key, node.dataset.title),
+      }),
+    );
+    return node;
+  }
+
+  function updateCountdown(node, item, today) {
+    const [number, what, remove] = node.children;
+    const [itemTitle, date] = what.children;
+    node.dataset.title = item.title;
+    node.setAttribute('aria-label', spoken(item, today));
+    node.classList.toggle('countdown-list__item--today', item.days === 0);
+    number.textContent = bigNumber(item.days).number;
+    itemTitle.textContent = item.title;
+    // The big number already says how many days; words only where it can't
+    // ("Tomorrow", "6 days ago").
+    date.textContent = item.days > 1 ? dateLabel(item, today) : `${leftLabel(item.days)} · ${dateLabel(item, today)}`;
+    remove.setAttribute('aria-label', `Remove ${item.title}`);
+  }
+
+  function renderCountdowns(countdowns, today) {
+    const coming = upcomingCountdowns(countdowns, today);
+    const gone = finished(countdowns, today);
+    reconcile(countdownList, coming, (item) => item.id, createCountdown, (node, item) => updateCountdown(node, item, today));
+    reconcile(doneList, gone, (item) => item.id, createCountdown, (node, item) => updateCountdown(node, item, today));
+    countdownList.hidden = coming.length === 0;
+    countdownHint.hidden = coming.length + gone.length > 0;
+    done.hidden = gone.length === 0;
   }
 
   function removeEvent(eventId, label) {
@@ -420,6 +585,13 @@ export function mount(root, { services, kiosk }) {
         el('p', { class: 'agenda__detail' }),
         el('p', { class: 'agenda__notes' }),
       ),
+      // Count down to it (or stop): every event has one.
+      el('button', {
+        class: 'agenda__count',
+        type: 'button',
+        html: icons.hourglass,
+        onclick: () => toggleCountdown(node),
+      }),
       // Only events on a calendar the board can change get a remove button.
       el('button', {
         class: 'agenda__remove',
@@ -431,14 +603,21 @@ export function mount(root, { services, kiosk }) {
     return node;
   }
 
-  function updateEvent(node, event) {
-    const [when, body, remove] = node.children;
+  function updateEvent(node, event, today) {
+    const [when, body, count, remove] = node.children;
     const [eventTitle, detail, note] = body.children;
     node.dataset.color = event.color ?? 'ours';
     node.dataset.eventId = event.id;
     node.dataset.eventTitle = event.title;
-    when.textContent = timeLabel(event);
-    when.classList.toggle('agenda__when--all-day', !event.time);
+    node.dataset.eventDay = event.date;
+    node.dataset.countdownId = event.countdown?.id ?? '';
+    node.classList.toggle('agenda__event--countdown', Boolean(event.countdown));
+    when.textContent = event.countdown ? leftLabel(event.countdown.left) : timeLabel(event);
+    when.classList.toggle('agenda__when--all-day', !event.time && !event.countdown);
+    // Something that started before today can't be counted down to.
+    count.hidden = !event.countdown && event.date < today;
+    count.setAttribute('aria-pressed', String(Boolean(event.countdown)));
+    count.setAttribute('aria-label', event.countdown ? `Stop counting down to ${event.title}` : `Count down to ${event.title}`);
     eventTitle.textContent = event.title;
     detail.textContent = detailLabel(event);
     detail.hidden = !detail.textContent;
@@ -448,11 +627,14 @@ export function mount(root, { services, kiosk }) {
     remove.setAttribute('aria-label', `Remove ${event.title}`);
   }
 
-  function render({ events: ours, sources }) {
+  function render() {
+    const { events: ours, sources } = calendar.getSnapshot();
+    const { countdowns } = countdown.getState();
     const today = dayKey(new Date());
-    const events = mergeEvents({ events: ours, feed: sources.events });
+    const events = markCountdowns(mergeEvents({ events: ours, feed: sources.events }), countdowns, today);
     const { days, total, shown } = groupByDay(events, { from: today, limit: MAX_ROWS });
-    meta.textContent = countLabel(total);
+    // Countdowns with no event of their own are rows here, but they aren't events.
+    meta.textContent = countLabel(total - events.filter((event) => event.id.startsWith('countdown:')).length);
 
     const apply = () => {
       reconcile(
@@ -463,7 +645,9 @@ export function mount(root, { services, kiosk }) {
         (node, day) => {
           const [heading, list] = node.children;
           heading.textContent = dayLabel(day.key, today);
-          reconcile(list, day.events, (event) => `${event.id}:${event.dayOffset ?? 0}`, createEvent, updateEvent);
+          reconcile(list, day.events, (event) => `${event.id}:${event.dayOffset ?? 0}`, createEvent, (row, event) =>
+            updateEvent(row, event, today),
+          );
         },
       );
       agenda.hidden = days.length === 0;
@@ -479,6 +663,7 @@ export function mount(root, { services, kiosk }) {
       // and measuring both together would animate a button from a row's position.
       animateLayout(agenda, apply);
     }
+    renderCountdowns(countdowns, today);
     renderSources(sources);
     renderForm();
   }
@@ -488,12 +673,13 @@ export function mount(root, { services, kiosk }) {
     midnight = setTimeout(() => {
       const today = dayKey(new Date());
       if (draft.date < today) draft = { ...draft, date: today, endDate: maxDay(today, draft.endDate) };
-      render(calendar.getSnapshot());
+      render();
       atMidnight();
     }, msUntilMidnight(new Date()) + 1000);
   }
 
   const unsubscribe = calendar.subscribe(render);
+  const unsubscribeCountdown = countdown.subscribe(render);
   atMidnight();
 
   return {
@@ -508,6 +694,7 @@ export function mount(root, { services, kiosk }) {
     unmount() {
       unmounted = true;
       unsubscribe();
+      unsubscribeCountdown();
       clearTimeout(midnight);
       keyboard?.destroy();
       document.documentElement.classList.remove('is-typing');

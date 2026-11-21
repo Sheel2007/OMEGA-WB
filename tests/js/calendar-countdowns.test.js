@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   bigNumber,
+  countdownOn,
+  countdownTitle,
   countLabel,
   dateLabel,
   daysLeft,
@@ -14,7 +16,7 @@ import {
   upcoming,
   widgetRows,
 } from '../../web/js/apps/calendar/countdowns.js';
-import { mergeEvents } from '../../web/js/apps/calendar/agenda.js';
+import { groupByDay, mergeEvents } from '../../web/js/apps/calendar/agenda.js';
 
 const TODAY = '2026-11-20';
 const finals = { id: 'a', title: 'UMD finals', date: '2026-12-14' };
@@ -122,4 +124,20 @@ test('with no countdowns it is just the agenda', () => {
   assert.deepEqual(result.heroes, []);
   assert.deepEqual(result.rows.map((r) => r.id), ['e']);
   assert.equal(result.total, 1);
+});
+
+test('a long title is cut by characters, never through the middle of an emoji', () => {
+  const long = `${'x'.repeat(39)}🎓 and more`;
+  const cut = countdownTitle(long);
+  assert.equal(cut, `${'x'.repeat(39)}🎓`);
+  assert.equal(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(cut), false);
+  assert.equal(sameThing({ title: long, date: '2026-12-11' }, { title: cut, date: '2026-12-11' }), true);
+});
+
+test('a counted-down event that runs for days is a countdown on its first day only', () => {
+  const events = mergeEvents({ events: [{ id: 'w', title: 'Winter break', date: '2026-12-22', endDate: '2026-12-24' }] });
+  const { days } = groupByDay(markCountdowns(events, [winter], NOW), { from: NOW });
+  assert.deepEqual(days.map((day) => [day.key, countdownOn(day.events[0])?.id ?? null]), [
+    ['2026-12-22', 'b'], ['2026-12-23', null], ['2026-12-24', null],
+  ]);
 });

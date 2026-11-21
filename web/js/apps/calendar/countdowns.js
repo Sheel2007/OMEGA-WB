@@ -80,14 +80,25 @@ export const MAX_COUNTDOWN_TITLE = 40;
 
 const fold = (title) => (typeof title === 'string' ? title.trim().replace(/\s+/g, ' ').toLowerCase() : '');
 
+// An event's name as a countdown's: tidied and cut to the server's length, counted
+// in characters (code points), so the cut never splits an emoji in half. Half an
+// emoji is a string the server can't write to disk.
+export function countdownTitle(title) {
+  const clean = typeof title === 'string' ? title.trim().replace(/\s+/g, ' ') : '';
+  return Array.from(clean).slice(0, MAX_COUNTDOWN_TITLE).join('').trim();
+}
+
 // An event and a countdown are the same thing when they're on the same day under the
-// same name. The event's name is cut to the countdown's length first, so a long
+// same name. The event's name is cut the way countdownTitle() cuts it, so a long
 // event counted down to from the app still matches the countdown made from it.
 export function sameThing(event, countdown) {
-  return (
-    event.date === countdown.date &&
-    fold(event.title).slice(0, MAX_COUNTDOWN_TITLE).trim() === fold(countdown.title)
-  );
+  return event.date === countdown.date && fold(countdownTitle(event.title)) === fold(countdown.title);
+}
+
+// The countdown an agenda row stands for. A counted-down event that runs for days is
+// one on its first day only; the days after it are ordinary rows.
+export function countdownOn(event) {
+  return event.dayOffset ? null : (event.countdown ?? null);
 }
 
 // All-day first, then by the clock, then by name: the agenda's own order.

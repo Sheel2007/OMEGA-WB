@@ -24,6 +24,8 @@ import {
 } from './agenda.js';
 import {
   bigNumber,
+  countdownOn,
+  countdownTitle,
   dateLabel,
   finished,
   leftLabel,
@@ -405,7 +407,7 @@ export function mount(root, { services, kiosk }) {
       removeCountdown(counted, node.dataset.eventTitle);
       return;
     }
-    const text = node.dataset.eventTitle.slice(0, MAX_COUNTDOWN_TITLE).trim();
+    const text = countdownTitle(node.dataset.eventTitle);
     countDownTo(text, node.dataset.eventDay).catch(() => {});
   }
 
@@ -610,14 +612,17 @@ export function mount(root, { services, kiosk }) {
     node.dataset.eventId = event.id;
     node.dataset.eventTitle = event.title;
     node.dataset.eventDay = event.date;
-    node.dataset.countdownId = event.countdown?.id ?? '';
-    node.classList.toggle('agenda__event--countdown', Boolean(event.countdown));
-    when.textContent = event.countdown ? leftLabel(event.countdown.left) : timeLabel(event);
-    when.classList.toggle('agenda__when--all-day', !event.time && !event.countdown);
-    // Something that started before today can't be counted down to.
-    count.hidden = !event.countdown && event.date < today;
-    count.setAttribute('aria-pressed', String(Boolean(event.countdown)));
-    count.setAttribute('aria-label', event.countdown ? `Stop counting down to ${event.title}` : `Count down to ${event.title}`);
+    // A counted-down event that runs for days is a countdown on its first day only.
+    const counted = countdownOn(event);
+    node.dataset.countdownId = counted?.id ?? '';
+    node.classList.toggle('agenda__event--countdown', Boolean(counted));
+    when.textContent = counted ? leftLabel(counted.left) : timeLabel(event);
+    when.classList.toggle('agenda__when--all-day', !event.time && !counted);
+    // The hourglass is on an event's first day, and not on something that started
+    // before today (a countdown to a day that's been).
+    count.hidden = Boolean(event.dayOffset) || (!counted && event.date < today);
+    count.setAttribute('aria-pressed', String(Boolean(counted)));
+    count.setAttribute('aria-label', counted ? `Stop counting down to ${event.title}` : `Count down to ${event.title}`);
     eventTitle.textContent = event.title;
     detail.textContent = detailLabel(event);
     detail.hidden = !detail.textContent;

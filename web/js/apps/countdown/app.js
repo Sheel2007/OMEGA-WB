@@ -4,7 +4,7 @@
 import { createKeyboard } from '../../keyboard.js';
 import { animateLayout, el, icons, nudge, reconcile, toast } from '../../ui.js';
 import { dayKey, msUntilMidnight } from '../calendar/agenda.js';
-import { bigNumber, countLabel, dateLabel, finished, spoken, upcoming } from './format.js';
+import { bigNumber, countLabel, dateLabel, finished, spoken, upcoming } from '../calendar/countdowns.js';
 import { name } from './meta.js';
 
 // Matches what the server accepts (board/countdown.py).

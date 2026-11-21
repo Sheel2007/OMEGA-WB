@@ -1,7 +1,7 @@
 // Countdown: what the widget and the app say about the days left. Pure, so node can
 // test it. Days are counted on this screen's own calendar ("YYYY-MM-DD" keys), so
 // a countdown turns over at local midnight, the same moment as the clock.
-import { dayDate, daysBetween } from '../calendar/agenda.js';
+import { dayDate, daysBetween, upcoming as upcomingEvents } from './agenda.js';
 
 const shortDay = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 const shortDayYear = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -71,4 +71,74 @@ export function nextLabel(countdowns, today) {
 // For a screen reader: "UMD finals: 24 days, Mon, Dec 14".
 export function spoken(countdown, today) {
   return `${countdown.title}: ${leftLabel(daysLeft(countdown, today))}, ${dateLabel(countdown, today)}`;
+}
+
+// Countdowns among the calendar's events, for the Calendar widget and app.
+
+// The server keeps a countdown's name to this many characters (board/countdown.py).
+export const MAX_COUNTDOWN_TITLE = 40;
+
+const fold = (title) => (typeof title === 'string' ? title.trim().replace(/\s+/g, ' ').toLowerCase() : '');
+
+// An event and a countdown are the same thing when they're on the same day under the
+// same name. The event's name is cut to the countdown's length first, so a long
+// event counted down to from the app still matches the countdown made from it.
+export function sameThing(event, countdown) {
+  return (
+    event.date === countdown.date &&
+    fold(event.title).slice(0, MAX_COUNTDOWN_TITLE).trim() === fold(countdown.title)
+  );
+}
+
+// All-day first, then by the clock, then by name: the agenda's own order.
+function byDay(a, b) {
+  return (
+    a.date.localeCompare(b.date) ||
+    Number(Boolean(a.time)) - Number(Boolean(b.time)) ||
+    (a.time ?? '').localeCompare(b.time ?? '') ||
+    a.title.localeCompare(b.title)
+  );
+}
+
+// The events with the countdowns still to come worked in: an event that is a
+// countdown is marked `countdown: { id, left }`, and a countdown with no event of its
+// own becomes an all-day row of its own. Countdowns that have been are left out.
+export function markCountdowns(events, countdowns, today) {
+  const coming = upcoming(countdowns, today);
+  const matched = new Set();
+  const marked = (Array.isArray(events) ? events : []).map((event) => {
+    const twin = coming.find((countdown) => !matched.has(countdown.id) && sameThing(event, countdown));
+    if (!twin) return event;
+    matched.add(twin.id);
+    return { ...event, countdown: { id: twin.id, left: twin.days } };
+  });
+  for (const countdown of coming) {
+    if (matched.has(countdown.id)) continue;
+    marked.push({
+      id: `countdown:${countdown.id}`,
+      title: countdown.title,
+      date: countdown.date,
+      time: null,
+      endTime: null,
+      endDate: countdown.date,
+      days: 1,
+      color: null,
+      ours: false,
+      writable: false,
+      countdown: { id: countdown.id, left: countdown.days },
+    });
+  }
+  return marked.sort(byDay);
+}
+
+// What the Calendar widget shows: the first `heroCount` countdowns big, and the
+// agenda under them with the rest worked in. A hero never shows again as a row, and
+// neither does the event it stands for.
+export function widgetRows({ events, countdowns, today, heroCount, limit }) {
+  const coming = upcoming(countdowns, today);
+  const heroes = coming.slice(0, heroCount);
+  const rest = coming.slice(heroCount);
+  const list = (Array.isArray(events) ? events : []).filter((event) => !heroes.some((hero) => sameThing(event, hero)));
+  const { rows, total } = upcomingEvents(markCountdowns(list, rest, today), { from: today, limit });
+  return { heroes, rows, total };
 }

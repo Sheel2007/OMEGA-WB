@@ -4,7 +4,7 @@
 // there are in all; the app has every one of them.
 import { animateLayout, appIcon, el, icons, reconcile } from '../../ui.js';
 import { dayKey, msUntilMidnight } from '../calendar/agenda.js';
-import { bigNumber, countLabel, dateLabel, spoken, upcoming } from './format.js';
+import { bigNumber, countLabel, dateLabel, spoken, upcoming } from '../calendar/countdowns.js';
 import * as meta from './meta.js';
 
 // How many the widget shows at once, at every size.

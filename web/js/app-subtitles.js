@@ -1,7 +1,7 @@
 // What each app's icon says under its name, on the phone's home screen and in the
 // board's app library: enough to know whether it's worth opening.
 import { dayKey, mergeEvents, nextLabel } from './apps/calendar/agenda.js';
-import { nextLabel as countdownNext } from './apps/countdown/format.js';
+import { nextLabel as countdownNext } from './apps/calendar/countdowns.js';
 import { summaryLabel as grocerySummary } from './apps/grocery/format.js';
 import { statusLabel as lightsStatus } from './apps/lights/format.js';
 import { countLabel as ledgerCount } from './apps/unspeakable/format.js';

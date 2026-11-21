@@ -7,10 +7,14 @@ import {
   daysLeft,
   finished,
   leftLabel,
+  markCountdowns,
   nextLabel,
+  sameThing,
   spoken,
   upcoming,
-} from '../../web/js/apps/countdown/format.js';
+  widgetRows,
+} from '../../web/js/apps/calendar/countdowns.js';
+import { mergeEvents } from '../../web/js/apps/calendar/agenda.js';
 
 const TODAY = '2026-11-20';
 const finals = { id: 'a', title: 'UMD finals', date: '2026-12-14' };
@@ -67,4 +71,55 @@ test('the summary and the phone line name the next one', () => {
   assert.equal(nextLabel([{ title: 'Trip', date: '2026-11-21' }], TODAY), 'Trip tomorrow');
   assert.equal(nextLabel([party], TODAY), 'Add a day to wait for');
   assert.equal(spoken(finals, TODAY), 'UMD finals: 24 days, Mon, Dec 14');
+});
+
+// The Calendar widget and app show countdowns among the events.
+const NOW = '2026-11-21';
+
+test('only a same-titled event is folded into its countdown', () => {
+  const events = mergeEvents({ events: [
+    { id: 'e1', title: '  umd FINALS ', date: '2026-12-14' },
+    { id: 'e2', title: 'Library shift', date: '2026-12-14', time: '09:00' },
+  ] });
+  const twin = { id: 'c2', title: 'Pack', date: '2026-12-14' };
+  const marked = markCountdowns(events, [finals, twin], NOW);
+  assert.deepEqual(marked.map((e) => [e.title, e.countdown?.id ?? null]), [
+    ['Pack', 'c2'], ['umd FINALS', 'a'], ['Library shift', null],
+  ]);
+  assert.equal(marked[1].countdown.left, 23);
+});
+
+test('a long event title still matches its 40-character countdown', () => {
+  const long = 'Department of Computer Science end-of-semester showcase';
+  const events = mergeEvents({ events: [{ id: 'e', title: long, date: '2026-12-11' }] });
+  const cut = { id: 'c', title: long.slice(0, 40).trim(), date: '2026-12-11' };
+  assert.equal(sameThing(events[0], cut), true);
+  assert.equal(markCountdowns(events, [cut], NOW).length, 1);
+});
+
+test('heroes are never also rows', () => {
+  const events = mergeEvents({ events: [{ id: 'e', title: 'UMD finals', date: '2026-12-14' }] });
+  const one = widgetRows({ events, countdowns: [finals, winter, spring], today: NOW, heroCount: 1, limit: 10 });
+  assert.deepEqual(one.heroes.map((h) => [h.id, h.days]), [['a', 23]]);
+  assert.deepEqual(one.rows.map((r) => r.countdown?.id), ['b', 'c']);
+  const three = widgetRows({ events, countdowns: [finals, winter, spring], today: NOW, heroCount: 3, limit: 10 });
+  assert.equal(three.heroes.length, 3);
+  assert.deepEqual(three.rows, []);
+});
+
+test("today's countdown leads; yesterday's is gone", () => {
+  const rows = widgetRows({ events: [], countdowns: [finals, winter], today: '2026-12-14', heroCount: 1, limit: 10 });
+  assert.equal(rows.heroes[0].days, 0);
+  assert.equal(bigNumber(rows.heroes[0].days).number, 'Today');
+  const after = widgetRows({ events: [], countdowns: [finals, winter], today: '2026-12-15', heroCount: 1, limit: 10 });
+  assert.deepEqual(after.heroes.map((h) => h.id), ['b']);
+  assert.deepEqual(after.rows, []);
+});
+
+test('with no countdowns it is just the agenda', () => {
+  const events = mergeEvents({ events: [{ id: 'e', title: 'Rent due', date: '2026-11-24' }] });
+  const result = widgetRows({ events, countdowns: [], today: NOW, heroCount: 3, limit: 10 });
+  assert.deepEqual(result.heroes, []);
+  assert.deepEqual(result.rows.map((r) => r.id), ['e']);
+  assert.equal(result.total, 1);
 });

@@ -273,8 +273,9 @@ to show up as countdowns. He picked:
     `sameThing`): link to it, with `made: false`. The board's own events and iCal
     subscriptions don't count, since they never reach anyone's phone. The agenda
     already shows a board event and its Google copy as one row.
-  - **Not linked, no such event:** create an all-day event on the account's target
-    calendar (`CalendarSources.add(None, {title, date}, event_id=...)`) and link it
+  - **Not linked, no such event:** create an all-day event on a calendar the board
+    shows (the account's own calendar if it's shown, or else the first shown writable
+    one, the way the add form picks; on the Pi that's the shared house calendar) (`CalendarSources.add(None, {title, date}, event_id=...)`) and link it
     with `made: true`.
     - **One event only:** the event goes in under an id the countdown reserved first
       (`pending`, kept on disk). A retry after a lost reply then gets Google's 409,

@@ -14,8 +14,10 @@ class FakeSources:
     Like CalendarSources.add, inserting an id Google already has gives that event back.
     """
 
-    def __init__(self, events=(), linked=True, writable=True, fail=False):
+    def __init__(self, events=(), linked=True, writable=True, fail=False, target="me@example.com", shown=("me@example.com",)):
         self.events = list(events)
+        self.target = target
+        self.shown = list(shown)
         self.linked = linked
         self.can_write = writable
         self.fail = fail
@@ -27,12 +29,13 @@ class FakeSources:
         self.removed = []
 
     def snapshot(self):
-        return {"account": {"linked": self.linked}, "stale": False,
+        return {"account": {"linked": self.linked, "target": self.target}, "stale": False,
                 "calendars": [{"kind": "google", "shown": True, "ok": self.read_ok}],
                 "events": [dict(e) for e in self.events]}
 
     def writable(self):
-        return [{"id": "me@example.com"}] if self.can_write else []
+        """Like CalendarSources.writable(): writable and shown on the board."""
+        return [{"id": calendar_id} for calendar_id in self.shown] if self.can_write else []
 
     def add(self, calendar_id, raw, event_id=None):
         if self.fail:
@@ -76,7 +79,7 @@ class CountdownSyncTest(unittest.TestCase):
         countdowns, sources, sync = setup()
         countdowns.add("UMD finals", "2026-12-14")
         sync.sync()
-        self.assertEqual(sources.added, [(None, {"title": "UMD finals", "date": "2026-12-14"})])
+        self.assertEqual(sources.added, [("me@example.com", {"title": "UMD finals", "date": "2026-12-14"})])
         [event_id] = sources.google
         self.assertEqual(links(countdowns), {"UMD finals": ("g:me@example.com:%s" % event_id, True)})
 
@@ -112,6 +115,14 @@ class CountdownSyncTest(unittest.TestCase):
         sync.sync()
         [event_id] = sources.google
         self.assertEqual(links(countdowns), {"UMD finals": ("g:me@example.com:%s" % event_id, True)})
+
+    def test_events_go_on_a_calendar_the_board_shows(self):
+        # The account's own calendar can be hidden on the board (the house uses a
+        # shared one); an event there would never show up on the board's screens.
+        countdowns, sources, sync = setup(target="me@example.com", shown=("house@group.calendar.google.com",))
+        countdowns.add("UMD finals", "2026-12-14")
+        sync.sync()
+        self.assertEqual([calendar for calendar, _ in sources.added], ["house@group.calendar.google.com"])
 
     def test_does_nothing_without_a_writable_account(self):
         for kwargs in ({"linked": False}, {"writable": False}):

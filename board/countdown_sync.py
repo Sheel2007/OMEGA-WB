@@ -47,8 +47,14 @@ class CountdownSync:
 
     def sync(self):
         snapshot = self._sources.snapshot()
-        if not (snapshot.get("account") or {}).get("linked") or not self._sources.writable():
+        account = snapshot.get("account") or {}
+        writable = self._sources.writable()
+        if not account.get("linked") or not writable:
             return
+        # New events go on a calendar the board shows (writable() is only those): the
+        # account's own if it's shown, or else the first, the way the add form picks.
+        target = account.get("target")
+        calendar_id = target if any(c.get("id") == target for c in writable) else writable[0]["id"]
         # Linked countdowns follow whatever their event is; only Google's can be twins.
         events = [e for e in snapshot.get("events", []) if isinstance(e, dict) and isinstance(e.get("id"), str)]
         by_id = {e["id"]: e for e in events}
@@ -71,7 +77,8 @@ class CountdownSync:
             if event_id is None:
                 continue
             try:
-                made = self._sources.add(None, {"title": countdown["title"], "date": countdown["date"]}, event_id=event_id)
+                made = self._sources.add(calendar_id, {"title": countdown["title"], "date": countdown["date"]},
+                                         event_id=event_id)
             except (google.GoogleError, ValidationError, NotFound, OSError):
                 log.warning("Couldn't put the countdown %r on the calendar; trying again next sync", countdown["title"],
                             exc_info=True)

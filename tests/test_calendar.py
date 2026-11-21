@@ -58,8 +58,10 @@ class FakeAccount:
         return list(self.events_by_calendar.get(calendar_id, []))
 
     def insert(self, calendar_id, body):
+        if body.get("id") and any(e["id"] == body["id"] for e in self.events_by_calendar.get(calendar_id, [])):
+            raise google.GoogleError("That event already exists.", status=409)
         self.next_id += 1
-        created = {"id": "evt%d" % self.next_id, **body}
+        created = {"id": body.get("id") or "evt%d" % self.next_id, **body}
         self.inserted.append((calendar_id, body))
         self.events_by_calendar.setdefault(calendar_id, []).append(created)
         return created
@@ -257,6 +259,16 @@ class CalendarSourcesTest(unittest.TestCase):
             today=lambda: TODAY,
             after_refresh=after_refresh,
         )
+
+    def test_an_event_sent_twice_with_its_own_id_is_made_once(self):
+        account = FakeAccount()
+        sources = self.build(account=account)
+        sources.refresh()
+        first = sources.add(None, {"title": "Graduation", "date": "2027-06-10"}, event_id="wbabc12345")
+        again = sources.add(None, {"title": "Graduation", "date": "2027-06-10"}, event_id="wbabc12345")
+        self.assertEqual(first["id"], "g:me@example.com:wbabc12345")
+        self.assertEqual(again["id"], first["id"], "Google already has it (409): that's the one")
+        self.assertEqual(len(account.inserted), 1)
 
     def test_after_each_refresh_the_countdowns_get_their_turn(self):
         calls = []

@@ -71,9 +71,6 @@ class CountdownTest(unittest.TestCase):
             self.assertTrue(any(name.startswith("countdowns.json.corrupt-") for name in os.listdir(folder)))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class CountdownLinkTest(unittest.TestCase):
     """A countdown can stand for a calendar event (board/countdown_sync.py keeps them in step)."""
@@ -126,3 +123,19 @@ class CountdownLinkTest(unittest.TestCase):
         countdowns.remove(kept["id"])
         countdowns.restore([kept["id"]])
         self.assertIn("g:cal:n", [c.get("event") for c in countdowns.snapshot()["countdowns"]])
+
+    def test_a_countdown_keeps_the_id_its_event_will_have_until_it_is_linked(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "countdowns.json")
+            countdowns = store(path)
+            made = countdowns.add("Graduation", "2027-06-10")["countdown"]
+            first = countdowns.reserve(made["id"])
+            self.assertRegex(first, r"^[a-v0-9]{5,1024}$", "Google event ids are base32hex")
+            self.assertEqual(store(path).reserve(made["id"]), first, "the same id after a restart, so a retry can't make a copy")
+            self.assertTrue(countdowns.link(made["id"], "g:cal:%s" % first, made=True))
+            self.assertNotIn("pending", countdowns.snapshot()["countdowns"][0])
+            self.assertFalse(countdowns.link("gone", "g:cal:x", made=True), "nothing to link")
+
+
+if __name__ == "__main__":
+    unittest.main()

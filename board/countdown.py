@@ -22,6 +22,9 @@ DAYS_BEHIND = 366
 # A calendar event id (board/calendar.py: "g:<calendar>:<event>" for Google, or the
 # board's own); anything longer isn't one.
 MAX_EVENT_ID_LENGTH = 300
+# The id a countdown's Google event will have, chosen before it's made (base32hex,
+# what Google allows), so sending it again can never make a second one.
+GOOGLE_ID = re.compile(r"^[a-v0-9]{5,64}$")
 
 
 def clean_title(raw):
@@ -108,14 +111,30 @@ class Countdowns(JsonStore):
         with self._changed:
             return [copy.deepcopy(c) for c in self._countdowns if c["date"] >= today]
 
+    def reserve(self, countdown_id):
+        """The id this countdown's Google event will have: the same one until it's linked."""
+        with self._changed:
+            found = self._find(countdown_id)
+            if found is None:
+                return None
+            if not GOOGLE_ID.match(found.get("pending") or ""):
+                found["pending"] = "cd" + uuid.uuid4().hex
+                self._commit()
+            return found["pending"]
+
     def link(self, countdown_id, event_id, made):
-        """Remembers the event a countdown stands for; `made` if the board created it."""
+        """Remembers the event a countdown stands for; `made` if the board created it.
+
+        False if there's no such countdown (it was removed meanwhile).
+        """
         with self._changed:
             found = self._find(countdown_id)
             if found is None or not _event_id(event_id):
-                return
+                return False
+            found.pop("pending", None)
             found.update(event=event_id, made=bool(made))
             self._commit()
+            return True
 
     def follow(self, countdown_id, raw_title, raw_day):
         """Moves or renames a countdown after its event was moved or renamed elsewhere."""
@@ -137,8 +156,8 @@ class Countdowns(JsonStore):
         with self._changed:
             kept = self._trash.get(countdown_id)
             if kept:
-                kept[1].pop("event", None)
-                kept[1].pop("made", None)
+                for key in ("event", "made", "pending"):
+                    kept[1].pop(key, None)
 
     # Internals
 
@@ -178,6 +197,8 @@ def _valid_countdown(raw):
     countdown = {"id": raw["id"], "title": raw["title"], "date": raw["date"], "created": raw.get("created")}
     if _event_id(raw.get("event")):
         countdown.update(event=raw["event"], made=raw.get("made") is True)
+    elif isinstance(raw.get("pending"), str) and GOOGLE_ID.match(raw["pending"]):
+        countdown["pending"] = raw["pending"]
     return countdown
 
 

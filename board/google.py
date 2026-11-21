@@ -39,7 +39,14 @@ PALETTE = ("blue", "purple", "teal", "pink", "orange", "green")
 
 
 class GoogleError(Exception):
-    """Something went wrong talking to Google, with a message that's fine to show people."""
+    """Something went wrong talking to Google, with a message that's fine to show people.
+
+    `status` is Google's HTTP status when it answered (409: that event id is taken).
+    """
+
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
 
 
 def request_json(method, url, *, headers=None, form=None, body=None):
@@ -57,7 +64,7 @@ def request_json(method, url, *, headers=None, form=None, body=None):
             raw = response.read(MAX_RESPONSE_BYTES)
     except urllib.error.HTTPError as err:
         detail = err.read(MAX_RESPONSE_BYTES)
-        raise GoogleError(_explain(err.code, detail)) from err
+        raise GoogleError(_explain(err.code, detail), status=err.code) from err
     except OSError as err:
         raise GoogleError("Can't reach Google right now.") from err
     if not raw:

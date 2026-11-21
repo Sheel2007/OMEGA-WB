@@ -410,7 +410,11 @@ export function mount(root, { services, kiosk }) {
       return;
     }
     const text = countdownTitle(node.dataset.eventTitle);
-    countDownTo(text, node.dataset.eventDay, node.dataset.eventId).catch(() => {});
+    // Linked to a Google event, the countdown is that event. The board's own and
+    // subscribed ones aren't on anyone's phone, so the countdown gets a Google event
+    // of its own (board/countdown_sync.py), which the agenda shows as the same row.
+    const event = node.dataset.eventId.startsWith('g:') ? node.dataset.eventId : undefined;
+    countDownTo(text, node.dataset.eventDay, event).catch(() => {});
   }
 
   function createCountdown() {

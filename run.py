@@ -145,7 +145,7 @@ def main():
         # After every sync, each countdown gets (or follows) its event on Google Calendar.
         after_refresh=lambda: countdown_sync.sync(),
     )
-    countdown_sync = CountdownSync(countdowns, sources, board_events=lambda: calendar.snapshot()["events"])
+    countdown_sync = CountdownSync(countdowns, sources)
     screen = screen_settings_from(config.get("screen"))
     lights = Lights(
         os.path.join(args.data, "lights.json"),

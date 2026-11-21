@@ -269,11 +269,20 @@ to show up as countdowns. He picked:
   - **Linked, and the event is among those the board can see:** if the event's first
     day or name changed on a phone, the countdown follows it. The name is cut to 40
     characters.
-  - **Not linked, and an event has the same day and name** (the same rule as
-    `sameThing`): link to it, with `made: false`.
+  - **Not linked, and a Google event has the same day and name** (the same rule as
+    `sameThing`): link to it, with `made: false`. The board's own events and iCal
+    subscriptions don't count, since they never reach anyone's phone. The agenda
+    already shows a board event and its Google copy as one row.
   - **Not linked, no such event:** create an all-day event on the account's target
-    calendar (`CalendarSources.add(None, {title, date})`) and link it with
-    `made: true`.
+    calendar (`CalendarSources.add(None, {title, date}, event_id=...)`) and link it
+    with `made: true`.
+    - **One event only:** the event goes in under an id the countdown reserved first
+      (`pending`, kept on disk). A retry after a lost reply then gets Google's 409,
+      which means "already made", so a second event can't be made.
+    - **Only after a full read:** an event is made only once every shown Google
+      calendar was read without error.
+    - **Removed meanwhile:** if the countdown was removed while its event was being
+      made, the event is deleted again.
   - **Google fails:** nothing changes, and the next sync tries again.
 - **Countdowns beyond the 120 days the board reads:** only an unlinked countdown ever
   gets an event, so these never get a second one.

@@ -558,13 +558,26 @@ class CalendarSources:
 
     # Writes, for the calendars that take them
 
-    def add(self, calendar_id, raw):
-        """Creates an event on a Google calendar. Returns it in the board's own shape."""
+    def add(self, calendar_id, raw, event_id=None):
+        """Creates an event on a Google calendar. Returns it in the board's own shape.
+
+        `event_id` makes it safe to send again (board/countdown_sync.py): Google keeps
+        one event per id, so a retry after a lost reply finds the event it already made.
+        """
         if not (self._account and self._account.linked):
             raise ValidationError("Connect a Google account to add events to it.")
         entry = self._writable_entry(calendar_id)
         fields = clean_event(raw, self._today())
-        created = self._account.insert(entry["id"], google.event_body(fields, zone_name(self._zone) or "UTC"))
+        body = google.event_body(fields, zone_name(self._zone) or "UTC")
+        if event_id:
+            body["id"] = event_id
+        try:
+            created = self._account.insert(entry["id"], body)
+        except google.GoogleError as err:
+            if not (event_id and err.status == 409):
+                raise
+            # Already made (the reply that said so was lost): that's the one.
+            return {"id": "g:%s:%s" % (entry["id"], event_id), "title": fields["title"], "date": fields["date"]}
         shaped = google.shape_event(created, self._zone)
         if shaped is None:
             raise ValidationError("Google saved the event but sent back something odd. It'll appear on the next sync.")

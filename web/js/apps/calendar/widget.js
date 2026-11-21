@@ -1,7 +1,8 @@
 // Calendar: the home-screen widget, showing what's coming up. The days the house is
-// counting down to (services.countdown) sit above the agenda in big numbers: the
-// next one at small, one and the two after it in a line at medium, three across at
-// large. A countdown shown up there never shows again as a row.
+// counting down to (services.countdown) sit above the agenda in big numbers at small
+// (the next one) and large (three across); a countdown shown up there never shows
+// again as a row. Medium is one list in date order instead: the countdowns are rows
+// in it, and the next one is a big row with its number.
 import { animateLayout, appIcon, el, fitRows, icons, reconcile } from '../../ui.js';
 import { dayKey, daysBadge, formatTime, mergeEvents, msUntilMidnight, nextLabel } from './agenda.js';
 import { bigNumber, dateLabel, spoken, widgetRows } from './countdowns.js';
@@ -9,16 +10,16 @@ import * as meta from './meta.js';
 
 // fitRows() hides whichever of these don't fit the widget's height.
 const WIDGET_MAX_ITEMS = 8;
-// The countdowns shown above the agenda: just the next at small; at medium the next
-// big and two more in a line; three across at large.
-const heroCountFor = (size) => (size === 'small' ? 1 : 3);
+// The countdowns shown above the agenda: the next at small, none at medium (they're
+// in the list), three across at large.
+const HERO_COUNT = { small: 1, medium: 0, large: 3 };
+const heroCountFor = (size) => HERO_COUNT[size] ?? 1;
 
 export function createWidget({ services, openApp }) {
   const { calendar, countdown } = services;
   const summary = el('p', { class: 'widget-head__meta' });
   const heroes = el('ul', { class: 'calendar-widget__heroes', 'aria-label': 'Counting down' });
-  const then = el('p', { class: 'calendar-widget__then' });
-  const countdowns = el('div', { class: 'calendar-widget__countdowns' }, heroes, then);
+  const countdowns = el('div', { class: 'calendar-widget__countdowns' }, heroes);
   const list = el('ul', { class: 'calendar-widget__list' });
   const more = el('p', { class: 'calendar-widget__more' });
   const empty = el(
@@ -61,7 +62,7 @@ export function createWidget({ services, openApp }) {
   let firstRender = true;
   let midnight = null;
   let renderedSize = null;
-  const fit = () => fitRows(list, more, total, (hidden) => `${hidden} more coming up`);
+  const fit = () => fitRows(list, more, total, (hidden) => `${hidden} more coming up`, { columns: true });
 
   function createHero() {
     const hero = el('li', { class: 'calendar-widget__hero' });
@@ -97,32 +98,29 @@ export function createWidget({ services, openApp }) {
       el('span', { class: 'calendar-widget__day' }),
       el('span', { class: 'calendar-widget__title' }),
       el('span', { class: 'calendar-widget__time' }),
+      // Only the next countdown's row at medium shows these: its number, big.
+      el('span', { class: 'calendar-widget__big', 'aria-hidden': 'true' }),
+      el('span', { class: 'calendar-widget__unit', 'aria-hidden': 'true' }),
     );
     return row;
   }
 
   // `repeated` blanks the day badge on the second and later events of the same day,
-  // so a busy day reads as one block instead of the same word three times.
-  function updateRow(row, event, today, repeated) {
-    const [day, title, time] = row.children;
+  // so a busy day reads as one block instead of the same word three times. `next`
+  // marks the row of the next countdown, which the medium widget shows big.
+  function updateRow(row, event, today, repeated, next) {
+    const [day, title, time, big, unit] = row.children;
     row.dataset.color = event.color ?? 'ours';
     row.classList.toggle('calendar-widget__item--countdown', Boolean(event.countdown));
+    row.classList.toggle('calendar-widget__item--next', next);
     // Every row says how many days away it is; a countdown's row is coloured too.
     day.textContent = repeated ? '' : daysBadge(event.day, today);
     title.textContent = event.title;
     time.textContent = event.time ? formatTime(event.time) : '';
-  }
-
-  // The medium widget's line under its one big number: "Winter break 31 · Next semester 67".
-  function updateThen(items) {
-    then.replaceChildren();
-    // Each name keeps its number with it; CSS puts the "·" between them, and the
-    // space between items is where a long line wraps.
-    items.forEach((item, index) => {
-      if (index) then.append(' ');
-      then.append(el('span', { class: 'calendar-widget__then-item' }, `${item.title} `, el('b', { text: bigNumber(item.days).number })));
-    });
-    then.hidden = items.length === 0;
+    const left = bigNumber(event.countdown?.left ?? 0);
+    big.textContent = next ? left.number : '';
+    unit.textContent = next && left.unit ? `${left.unit} to` : '';
+    row.classList.toggle('calendar-widget__item--today', next && event.countdown.left === 0);
   }
 
   function render() {
@@ -142,11 +140,12 @@ export function createWidget({ services, openApp }) {
     summary.textContent = nextLabel(events, today);
     const apply = () => {
       reconcile(heroes, shown.heroes, (item) => item.id, createHero, (hero, item) => updateHero(hero, item, today));
-      updateThen(shown.heroes.slice(1));
       countdowns.hidden = shown.heroes.length === 0;
+      // With no heroes (medium), the soonest countdown in the list is the big row.
+      const next = shown.heroes.length ? null : shown.rows.find((event) => event.countdown);
       let previousDay = null;
       reconcile(list, shown.rows, (event) => `${event.id}:${event.day}`, createRow, (row, event) => {
-        updateRow(row, event, today, event.day === previousDay);
+        updateRow(row, event, today, event.day === previousDay, event === next);
         previousDay = event.day;
       });
       list.hidden = shown.rows.length === 0;

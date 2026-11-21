@@ -230,80 +230,20 @@
   --countdown-accent: var(--accent-countdown);
 }
 
-/* Medium is wide on Glass (2 × 1): the countdown stands on the left, the agenda on
-   the right. Without countdowns it's the plain agenda. */
-:root[data-theme="apple"] .calendar-widget.widget--medium:has(> .calendar-widget__countdowns:not([hidden])) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas:
-    "head head"
-    "count list"
-    "count more";
-  column-gap: 1.4rem;
+/* Medium is wide on Glass (2 × 1): its one list runs in two columns. */
+:root[data-theme="apple"] .widget--medium .calendar-widget__list {
+  display: block;
+  column-count: 2;
+  column-gap: 2.2rem;
 }
 
-:root[data-theme="apple"] .calendar-widget.widget--medium > .widget-head {
-  grid-area: head;
-}
-
-:root[data-theme="apple"] .calendar-widget.widget--medium > :is(.calendar-widget__list, .calendar-widget__empty) {
-  grid-area: list;
-}
-
-:root[data-theme="apple"] .calendar-widget.widget--medium > .calendar-widget__more {
-  grid-area: more;
-}
-
-:root[data-theme="apple"] .calendar-widget.widget--medium > .calendar-widget__countdowns {
-  grid-area: count;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 0;
-  margin: 0;
-  padding: 0 1.4rem 0 0;
-  border-bottom: 0;
-  border-right: 1px solid var(--hairline);
-}
-
-:root[data-theme="apple"] .widget--medium .calendar-widget__hero {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    "number"
-    "unit"
-    "title";
+:root[data-theme="apple"] .widget--medium .calendar-widget__item {
+  break-inside: avoid;
+  margin-bottom: 0.15rem;
 }
 
 :root[data-theme="apple"] .widget--small .calendar-widget__hero-number {
   font-size: 5.2rem;
-}
-
-:root[data-theme="apple"] .widget--medium .calendar-widget__hero-number {
-  font-size: 6.4rem;
-}
-
-:root[data-theme="apple"] .widget--medium .calendar-widget__hero-unit {
-  margin-top: 0.4rem;
-}
-
-:root[data-theme="apple"] .widget--medium .calendar-widget__hero-date {
-  display: none;
-}
-
-:root[data-theme="apple"] .widget--medium .calendar-widget__then:not([hidden]) {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-:root[data-theme="apple"] .widget--medium .calendar-widget__then-item {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-:root[data-theme="apple"] .widget--medium .calendar-widget__then-item::before {
-  content: none;
 }
 
 /* Weather with no forecast: an empty reading instead of a message. */

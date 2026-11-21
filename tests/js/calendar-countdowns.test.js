@@ -148,3 +148,15 @@ test("an event is a countdown's when the countdown is linked to it, whatever its
   assert.equal(sameThing(events[0], linked), true);
   assert.deepEqual(markCountdowns(events, [linked], NOW).map((e) => [e.title, e.countdown?.id]), [['Finals week', 'a']]);
 });
+
+test('with no heroes (the medium widget) every countdown is a row, in date order with the events', () => {
+  const events = mergeEvents({ events: [
+    { id: 's', title: 'Secret Santa', date: '2026-11-30', time: '20:00' },
+    { id: 'n', title: 'Noah’s Birthday', date: '2026-12-23' },
+  ] });
+  const result = widgetRows({ events, countdowns: [finals, winter, spring], today: NOW, heroCount: 0, limit: 10 });
+  assert.deepEqual(result.heroes, []);
+  assert.deepEqual(result.rows.map((r) => [r.title, r.countdown?.left ?? null]), [
+    ['Secret Santa', null], ['UMD finals', 23], ['Winter break', 31], ['Noah’s Birthday', null], ['Next semester', 67],
+  ]);
+});

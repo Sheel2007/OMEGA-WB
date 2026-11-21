@@ -142,14 +142,19 @@ export const MAX_ROWS = 100;
 
 // Shows as many of a list's rows as fit its height. The rest are hidden and
 // counted in `more` (which takes up space itself, so measure again with it showing).
-export function fitRows(list, more, total, describe) {
+export function fitRows(list, more, total, describe, { columns = false } = {}) {
   const rows = [...list.children];
   const place = () => {
     rows.forEach((row) => (row.hidden = false));
     const limit = list.clientHeight;
+    // `columns`: a list that may be set in CSS columns (the Glass Calendar at medium)
+    // also runs out sideways. Its rows are measured from the list itself.
+    const width = list.clientWidth;
     let shown = 0;
     rows.forEach((row, index) => {
-      if (shown === index && row.offsetTop + row.offsetHeight <= limit + 1) shown++;
+      const across = !columns || row.offsetLeft + row.offsetWidth <= width + 1;
+      const fits = row.offsetTop + row.offsetHeight <= limit + 1 && across;
+      if (shown === index && fits) shown++;
       else row.hidden = true;
     });
     return shown;

@@ -41,8 +41,9 @@ It has nine widgets, and a Sports page:
   the fund has moved today with an arrow, a small line of its day, and each
   company's own move, two at a time.
 - **Countdown.** The days the house is waiting for (finals, a break, the next
-  semester, a trip), shared by every screen. The widget leads with the next one in
-  big numbers, and the bigger sizes list the ones after it. Add a day from the
+  semester, a trip), shared by every screen. The widget shows the next three at
+  once, each with its own big number, so you can see how they line up (stacked
+  in small and large, side by side in medium). Add a day from the
   app, on the board or a phone; days that have been stay at the bottom of the app
   until someone clears them.
 

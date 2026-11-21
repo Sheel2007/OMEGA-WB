@@ -195,7 +195,7 @@ def main():
         stocks=stocks,
         sports=sports,
         # What day it is decides which countdowns are too far off or long gone.
-        countdown=Countdowns(os.path.join(args.data, "countdowns.json"), today=lambda: datetime.now(zone).date()),
+        countdown=Countdowns(os.path.join(args.data, "countdowns.json"), today=lambda: datetime.now(zone).date(), feed=feed),
         location=location,
         public_url=phone_address(config.get("hostname"), port),
         jukebox=jukebox,

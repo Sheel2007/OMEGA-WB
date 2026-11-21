@@ -1,37 +1,25 @@
-// Countdown: the home-screen widget. The next day the house is waiting for, in
-// numbers big enough to read from the sofa, and (medium and large) the ones after it.
-import { animateLayout, appIcon, el, fitRows, icons, reconcile } from '../../ui.js';
+// Countdown: the home-screen widget. The next three days the house is waiting for,
+// side by side in numbers big enough to read from the sofa, so you can see how they
+// line up (finals, then the break, then the next semester). The header says how many
+// there are in all; the app has every one of them.
+import { animateLayout, appIcon, el, icons, reconcile } from '../../ui.js';
 import { dayKey, msUntilMidnight } from '../calendar/agenda.js';
-import { bigNumber, countLabel, dateLabel, leftLabel, spoken, upcoming } from './format.js';
+import { bigNumber, countLabel, dateLabel, spoken, upcoming } from './format.js';
 import * as meta from './meta.js';
 
-// fitRows() hides whichever of these don't fit the widget's height.
-const WIDGET_MAX_ROWS = 8;
+// How many the widget shows at once, at every size.
+const SHOWN = 3;
 
 export function createWidget({ services, openApp }) {
   const { countdown } = services;
   const summary = el('p', { class: 'widget-head__meta' });
-
-  const number = el('span', { class: 'countdown-widget__number' });
-  const unit = el('span', { class: 'countdown-widget__unit' });
-  const title = el('p', { class: 'countdown-widget__title' });
-  const date = el('p', { class: 'countdown-widget__date' });
-  const hero = el(
-    'div',
-    { class: 'countdown-widget__hero' },
-    el('p', { class: 'countdown-widget__left' }, number, unit),
-    el('div', { class: 'countdown-widget__what' }, title, date),
-  );
-  const list = el('ul', { class: 'countdown-widget__list', 'aria-label': 'After that' });
-  const more = el('p', { class: 'countdown-widget__more' });
-  const rest = el('div', { class: 'countdown-widget__rest' }, list, more);
+  const list = el('ul', { class: 'countdown-widget__list', 'aria-label': 'Coming up' });
   const empty = el(
     'div',
     { class: 'countdown-widget__empty' },
     el('p', { class: 'countdown-widget__empty-title', text: 'Nothing to count down to' }),
     el('p', { class: 'countdown-widget__empty-text', text: 'Tap + to add a day.' }),
   );
-  const body = el('div', { class: 'countdown-widget__body' }, hero, rest);
   const node = el('article', { class: 'countdown-widget', 'aria-label': meta.name });
   node.append(
     el('a', {
@@ -56,52 +44,53 @@ export function createWidget({ services, openApp }) {
         onclick: () => openApp(meta.id, { origin: node, intent: 'add' }),
       }),
     ),
-    body,
+    list,
     empty,
   );
 
-  let total = 0;
   let firstRender = true;
   let midnight = null;
-  const fit = () => fitRows(list, more, total, (hidden) => `${hidden} more after that`);
 
+  // A row: the days left, big, with the word under it; then the name and the day.
   function createRow() {
     const row = el('li', { class: 'countdown-widget__item' });
-    row.append(el('span', { class: 'countdown-widget__item-title' }), el('span', { class: 'countdown-widget__item-left' }));
+    row.append(
+      el(
+        'p',
+        { class: 'countdown-widget__left', 'aria-hidden': 'true' },
+        el('span', { class: 'countdown-widget__number' }),
+        el('span', { class: 'countdown-widget__unit' }),
+      ),
+      el(
+        'div',
+        { class: 'countdown-widget__what', 'aria-hidden': 'true' },
+        el('p', { class: 'countdown-widget__title' }),
+        el('p', { class: 'countdown-widget__date' }),
+      ),
+    );
     return row;
   }
 
   function updateRow(row, item, today) {
-    const [name, left] = row.children;
-    name.textContent = item.title;
-    left.textContent = leftLabel(item.days);
+    const [left, what] = row.children;
+    const big = bigNumber(item.days);
+    left.firstChild.textContent = big.number;
+    left.lastChild.textContent = big.unit;
+    what.firstChild.textContent = item.title;
+    what.lastChild.textContent = dateLabel(item, today);
+    row.classList.toggle('countdown-widget__item--today', item.days === 0);
     row.setAttribute('aria-label', spoken(item, today));
   }
 
   function render(state) {
     const today = dayKey(new Date());
     const coming = upcoming(state.countdowns, today);
-    const [next, ...after] = coming;
+    const rows = coming.slice(0, SHOWN);
     summary.textContent = countLabel(coming.length);
-    body.hidden = !next;
-    empty.hidden = Boolean(next);
-    node.classList.toggle('countdown-widget--today', next?.days === 0);
-    if (!next) return;
-
-    const big = bigNumber(next.days);
-    number.textContent = big.number;
-    unit.textContent = big.unit;
-    title.textContent = next.title;
-    date.textContent = dateLabel(next, today);
-    hero.setAttribute('aria-label', spoken(next, today));
-    hero.setAttribute('role', 'group');
-
-    const rows = after.slice(0, WIDGET_MAX_ROWS);
-    total = after.length;
     const apply = () => {
       reconcile(list, rows, (item) => item.id, createRow, (row, item) => updateRow(row, item, today));
-      rest.hidden = rows.length === 0;
-      fit();
+      list.hidden = rows.length === 0;
+      empty.hidden = rows.length > 0;
     };
     if (firstRender || document.documentElement.classList.contains('is-app-open')) {
       apply();
@@ -121,15 +110,12 @@ export function createWidget({ services, openApp }) {
 
   const unsubscribe = countdown.subscribe(render);
   render(countdown.getState());
-  const resizes = new ResizeObserver(() => fit());
-  resizes.observe(list);
   atMidnight();
 
   return {
     node,
     destroy() {
       unsubscribe();
-      resizes.disconnect();
       clearTimeout(midnight);
     },
   };

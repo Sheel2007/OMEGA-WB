@@ -212,6 +212,20 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(body["restored"], ["c0ffee01"])
         self.post("/api/countdown/remove", {"id": "c0ffee01"})
 
+    def test_a_new_countdown_goes_out_on_the_event_stream_at_once(self):
+        sock = self._open_stream("/api/events")
+        try:
+            stream = sock.makefile("rb")
+            first = dict(self._read_events(stream, 12)[1:])["countdown"]
+            self.post("/api/countdown/add", {"title": "Stream check", "date": "2027-01-04", "id": "5eed0001"})
+            name, state = self._read_events(stream, 1)[0]
+            self.assertEqual(name, "countdown")
+            self.assertGreater(state["version"], first["version"])
+            self.assertIn("Stream check", [c["title"] for c in state["countdowns"]])
+        finally:
+            sock.close()
+            self.post("/api/countdown/remove", {"id": "5eed0001"})
+
     def test_unknown_api_route_is_404(self):
         status, _, _ = self.request("/api/nope")
         self.assertEqual(status, 404)

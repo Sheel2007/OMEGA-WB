@@ -126,7 +126,7 @@ class BoardServer(ThreadingHTTPServer):
         # Left out, the Stocks widget is off (and never goes online for it).
         self.stocks = stocks or Stocks(None)
         # Left out, the countdowns live in memory only (nothing written to disk).
-        self.countdown = countdown or Countdowns()
+        self.countdown = countdown or Countdowns(feed=feed)
         # None unless config.json asks for the jukebox, which is what switches it on.
         self.jukebox = jukebox
         self.roommate_games = roommate_games

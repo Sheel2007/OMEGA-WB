@@ -9,7 +9,12 @@ It has nine widgets, and a Sports page:
 
 - **Calendar.** What's coming up: birthdays, holidays and appointments from your
   Google Calendars. Anyone can add an event on the board or from their phone and
-  it goes straight into Google Calendar.
+  it goes straight into Google Calendar. It also counts down to the days the house
+  is waiting for (finals, a break, the next semester, a trip), shared by every
+  screen: the next one sits above the agenda as a big number (three across at the
+  large size). Add one with **Count down to this** in the app, or tap the hourglass
+  on any event; days that have been stay under **Been and gone** until someone
+  removes them.
 - **Unspeakable.** The house ledger of things that happened and are never to be
   mentioned again. Every entry sits under a censor bar on the board; tap one and
   it reads out for a few seconds, then blacks itself out again.
@@ -40,12 +45,6 @@ It has nine widgets, and a Sports page:
   A slim strip made for the column beside the clock, and only that size: how far
   the fund has moved today with an arrow, a small line of its day, and each
   company's own move, two at a time.
-- **Countdown.** The days the house is waiting for (finals, a break, the next
-  semester, a trip), shared by every screen. The widget shows the next three at
-  once, each with its own big number, so you can see how they line up (stacked
-  in small and large, side by side in medium). Add a day from the
-  app, on the board or a phone; days that have been stay at the bottom of the app
-  until someone clears them.
 
 **Sports** follows Arsenal, Tottenham and Chelsea (Premier League, FA Cup, League
 Cup and Champions League), Maryland soccer and Maryland basketball in the Big Ten,
@@ -125,6 +124,9 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   - **Details** — a place and a note, both optional.
   - **Goes on** — which Google calendar it lands on, or **This board**. Only shown
     when more than one is available.
+  - **Count down to this** — makes it a countdown instead: just a name and a day,
+    shown in big numbers on the widget. The hourglass on an event does the same for
+    something already on the calendar.
 
   Tap × to take an event off; **Undo** puts it back, on Google too. Events from
   calendars you can't write to (Holidays, Birthdays) have no × and say which

@@ -138,9 +138,14 @@ export function createAppHost({ layer, apps, context, onChange, closeTo = () => 
       .finished.then(finish, finish);
   }
 
+  // Apps that were folded into another: an old link (a phone that saved it) opens
+  // the one that took it over.
+  const ALIASES = { countdown: 'calendar' };
+
   function route() {
     const match = /^#\/app\/([\w-]+)(?:\/([\w-]+))?/.exec(location.hash);
-    const app = match && apps.find((a) => a.id === match[1] && a.mount);
+    const wanted = match && (ALIASES[match[1]] ?? match[1]);
+    const app = wanted && apps.find((a) => a.id === wanted && a.mount);
     if (app) showApp(app, match[2]);
     else closeApp();
     pendingOrigin = null;

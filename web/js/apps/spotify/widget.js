@@ -6,8 +6,13 @@
 // sizes add the album and a playhead. The server pushes a new reading only when the
 // song, the pause state or the position jumps, so the playhead is moved along here
 // by one 1s timer that runs only while a song is playing.
+//
+// With nothing on, the disc goes back in its paper sleeve (still wearing the last
+// cover this screen showed): one slide when the music stops and one when it starts,
+// which is two CSS transitions on transform and opacity. `sleeved()` and `slides()`
+// in format.js decide when.
 import { el, toast } from '../../ui.js';
-import { clockTime, describe, progressAt } from './format.js';
+import { clockTime, describe, progressAt, sleeved, slides } from './format.js';
 import * as meta from './meta.js';
 
 const TICK_MS = 1000;
@@ -22,6 +27,8 @@ export function createWidget({ services }) {
   // The cover printed on the disc, with the CD's hub and shine laid over it.
   const disc = el('div', { class: 'spotify-widget__disc' }, el('span', { class: 'spotify-widget__placeholder', html: NOTE }), art);
   const cover = el('div', { class: 'spotify-widget__cover' }, disc, el('span', { class: 'spotify-widget__shine', 'aria-hidden': 'true' }));
+  // The front of the paper sleeve, laid over the disc; its window is see-through.
+  const sleeve = el('span', { class: 'spotify-widget__sleeve', 'aria-hidden': 'true' });
   const title = el('p', { class: 'spotify-widget__title' });
   const artist = el('p', { class: 'spotify-widget__artist' });
   const album = el('p', { class: 'spotify-widget__album' });
@@ -42,12 +49,13 @@ export function createWidget({ services }) {
     el(
       'div',
       { class: 'spotify-widget__body' },
-      el('div', { class: 'spotify-widget__cover-slot' }, cover),
+      el('div', { class: 'spotify-widget__cover-slot' }, cover, sleeve),
       el('div', { class: 'spotify-widget__text', 'aria-live': 'polite' }, title, artist, album, hint, playhead, connect),
     ),
   );
 
   let track = null;
+  let shown = null;
   let shownArt = null;
   let timer = null;
   let logged = null;
@@ -80,6 +88,12 @@ export function createWidget({ services }) {
 
   function render(state) {
     track = state.track;
+    const away = sleeved(state);
+    // The slide is switched on only for a change worth showing; anything else
+    // (loading, linking) lands where it belongs straight away.
+    node.classList.toggle('spotify-widget--slide', slides(shown, state));
+    node.classList.toggle('spotify-widget--sleeved', away);
+    shown = state;
     if (state.error && state.error !== logged) console.warn(`Spotify: ${state.error}`);
     logged = state.error;
     node.setAttribute('aria-label', describe(state));
@@ -110,7 +124,8 @@ export function createWidget({ services }) {
     album.hidden = !album.textContent;
     hint.hidden = !hint.textContent;
     playhead.hidden = !track;
-    setArt(track?.art ?? null);
+    // In the sleeve the disc keeps the cover it last wore.
+    if (!away) setArt(track?.art ?? null);
 
     clearTimeout(timer);
     timer = null;

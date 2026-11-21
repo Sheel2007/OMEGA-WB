@@ -34,3 +34,18 @@ export function describe(state) {
   const by = track.artist ? ` by ${track.artist}` : '';
   return `Spotify, ${track.playing ? 'playing' : 'paused'}: ${track.title}${by}`;
 }
+
+// Whether the disc is put away in its paper sleeve: an account is linked and it has
+// nothing on. A paused song stays out, and so does a board with no account (that
+// one's asking to be connected, not resting).
+export function sleeved({ configured, linked, track }) {
+  return Boolean(configured && linked && !track);
+}
+
+// Whether going from one reading to the next slides the disc into or out of the
+// sleeve: only when music stopped or started. A screen's first drawing, the page
+// loading and an account being linked or unlinked just show how things stand.
+export function slides(before, after) {
+  if (!before) return false;
+  return sleeved(before) !== sleeved(after) && Boolean(before.track || after.track);
+}

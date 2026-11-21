@@ -4,7 +4,8 @@
    clock) is just that; small makes the cover bigger, medium puts the words beside
    the cover, and large adds the album and a playhead under a big cover. The cover
    is sized from its slot with container units, so it's always the biggest circle
-   that fits whatever size the widget is. */
+   that fits whatever size the widget is. With nothing on, the disc is put away in
+   a paper sleeve the size of that circle's square. */
 
 :root[data-theme] .widget.spotify-widget {
   border: 0;
@@ -95,6 +96,74 @@
       rgb(0 0 0 / 0.25) 19.5% 20.5%, transparent 21%),
     conic-gradient(from 30deg, transparent 0 4%, rgb(255 255 255 / 0.2) 9%, transparent 15% 50%,
       rgb(255 255 255 / 0.16) 59%, transparent 65%);
+}
+
+/* Nothing on: the disc goes back in its paper sleeve. The sleeve is the square the
+   disc's circle sits in, laid over the disc: paper with a round window (see-through,
+   so the disc and the cover it last wore show) and the flap's curve across the top,
+   all one background. The disc shrinks a little to sit inside it. Fixed colours:
+   it's paper and a disc, not the theme.
+
+   It moves twice and never loops: in when the music stops, out when it starts.
+   Both are transitions on transform and opacity that the widget switches on with
+   --slide only for those two changes, so a page that loads with nothing on shows
+   the disc already put away. */
+.spotify-widget {
+  --sleeve-paper: #f4f0e6;
+  --sleeve-flap: #ebe5d7;
+  --sleeve-edge: #c9c1ae;
+  --sleeve-back: #d6cebb;
+  --sleeve-ease: cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+.spotify-widget__cover,
+.spotify-widget__sleeve {
+  grid-area: 1 / 1;
+}
+
+.spotify-widget__sleeve {
+  --side: min(100cqw, 100cqh);
+  width: var(--side);
+  aspect-ratio: 1;
+  border-radius: calc(var(--side) * 0.035);
+  background:
+    radial-gradient(ellipse 56% 19% at 50% 0, var(--sleeve-flap) 0 91.5%, var(--sleeve-edge) 93% 98%, transparent 100%),
+    radial-gradient(circle at 50% 54%, transparent 0 calc(var(--side) * 0.304),
+      var(--sleeve-edge) calc(var(--side) * 0.31) calc(var(--side) * 0.322), var(--sleeve-paper) calc(var(--side) * 0.328));
+  box-shadow: var(--shadow-sm), inset 0 0 0 calc(var(--side) * 0.008) var(--sleeve-edge);
+  opacity: 0;
+  transform: translateY(45%);
+  pointer-events: none;
+}
+
+.spotify-widget--sleeved .spotify-widget__sleeve {
+  opacity: 1;
+  transform: none;
+}
+
+/* In the sleeve: a little smaller and a little lower, behind the window. The
+   colour behind the disc is the inside of the sleeve, seen through the hole. */
+.spotify-widget--sleeved .spotify-widget__cover {
+  background: var(--sleeve-back);
+  transform: translateY(4%) scale(0.84);
+}
+
+/* A disc with no cover to wear (the page was loaded with nothing on) is bare silver. */
+.spotify-widget--sleeved .spotify-widget__disc {
+  background: conic-gradient(from 20deg, #d9dce1, #f4f5f7 12%, #c5c9d0 25%, #eceef1 38%, #cfd3d9 50%, #f4f5f7 62%,
+    #c5c9d0 75%, #eceef1 88%, #d9dce1);
+}
+
+.spotify-widget--sleeved .spotify-widget__placeholder {
+  color: #565c6b;
+}
+
+.spotify-widget--slide .spotify-widget__cover {
+  transition: opacity 0.3s var(--ease-out), transform 0.6s var(--sleeve-ease);
+}
+
+.spotify-widget--slide .spotify-widget__sleeve {
+  transition: transform 0.6s var(--sleeve-ease), opacity 0.35s var(--ease-out);
 }
 
 .spotify-widget__text {
@@ -214,6 +283,16 @@
   background:
     radial-gradient(circle, transparent 0 9.5%, #1d1d1d 10% 11.5%, rgb(255 255 255 / 0.3) 12% 19%, #1d1d1d 19.5% 21%,
       transparent 21.5%);
+}
+
+/* Blocks: square paper in the same black outline, with the lines drawn black. */
+[data-theme="blocks"] .spotify-widget {
+  --sleeve-edge: #1d1d1d;
+}
+
+[data-theme="blocks"] .spotify-widget__sleeve {
+  border-radius: 0;
+  box-shadow: 0 0 0 0.2rem #1d1d1d;
 }
 
 [data-theme="blocks"] :is(.spotify-widget__bar, .spotify-widget__connect) {

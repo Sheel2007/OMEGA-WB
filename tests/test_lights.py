@@ -583,6 +583,102 @@ class TurnOffAgainTest(unittest.TestCase):
                 lights.add_schedule({"time": "23:00", "on": False, **bad})
 
 
+def announce(lights, ieee):
+    """Zigbee2MQTT saying a switch rejoined the network (it restarted, or its battery dipped)."""
+    event = {"type": "device_announce", "data": {"friendly_name": "x", "ieee_address": ieee}}
+    lights.handle_message("zigbee2mqtt/bridge/event", json.dumps(event).encode())
+
+
+class RejoinTest(unittest.TestCase):
+    """A switch that drops off the network and comes back still does what the board last asked of it."""
+
+    def setUp(self):
+        self.clock = Clock(2026, 11, 25, 23, 0)
+        self.lights = connected_lights(clock=self.clock)
+        self.lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON"}')
+
+    def sent(self):
+        return [(t, p) for t, p in self.lights._client.published if t.endswith("/set")]
+
+    def switch_off_unheard(self):
+        """The board turns the bedroom off, and the switch never says it did (it was restarting)."""
+        self.lights.set(BEDROOM, False)
+        self.lights._client.published.clear()
+
+    def test_a_command_lost_while_a_switch_restarts_is_sent_again_when_it_rejoins(self):
+        self.switch_off_unheard()
+        self.clock.at(2026, 11, 25, 23, 1)
+        announce(self.lights, BEDROOM)
+        self.assertEqual(self.sent(), [("zigbee2mqtt/bedroom_light/set", {"state": "OFF"})])
+
+        self.lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"OFF"}')
+        self.lights._client.published.clear()
+        announce(self.lights, BEDROOM)
+        self.assertEqual(self.sent(), [], "it did it this time")
+
+    def test_a_switch_that_did_as_asked_is_left_alone(self):
+        self.switch_off_unheard()
+        self.lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"OFF"}')
+        announce(self.lights, BEDROOM)
+        announce(self.lights, KITCHEN)
+        announce(self.lights, "0x0000000000000009")
+        self.lights.handle_message("zigbee2mqtt/bridge/event", b'{"type":"device_announce","data":"nonsense"}')
+        self.assertEqual(self.sent(), [])
+
+    def test_someone_switching_it_back_on_afterwards_is_not_undone(self):
+        self.switch_off_unheard()
+        self.lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"OFF"}')
+        self.lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"ON"}')
+        announce(self.lights, BEDROOM)
+        self.assertEqual(self.sent(), [])
+        self.assertTrue(light(self.lights, BEDROOM)["on"])
+
+    def test_an_old_request_is_not_sent_again(self):
+        self.switch_off_unheard()
+        self.clock.at(2026, 11, 25, 23, 16)
+        announce(self.lights, BEDROOM)
+        self.assertEqual(self.sent(), [], "a quarter of an hour on, it may not be wanted any more")
+
+    def test_a_switch_back_online_is_asked_again(self):
+        self.lights.handle_message("zigbee2mqtt/bedroom_light/availability", b'{"state":"online"}')
+        self.switch_off_unheard()
+        self.lights.handle_message("zigbee2mqtt/bedroom_light/availability", b'{"state":"offline"}')
+        self.assertEqual(self.sent(), [])
+        self.lights.handle_message("zigbee2mqtt/bedroom_light/availability", b'{"state":"online"}')
+        self.assertEqual(self.sent(), [("zigbee2mqtt/bedroom_light/set", {"state": "OFF"})])
+
+    def test_a_swapped_switch_is_asked_again_the_right_way_round(self):
+        self.lights.swap(BEDROOM, True)
+        self.switch_off_unheard()
+        announce(self.lights, BEDROOM)
+        self.assertEqual(self.sent(), [("zigbee2mqtt/bedroom_light/set", {"state": "ON"})])
+        self.lights._client.published.clear()
+        self.lights.set(BEDROOM, True)
+        self.lights.handle_message("zigbee2mqtt/bedroom_light", b'{"state":"OFF"}')  # swapped: it's on, as asked
+        self.lights._client.published.clear()
+        announce(self.lights, BEDROOM)
+        self.assertEqual(self.sent(), [])
+
+    def test_a_schedule_that_runs_while_a_switch_is_re_paired_reaches_it_when_it_is_back(self):
+        lights = self.lights
+        lights.add_schedule({"time": "23:00", "on": False, "lights": [BEDROOM, KITCHEN], "days": [3]})
+        away = [d for d in DEVICES if d.get("ieee_address") != BEDROOM]
+        lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(away).encode())
+        lights._client.published.clear()
+        lights.run_due(datetime(2026, 11, 25, 22, 59), self.clock.at(2026, 11, 25, 23, 0))
+        self.assertEqual(self.sent(), [("zigbee2mqtt/kitchen_light/set", {"state": "OFF"})], "the bedroom is away")
+
+        lights._client.published.clear()
+        self.clock.at(2026, 11, 25, 23, 2)
+        lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
+        self.assertEqual(self.sent(), [("zigbee2mqtt/bedroom_light/set", {"state": "OFF"})])
+
+    def test_requests_are_forgotten_once_they_are_too_old(self):
+        self.switch_off_unheard()
+        self.lights.enforce(self.clock.at(2026, 11, 25, 23, 20))
+        self.assertEqual(self.lights._asked, {}, "nothing is kept for days of uptime")
+
+
 HALL = "0x00158d0001a2b3c4"
 NEW_YORK = {"latitude": 40.71, "longitude": -74.01}
 
@@ -671,6 +767,20 @@ class WhenItGetsDarkTest(unittest.TestCase):
         lights._client.published.clear()
         lights.check_dark(clock.at(2026, 10, 10, 19, 1))
         self.assertEqual(len(self.on_messages(lights)), 2)
+
+    def test_a_light_being_re_paired_when_it_gets_dark_comes_on_once_it_is_back(self):
+        clock = Clock(2026, 10, 10, 18, 40)
+        lights = self.by_sun(clock, lights=[BEDROOM, KITCHEN])
+        away = [d for d in DEVICES if d.get("ieee_address") != KITCHEN]
+        lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(away).encode())
+        lights._client.published.clear()
+        lights.check_dark(clock())
+        self.assertEqual(self.on_messages(lights), ["zigbee2mqtt/bedroom_light/set"])
+
+        lights._client.published.clear()
+        clock.at(2026, 10, 10, 18, 42)
+        lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
+        self.assertEqual(self.on_messages(lights), ["zigbee2mqtt/kitchen_light/set"])
 
     def test_it_ends_a_turn_off_watch_for_the_lights_it_turns_on(self):
         clock = Clock(2026, 10, 10, 16, 0)
@@ -958,11 +1068,19 @@ class MotionTest(unittest.TestCase):
             self.assertEqual(sensor["rule"], {"enabled": True, "offAfter": 60})
             self.assertEqual(sensor["settings"][0]["max"], 60)
 
-    def test_a_sensor_taken_out_of_zigbee2mqtt_goes_with_its_rule(self):
-        lights, _, _ = self.hallway()
+    def test_a_sensor_taken_out_of_zigbee2mqtt_stops_counting_but_keeps_its_rule_for_when_it_is_back(self):
+        lights, clock, screen = self.hallway()
         lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(DEVICES).encode())
         self.assertNotIn(MOTION, [m["id"] for m in lights.snapshot()["motion"]])
-        self.assertEqual(lights._motion_rules, {})
+        lights.check_screen(clock.at(2026, 10, 10, 21, 30))
+        self.assertEqual(screen.calls, [], "nothing keeps the screen on or off while it's gone")
+
+        # Re-pairing it (after a reset) takes it out of Zigbee2MQTT's list for a minute.
+        lights.handle_message("zigbee2mqtt/bridge/devices", json.dumps(WITH_MOTION).encode())
+        sensor = next(m for m in lights.snapshot()["motion"] if m["id"] == MOTION)
+        self.assertEqual(sensor["rule"], {"enabled": True, "offAfter": 30})
+        lights.check_screen(clock.at(2026, 10, 10, 21, 31))
+        self.assertEqual(screen.calls, [False])
 
 
 class PersistenceTest(unittest.TestCase):

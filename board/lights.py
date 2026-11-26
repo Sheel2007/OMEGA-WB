@@ -46,6 +46,9 @@ MAX_NAME_LENGTH = 40
 MAX_LIGHTS = 64
 # A schedule missed by more than this (the Pi's clock jumped, say) isn't caught up on.
 MAX_CATCH_UP_MINUTES = 5
+# A switch that rejoins the network (it restarted, or was re-paired) within this long of
+# being asked to switch, and hasn't said it did, is asked again; after that it may not be wanted.
+ASK_AGAIN_MINUTES = 15
 # How long pairing stays open: Zigbee2MQTT's longest, a little over four minutes.
 PAIR_SECONDS = 254
 # Lands each check just after the minute turns over.
@@ -507,6 +510,8 @@ class Lights(JsonStore):
         self._subscribed = set()
         self._fired = {}       # schedule id -> the local minute it last ran
         self._on_since = {}    # id -> local time the light was last seen coming on
+        # id -> {"on", "at"}: what the board last asked a light to do, until it says it did (see _ask_again).
+        self._asked = {}
         self._stop = threading.Event()
         self._thread = None
         super().__init__(path, feed=feed)
@@ -587,7 +592,12 @@ class Lights(JsonStore):
                     continue
                 self._fired[schedule["id"]] = stamp
                 targets = schedule["lights"] or sorted(self._devices)
-                sends += [(light_id, schedule["on"]) for light_id in targets if light_id in self._devices]
+                for light_id in targets:
+                    if light_id in self._devices:
+                        sends.append((light_id, schedule["on"]))
+                    else:
+                        # Away being re-paired: it's asked once it's back (see _ask_again).
+                        self._asked[light_id] = {"on": schedule["on"], "at": self._wall_clock()}
                 log.info("Lights: %s schedule turning %s %s", schedule["time"], "on" if schedule["on"] else "off",
                          "%d light(s)" % len(schedule["lights"]) if schedule["lights"] else "every light")
                 if not schedule["days"]:
@@ -619,6 +629,7 @@ class Lights(JsonStore):
         with self._changed:
             stamp = now.isoformat(timespec="minutes")
             live = [w for w in self._watches if w["until"] > stamp]
+            self._asked = {i: a for i, a in self._asked.items() if not self._asked_too_long_ago(a, now)}
             for light_id in self._devices:
                 deadline = self._deadline(light_id, live)
                 if deadline is not None and now >= deadline:
@@ -679,9 +690,14 @@ class Lights(JsonStore):
             # Without the broker nothing would come on; it's tried again next minute.
             if not self._connected or self._hub is False:
                 return
-            targets = [i for i in (dark["lights"] or sorted(self._devices)) if i in self._devices]
+            wanted = dark["lights"] or sorted(self._devices)
+            targets = [i for i in wanted if i in self._devices]
             if not targets:
                 return
+            for light_id in wanted:
+                if light_id not in self._devices:
+                    # Away being re-paired: it comes on once it's back (see _ask_again).
+                    self._asked[light_id] = {"on": True, "at": now}
             self._dark_ran = now.isoformat(timespec="minutes")
             # Like a Turn on schedule: an earlier watch doesn't switch these straight back off.
             self._stop_watching(targets)
@@ -803,6 +819,10 @@ class Lights(JsonStore):
                 return
             if isinstance(data, dict):
                 self._read_pairing(rest, data)
+                # A switch that restarted (or whose battery dipped) rejoins with an announce.
+                info = data.get("data")
+                if data.get("type") == "device_announce" and isinstance(info, dict):
+                    self._ask_again([info.get("ieee_address")])
             return
         if rest == "bridge/devices":
             try:
@@ -810,8 +830,11 @@ class Lights(JsonStore):
             except ValueError:
                 return
             found, sensors, motion = lights_in(devices), sensors_in(devices), motion_in(devices)
+            back = []
             with self._changed:
                 if found != self._devices or sensors != self._sensors or motion != self._motion:
+                    # Back after being re-paired (or new): Zigbee2MQTT leaves a switch out while it's away.
+                    back = [i for i in found if i not in self._devices]
                     self._devices = found
                     self._sensors = sensors
                     self._motion = motion
@@ -824,10 +847,11 @@ class Lights(JsonStore):
                         self._lux.pop(gone, None)
                     for gone in set(self._motion_live) - set(motion):
                         self._motion_live.pop(gone, None)
-                    for gone in set(self._motion_rules) - set(motion):
-                        self._motion_rules.pop(gone, None)
+                    # A motion sensor's rule stays, like its name: re-pairing one after a reset
+                    # takes it out of the list for a minute, and it comes back with its rule.
                     self._commit()
             self._follow()
+            self._ask_again(back)
             return
         if rest == "bridge/state":
             state = _payload_state(payload)
@@ -848,6 +872,7 @@ class Lights(JsonStore):
             if not isinstance(report, dict):
                 return
         wake = False
+        back = False
         with self._changed:
             light_id = next((i for i, d in self._devices.items() if d["topic"] == name), None)
             sensor_id = next((i for i, d in self._sensors.items() if d["topic"] == name), None)
@@ -860,10 +885,14 @@ class Lights(JsonStore):
             if light_id is not None and availability:
                 state = _payload_state(payload)
                 if state in ("online", "offline") and self._online.get(light_id) != (state == "online"):
+                    back = self._online.get(light_id) is False
                     self._online[light_id] = state == "online"
                     self._announce()
             elif light_id is not None:
                 state = report.get("state")
+                asked = self._asked.get(light_id)
+                if asked is not None and state == self._command(light_id, asked["on"]):
+                    self._asked.pop(light_id)
                 if state in ("ON", "OFF") and self._raw.get(light_id) != state:
                     self._raw[light_id] = state
                     self._note_on(light_id)
@@ -871,6 +900,8 @@ class Lights(JsonStore):
                 self._note_battery(light_id, report.get("battery"))
         if wake:
             self._screen.set(True)
+        if back:
+            self._ask_again([light_id])
 
     def _note_battery(self, light_id, level):
         """Keeps a battery-powered switch's charge (percent). Call with self._changed held.
@@ -981,9 +1012,14 @@ class Lights(JsonStore):
             if device is None:
                 raise NotFound("That light isn't paired with the board any more.")
             self._require_hub()
-            command = "ON" if on != (light_id in self._swapped) else "OFF"
+            command = self._command(light_id, on)
             topic = "%s/%s/set" % (self._mqtt["base_topic"], device["topic"])
+            # Kept until the switch says it did it, in case it was restarting and never heard (see _ask_again).
+            # Before sending, so its answer can't arrive first.
+            self._asked[light_id] = {"on": on, "at": self._wall_clock()}
         if not self._client.publish(topic, json.dumps({"state": command})):
+            with self._changed:
+                self._asked.pop(light_id, None)
             raise LightsUnavailable("Can't reach the lights right now. Try again in a moment.")
         with self._changed:
             # Shown straight away; the switch's own report confirms it (or puts it right).
@@ -992,6 +1028,30 @@ class Lights(JsonStore):
                 self._note_on(light_id)
                 self._announce()
             return {"state": self._state()}
+
+    def _command(self, light_id, on):
+        """What to send a switch for on or off: the opposite for a swapped one. Call with self._changed held."""
+        return "ON" if on != (light_id in self._swapped) else "OFF"
+
+    def _asked_too_long_ago(self, asked, now):
+        return now - asked["at"] > timedelta(minutes=ASK_AGAIN_MINUTES)
+
+    def _ask_again(self, light_ids):
+        """Switches that just rejoined the network: each is asked again to do what the board last
+        asked of it, if it never said it did (a command sent while it was restarting is lost)."""
+        again = []
+        with self._changed:
+            now = self._wall_clock()
+            for light_id in light_ids:
+                asked = self._asked.pop(light_id, None) if light_id in self._devices else None
+                if asked is not None and not self._asked_too_long_ago(asked, now):
+                    again.append((light_id, asked["on"], self._names.get(light_id) or self._devices[light_id]["name"]))
+        for light_id, on, name in again:
+            log.info("Lights: %s rejoined without switching %s; asking it again", name, "on" if on else "off")
+            try:
+                self.set(light_id, on)
+            except (LightsUnavailable, NotFound) as err:
+                log.warning("Lights: couldn't ask %s again: %s", name, err)
 
     def rename(self, light_id, raw_name):
         """Names a light (or a sensor) on the board, and asks Zigbee2MQTT to call it the same.

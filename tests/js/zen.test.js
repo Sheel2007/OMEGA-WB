@@ -5,7 +5,7 @@ import { FALLS } from '../../web/js/scene/fall.js';
 import { celestial, dayPhase, sunBetween } from '../../web/js/sky.js';
 import { BREATH, BREATH_MS, breathAt, breathCount, LARGEST, SESSIONS, SMALLEST, STEPS } from '../../web/js/apps/zen/breathe.js';
 import { MOODS, moodById, STARRY_NIGHT, SUNSET } from '../../web/js/apps/zen/moods.js';
-import { fillNoise, nextCrackle, SOUNDS, VOLUMES } from '../../web/js/apps/zen/sounds-plan.js';
+import { fillNoise, LIMITER, nextCrackle, SOUNDS, VOLUME_LABELS, VOLUME_ORDER, VOLUMES } from '../../web/js/apps/zen/sounds-plan.js';
 import {
   CONTROLS_REST_MS,
   nextShootingStar,
@@ -119,7 +119,11 @@ test('every sound recipe is made of real, gentle numbers', () => {
       assert.ok(sound.drift.depthHz < sound.filters[sound.drift.filter].frequency, 'never sweeps below zero');
     }
   }
-  assert.ok(VOLUMES.quiet < VOLUMES.normal && VOLUMES.normal <= 0.5, 'background, not a speaker test');
+  assert.deepEqual(VOLUME_ORDER, ['quiet', 'normal', 'loud']);
+  assert.ok(VOLUMES.quiet < VOLUMES.normal && VOLUMES.normal < VOLUMES.loud, 'each step louder');
+  assert.ok(VOLUMES.loud <= 4, 'loud, but the compressor can still hold it');
+  for (const level of VOLUME_ORDER) assert.ok(VOLUME_LABELS[level]);
+  assert.ok(LIMITER.threshold < 0 && LIMITER.ratio >= 4, 'a limiter keeps it from clipping');
   const random = seededRandom(9);
   for (let i = 0; i < 100; i++) {
     const c = nextCrackle(random, SOUNDS.campfire.crackles);

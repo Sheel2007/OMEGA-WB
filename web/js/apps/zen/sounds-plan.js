@@ -41,8 +41,14 @@ export const SOUNDS = {
   },
 };
 
-// The two volumes (the whole mix), kept low: it's background.
-export const VOLUMES = { quiet: 0.18, normal: 0.4 };
+// The volumes for the whole mix. Filtered noise is quiet at a gain of 1, so these
+// go well past it: a compressor after them (sounds.js) keeps even Loud from
+// clipping. Normal is where it starts.
+export const VOLUMES = { quiet: 0.8, normal: 1.8, loud: 3.2 };
+export const VOLUME_ORDER = ['quiet', 'normal', 'loud'];
+export const VOLUME_LABELS = { quiet: 'Quiet', normal: 'Normal', loud: 'Loud' };
+// The compressor that keeps it clean when loud.
+export const LIMITER = { threshold: -14, knee: 8, ratio: 8, attack: 0.005, release: 0.25 };
 // Seconds a sound takes to fade in or out.
 export const FADE_S = 2;
 // Seconds of noise in each looping buffer (long enough that the loop isn't heard).

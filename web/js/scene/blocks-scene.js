@@ -12,7 +12,7 @@
 //   "Moving scenery" turned off).
 import { haptic, el } from '../ui.js';
 import { CRITTERS, CRITTERS_FOR_PHASE, FRAMES, SIZE, spriteSheetSvg } from './critters.js';
-import { cloudX, critterAt, nextVisitDelay, pickCritter, planVisit } from './director.js';
+import { cloudX, critterAt, nextVisitDelay, pickCritter, planAfterDrop, planVisit, stayLeft } from './director.js';
 import { FADE_MS, fallArt, fallOffset, FALLS, planGust, tickDelay, TILE } from './fall.js';
 
 const CLOUD_TICK_MS = 1000;
@@ -26,6 +26,13 @@ const CLOUD_DRIFT = [
 const STAY_MS = 10 * 60 * 1000;
 // How long a visitor called from Zen mode stays (always finite: see planVisit's blinks).
 const SUMMON_MS = 3 * 60 * 1000;
+// Picking a critter up: a press that moves this far is a drag, not a tap. Held, it
+// rides at least this many art pixels off the ground (so it's plainly lifted), at
+// most this high, kicks its legs and tilts from side to side as it's carried.
+const DRAG_SLOP_PX = 10;
+const HELD_LIFT = 4;
+const MAX_LIFT = 60;
+const HELD_TILT_DEG = 7;
 // Pauses that hide the falling layer as well as stopping it (nothing would see it,
 // or there should be no motion at all); the rest just freeze it where it is.
 const HIDE_FALL_FOR = new Set(['setting', 'motion', 'compact', 'app', 'screen', 'hidden']);
@@ -47,7 +54,8 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   const strip = el('div', { class: 'critter__strip' });
   const body = el('div', { class: 'critter__body' }, el('div', { class: 'critter__window' }, strip));
   const coin = el('span', { class: 'critter__coin', 'aria-hidden': 'true' });
-  const critter = el('div', { class: 'critter', role: 'img' }, body, coin);
+  const shadow = el('span', { class: 'critter__shadow', 'aria-hidden': 'true' });
+  const critter = el('div', { class: 'critter', role: 'img' }, shadow, body, coin);
   critter.hidden = true;
   sceneEl.append(critter);
 
@@ -67,6 +75,10 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
   const asked = params.get('critter');
   const only = Object.hasOwn(CRITTERS, asked ?? '') ? asked : null;
   let nextVisitAt = asked ? 0 : nextVisitDelay(random, { first: true });
+  // A finger (or mouse) on the critter: { id, x, y } from the press, and once it
+  // has moved far enough, `held` is what's being carried.
+  let press = null;
+  let held = null;
   let fallKind = null;
   let gust = null; // { endsAt, hideAt } while petals or leaves are blowing past
   let nextGust = null; // { at, lasts }
@@ -114,28 +126,102 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     });
     strip.style.backgroundImage = sheetFor(name);
     critter.setAttribute('aria-label', `A ${CRITTERS[name].name} passing by`);
-    visit = { plan, startedAt: runMs, size };
+    visit = { plan, startedAt: runMs, size, name, x: plan.segments[0].from ?? plan.segments[0].at, facing: 1 };
     critter.hidden = false;
   }
 
   function endVisit() {
+    if (held) letGo({ drop: false });
+    press = null;
     visit = null;
     critter.hidden = true;
     critter.classList.remove('critter--jump');
     nextVisitAt = runMs + nextVisitDelay(random);
   }
 
+  function showFrame(frame, facing) {
+    const { size } = visit;
+    const column = FRAMES.indexOf(frame);
+    const row = facing < 0 ? 1 : 0;
+    setTransform(strip, `translate3d(${-column * size}px, ${-row * size}px, 0)`);
+  }
+
   function drawCritter() {
+    if (held) {
+      // Carried: legs kicking, tilting one way then the other, 8 times a second.
+      const kick = Math.floor((runMs - held.since) / 125) % 2 === 0;
+      showFrame(kick ? 'walk1' : 'walk2', held.facing);
+      setTransform(body, `translate3d(0, ${-held.lift}px, 0) rotate(${kick ? HELD_TILT_DEG : -HELD_TILT_DEG}deg)`);
+      return;
+    }
     const state = critterAt(visit.plan, runMs - visit.startedAt);
     if (state.done) {
       endVisit();
       return;
     }
-    const { size } = visit;
+    visit.x = state.x;
+    visit.facing = state.facing;
     setTransform(critter, `translate3d(${state.x}px, 0, 0)`);
-    const column = FRAMES.indexOf(state.frame);
-    const row = state.facing < 0 ? 1 : 0;
-    setTransform(strip, `translate3d(${-column * size}px, ${-row * size}px, 0)`);
+    showFrame(state.frame, state.facing);
+  }
+
+  // Picking it up, carrying it, putting it down
+
+  function stage() {
+    const rect = sceneEl.getBoundingClientRect();
+    const floor = parseFloat(getComputedStyle(critter).bottom) || 0;
+    return { left: rect.left, width: rect.width, floorTop: rect.bottom - floor };
+  }
+
+  function grab(event) {
+    const { left, floorTop } = stage();
+    held = {
+      since: runMs,
+      at: runMs - visit.startedAt,
+      grabX: event.clientX - left - visit.x,
+      below: floorTop - event.clientY,
+      lift: HELD_LIFT * step,
+      x: visit.x,
+      facing: visit.facing ?? 1,
+    };
+    critter.classList.remove('critter--jump', 'critter--drop', 'critter--land');
+    critter.classList.add('critter--held', 'critter--grab');
+    critter.setAttribute('aria-label', `Carrying a ${CRITTERS[visit.name].name}`);
+    haptic();
+    drawCritter();
+  }
+
+  function carry(event) {
+    const { left, width, floorTop } = stage();
+    const x = Math.round(Math.min(width - visit.size / 2, Math.max(-visit.size / 2, event.clientX - left - held.grabX)));
+    if (x !== held.x) held.facing = x > held.x ? 1 : -1;
+    held.x = x;
+    held.lift = Math.round(Math.min(MAX_LIFT * step, Math.max(HELD_LIFT * step, floorTop - event.clientY - held.below + HELD_LIFT * step)));
+    setTransform(critter, `translate3d(${x}px, 0, 0)`);
+    drawCritter();
+  }
+
+  // drop: put it down where it is (falls to the ground and stays a while);
+  // otherwise it's just let go of (the visit is ending anyway).
+  function letGo({ drop = true } = {}) {
+    const from = held;
+    held = null;
+    critter.classList.remove('critter--held', 'critter--grab');
+    setTransform(body, 'none');
+    if (!drop || !visit) return;
+    const x = Math.round(Math.min(sceneEl.clientWidth - visit.size, Math.max(0, from.x)));
+    visit.plan = planAfterDrop(random, {
+      x,
+      width: sceneEl.clientWidth,
+      size: visit.size,
+      facing: from.facing,
+      lingerMs: stayLeft(visit.plan, from.at),
+    });
+    visit.startedAt = runMs;
+    critter.style.setProperty('--drop-from', `${from.lift}px`);
+    critter.classList.add('critter--drop');
+    drawCritter();
+    schedule();
   }
 
   const gusty = () => fallKind !== null && FALLS[fallKind].gusts;
@@ -233,7 +319,19 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     return true;
   }
 
-  // What's falling now: 'rain', 'snow', 'petals', 'leaves' or null (see fall.js).
+  // The art pixel's size changed (the window, or Zen's closer view): measure again
+  // and redraw everything where it now belongs.
+  function refresh() {
+    step = artPixel();
+    drawClouds();
+    if (visit) {
+      visit.size = artPixel() * SIZE;
+      drawCritter();
+    }
+    drawFall();
+  }
+
+  // What's falling now: 'rain', 'snow', 'petals', 'leaves', 'embers' or null (see fall.js).
   function setFall(kind) {
     const next = Object.hasOwn(FALLS, kind ?? '') ? kind : null;
     if (next === fallKind) return;
@@ -249,21 +347,75 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     if (!pauses.size) schedule();
   }
 
-  // Tap the critter: it jumps and a sparkle pops out (one-shot, no loop).
+  // Tap the critter: it jumps and a sparkle pops out (one-shot, no loop). Press
+  // and drag: it's picked up and carried, and put down where it's let go.
+  const { signal } = lifetime;
   critter.addEventListener(
     'pointerdown',
     (event) => {
       event.stopPropagation();
-      if (critter.classList.contains('critter--jump')) return;
-      critter.classList.add('critter--jump');
-      haptic();
+      if (!visit || press) return;
+      critter.setPointerCapture(event.pointerId);
+      press = { id: event.pointerId, x: event.clientX, y: event.clientY };
     },
-    { signal: lifetime.signal },
+    { signal },
   );
-  coin.addEventListener('animationend', () => critter.classList.remove('critter--jump'), { signal: lifetime.signal });
+  critter.addEventListener(
+    'pointermove',
+    (event) => {
+      if (!press || event.pointerId !== press.id || !visit) return;
+      if (!held) {
+        if (Math.hypot(event.clientX - press.x, event.clientY - press.y) < DRAG_SLOP_PX) return;
+        grab(event);
+      }
+      carry(event);
+    },
+    { signal },
+  );
+  critter.addEventListener(
+    'pointerup',
+    (event) => {
+      if (!press || event.pointerId !== press.id) return;
+      press = null;
+      if (held) {
+        letGo();
+      } else if (!critter.classList.contains('critter--jump')) {
+        critter.classList.add('critter--jump');
+        haptic();
+      }
+    },
+    { signal },
+  );
+  critter.addEventListener(
+    'pointercancel',
+    () => {
+      press = null;
+      if (held) letGo();
+    },
+    { signal },
+  );
+  coin.addEventListener('animationend', () => critter.classList.remove('critter--jump'), { signal });
+  // Dropped: it falls back to the ground, then squashes as it lands (both one-shot).
+  body.addEventListener(
+    'animationend',
+    (event) => {
+      if (event.animationName !== 'critter-drop') return;
+      critter.classList.remove('critter--drop');
+      critter.classList.add('critter--land');
+    },
+    { signal },
+  );
+  strip.parentElement.addEventListener(
+    'animationend',
+    (event) => {
+      if (event.animationName === 'critter-land') critter.classList.remove('critter--land');
+      if (event.animationName === 'critter-grab') critter.classList.remove('critter--grab');
+    },
+    { signal },
+  );
 
   document.addEventListener('visibilitychange', () => setPaused('hidden', document.hidden), { signal: lifetime.signal });
-  addEventListener('resize', () => (step = artPixel()), { signal: lifetime.signal });
+  addEventListener('resize', refresh, { signal: lifetime.signal });
   if (document.hidden) pauses.add('hidden');
   drawClouds();
   schedule();
@@ -272,6 +424,7 @@ export function createBlocksScene({ skyEl, sceneEl, getPhase, getAvoid = () => [
     setPaused,
     setFall,
     summon,
+    refresh,
     destroy() {
       clearTimeout(timer);
       lifetime.abort();

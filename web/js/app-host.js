@@ -114,8 +114,9 @@ export function createAppHost({ layer, apps, context, onChange, closeTo = () => 
     if (!current) return;
     const { app, instance } = current;
     current = null;
-    onChange?.(null);
+    // Before onChange, so whatever it measures is the home screen's again.
     root.classList.remove('is-app-open', 'is-immersive');
+    onChange?.(null);
     instance.closeKeyboard?.();
     const finish = () => {
       instance.unmount();

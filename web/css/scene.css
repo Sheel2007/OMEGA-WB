@@ -207,8 +207,30 @@
   width: calc(16 * var(--px));
   height: calc(16 * var(--px));
   pointer-events: auto;
-  touch-action: manipulation;
+  /* Its own drags: it can be picked up and carried (blocks-scene.js). */
+  touch-action: none;
+  cursor: grab;
   will-change: transform;
+}
+
+.critter--held {
+  cursor: grabbing;
+}
+
+/* While it's carried, its shadow stays on the ground below it. */
+.critter__shadow {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: calc(-1 * var(--px));
+  height: calc(2 * var(--px));
+  background: rgb(0 0 0 / 0.28);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.critter--held .critter__shadow {
+  opacity: 1;
 }
 
 .critter__body,
@@ -220,6 +242,7 @@
 /* A window onto the sprite sheet: frames change by sliding the sheet. */
 .critter__window {
   overflow: hidden;
+  transform-origin: 50% 100%;
 }
 
 .critter__strip {
@@ -250,6 +273,49 @@
 
 .critter--jump .critter__coin {
   animation: critter-sparkle 0.6s steps(6);
+}
+
+/* Picked up: a quick stretch as it leaves the ground. Put down: it falls back
+   from wherever it was carried (--drop-from), then squashes as it lands. All
+   one-shot, in pixel-art steps. */
+.critter--grab .critter__window {
+  animation: critter-grab 0.25s steps(4);
+}
+
+.critter--drop .critter__body {
+  animation: critter-drop 0.32s both;
+}
+
+.critter--land .critter__window {
+  animation: critter-land 0.3s steps(4);
+}
+
+@keyframes critter-grab {
+  0% {
+    transform: scale(1.12, 0.84);
+  }
+  60% {
+    transform: scale(0.92, 1.12);
+  }
+}
+
+@keyframes critter-drop {
+  from {
+    transform: translateY(calc(-1 * var(--drop-from, 0px)));
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes critter-land {
+  0% {
+    transform: scale(1.2, 0.76);
+  }
+  60% {
+    transform: scale(0.94, 1.06);
+  }
 }
 
 @keyframes critter-jump {

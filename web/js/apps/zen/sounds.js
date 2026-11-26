@@ -2,15 +2,17 @@
 // sounds-plan.js. Nothing is made until someone picks a sound (browsers only let
 // a tap start audio), every timer and node is let go when a sound stops, and
 // close() ends it all when Zen does.
-import { FADE_S, fillNoise, NOISE_SECONDS, nextCrackle, SOUNDS, VOLUMES } from './sounds-plan.js';
+import { FADE_S, fillNoise, LIMITER, NOISE_SECONDS, nextCrackle, SOUNDS, VOLUMES } from './sounds-plan.js';
 
 // A crackle: a few hundredths of a second of bright noise.
 const CRACKLE_SECONDS = 0.05;
 
 export function createSoundscape({ random = Math.random } = {}) {
   let ctx = null;
+  // Every sound goes through one volume and a compressor, so turning it up never distorts.
+  let master = null;
   let playing = null;
-  let volume = 'quiet';
+  let volume = 'normal';
   const buffers = new Map();
   const timers = new Set();
 
@@ -24,7 +26,14 @@ export function createSoundscape({ random = Math.random } = {}) {
   }
 
   function audio() {
-    if (!ctx) ctx = new AudioContext();
+    if (!ctx) {
+      ctx = new AudioContext();
+      const limiter = ctx.createDynamicsCompressor();
+      for (const [name, value] of Object.entries(LIMITER)) limiter[name].value = value;
+      master = ctx.createGain();
+      master.gain.value = VOLUMES[volume];
+      master.connect(limiter).connect(ctx.destination);
+    }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
   }
@@ -71,7 +80,7 @@ export function createSoundscape({ random = Math.random } = {}) {
     const ac = audio();
     const out = ac.createGain();
     out.gain.value = 0;
-    out.connect(ac.destination);
+    out.connect(master);
     const source = ac.createBufferSource();
     source.buffer = noise(plan.noise);
     source.loop = true;
@@ -97,7 +106,7 @@ export function createSoundscape({ random = Math.random } = {}) {
       nodes.push(wave, depth);
     }
     source.start();
-    out.gain.setTargetAtTime(VOLUMES[volume], ac.currentTime, FADE_S / 3);
+    out.gain.setTargetAtTime(1, ac.currentTime, FADE_S / 3);
     const sound = { name, out, nodes, stopped: false, crackleTimer: null };
     if (plan.crackles) crackle(sound, plan.crackles);
     return sound;
@@ -144,7 +153,7 @@ export function createSoundscape({ random = Math.random } = {}) {
     setVolume(next) {
       if (!Object.hasOwn(VOLUMES, next)) return;
       volume = next;
-      if (playing && ctx) playing.out.gain.setTargetAtTime(VOLUMES[volume], ctx.currentTime, 0.3);
+      if (master) master.gain.setTargetAtTime(VOLUMES[volume], ctx.currentTime, 0.3);
     },
     close() {
       if (playing) stop(playing, { fade: false });
@@ -154,6 +163,7 @@ export function createSoundscape({ random = Math.random } = {}) {
       buffers.clear();
       ctx?.close();
       ctx = null;
+      master = null;
     },
     // For checking it's let everything go.
     get state() {

@@ -286,7 +286,7 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     the room.
   - **Visitors:** a pig, cow, sheep, chicken or wolf wanders by in the
     daytime; a zombie, skeleton, spider or slime comes out at night. Tap one
-    and it jumps.
+    and it jumps; press and drag to pick it up and carry it somewhere else.
   - **Seasons:** the land follows the real season: blossom and flowers in
     spring, green in summer, orange trees, leaf piles and pumpkins in autumn,
     snow in winter. South of the equator it's the other way round.
@@ -296,8 +296,13 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
   - **Still picture:** turn off **Moving scenery** in the menu.
 - **Zen mode:** pick **Zen mode** in the menu, or **Zen** among the apps (swipe
   up). The widgets, clock and status bar fade away and the moving Blocks world
-  is all there is, on any theme. The controls tuck themselves away after a few
-  seconds; tap anywhere to bring them back. In Zen you can:
+  is all there is, closer up, on any theme. The controls tuck themselves away a
+  moment after you pick something (or tap **Hide controls**); tap anywhere to
+  bring them back. In Zen you can:
+  - **Pick a place:** a meadow dressed for the season, forest, snowy taiga,
+    desert, cherry grove, jungle, savanna, swamp, badlands, mushroom isle,
+    beach, mountains, ice fields, a cave, a lush cave, a fiery underworld or
+    floating isles among the stars, each with its own trees, ground and plants.
   - **Change the mood:** **Rain**, **Snow**, a golden **Sunset**, or a
     **Starry night** with the odd shooting star. The sun moves there like a
     time-lapse. **Now** goes back to the real sky and weather.
@@ -305,8 +310,9 @@ To bring the board back, pick **Widget Board** from the Pi's app menu, or reboot
     stays a few minutes. Tap it and it jumps.
   - **Breathe:** a big pixel sun grows as you breathe in and shrinks as you
     breathe out, for 1, 3 or 5 minutes.
-  - **Sounds:** soft rain, wind, a stream or a crackling campfire, made by the
-    browser (no recordings), quiet or normal volume. Off until you pick one.
+  - **Sounds:** rain, wind, a stream or a crackling campfire, made by the
+    browser (no recordings), at Quiet, Normal or Loud. Off until you pick one.
+    The screen's own volume buttons turn it up further.
   - **Leave** (or press Escape) brings the home screen back just as it was.
     The board's usual return to the home screen after 90 seconds doesn't
     apply in Zen; it stays until someone leaves it.

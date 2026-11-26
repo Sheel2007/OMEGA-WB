@@ -17,13 +17,14 @@ test('real rain or snow wins; otherwise petals in spring, leaves in autumn, noth
 });
 
 test('only petals and leaves come in gusts; rain is the fastest', () => {
-  assert.deepEqual(Object.keys(FALLS).sort(), ['leaves', 'petals', 'rain', 'snow']);
+  assert.deepEqual(Object.keys(FALLS).sort(), ['embers', 'leaves', 'petals', 'rain', 'snow']);
   assert.deepEqual(Object.keys(FALLS).filter((k) => FALLS[k].gusts).sort(), ['leaves', 'petals']);
   for (const fall of Object.values(FALLS)) {
-    assert.ok(fall.vy > 0, 'everything falls');
+    assert.ok(fall.vy !== 0, 'everything moves up or down');
     assert.ok(fall.tickMs >= 125, 'never faster than 8 times a second');
   }
   assert.equal(Math.min(...Object.values(FALLS).map((f) => f.tickMs)), FALLS.rain.tickMs);
+  assert.ok(FALLS.embers.vy < 0, 'embers rise');
 });
 
 test('the layer moves in whole art pixels, wraps after a tile, and depends only on the time', () => {
@@ -33,16 +34,20 @@ test('the layer moves in whole art pixels, wraps after a tile, and depends only 
     for (let ms = 0; ms <= 60000; ms += 37) {
       const { x, y } = fallOffset(ms, fall);
       for (const v of [x, y]) assert.ok(Number.isInteger(v) && v >= 0 && v < TILE, `${kind} at ${ms}ms: ${v}`);
-      // Down the screen only, a pixel or so at a time, apart from wrapping back by a tile.
-      const dy = (y - last.y + TILE) % TILE;
-      assert.ok(dy <= Math.ceil((fall.vy * 37) / 1000), `${kind} jumped ${dy}`);
+      // One way only (down, or up for embers), a pixel or so at a time, apart from wrapping by a tile.
+      const dy = fall.vy > 0 ? (y - last.y + TILE) % TILE : (last.y - y + TILE) % TILE;
+      assert.ok(dy <= Math.ceil((Math.abs(fall.vy) * 37) / 1000), `${kind} jumped ${dy}`);
       last = { x, y };
     }
-    const lapMs = (TILE / fall.vy) * 1000;
+    const lapMs = (TILE / Math.abs(fall.vy)) * 1000;
     assert.equal(fallOffset(lapMs, fall).y, 0, `${kind} comes back round after one tile`);
     assert.deepEqual(fallOffset(12345, fall), fallOffset(12345, fall));
   }
-  assert.ok(fallOffset(1000, FALLS.rain).x > 0, 'rain slants (moving left wraps to the far side of the tile)');
+  for (const kind of ['rain', 'snow']) {
+    assert.equal(FALLS[kind].vx, 0, `${kind} comes straight down`);
+    assert.equal(fallOffset(7777, FALLS[kind]).x, 0);
+  }
+  assert.ok(FALLS.rain.vy > FALLS.snow.vy * 5, 'rain falls much faster than snow');
 });
 
 test('tiles are the right size, use their own colours, and keep every bit inside the tile', () => {

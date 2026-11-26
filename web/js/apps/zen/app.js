@@ -7,12 +7,13 @@
 // The app only asks the world to change (context.world, from main.js) and puts it
 // all back when it closes. Every timer, listener and sound is let go on unmount.
 import { dataUri, pixelSvg } from '../../pixel-art.js';
+import { PLACES, placeById } from '../../scene/places.js';
 import { sunBetween } from '../../sky.js';
 import { el, haptic, reducedMotion, toast } from '../../ui.js';
 import { breathAt, breathCount, SESSIONS } from './breathe.js';
 import { MOODS, moodById } from './moods.js';
 import { createSoundscape } from './sounds.js';
-import { SOUNDS } from './sounds-plan.js';
+import { SOUNDS, VOLUME_LABELS, VOLUME_ORDER } from './sounds-plan.js';
 import {
   BREATH_TICK_MS,
   CHOSEN_REST_MS,
@@ -76,6 +77,8 @@ export function mount(root, { world, goHome }) {
   );
   const soundLabel = el('span', { text: 'Sounds: Off' });
   const soundsButton = button(soundLabel, () => showView('sounds'));
+  const placeLabel = el('span', { text: `Place: ${placeById(world.place()).label}` });
+  const placeButton = button(placeLabel, () => showView('places'));
   const clock = el('p', { class: 'zen__clock' });
   const mainView = el(
     'div',
@@ -91,6 +94,7 @@ export function mount(root, { world, goHome }) {
     el(
       'div',
       { class: 'zen__row' },
+      placeButton,
       button('Call a visitor', callVisitor),
       button('Breathe', () => showView('breathe')),
       soundsButton,
@@ -113,7 +117,7 @@ export function mount(root, { world, goHome }) {
   const soundButtons = [null, ...SOUND_NAMES].map((name) =>
     button(name ? SOUNDS[name].label : 'Off', () => playSound(name), { 'aria-pressed': String(name === null) }),
   );
-  const volumeButton = button('Volume: Quiet', toggleVolume);
+  const volumeButton = button(`Volume: ${VOLUME_LABELS[sounds.volume]}`, toggleVolume);
   const soundsView = el(
     'div',
     { class: 'zen__view', hidden: true },
@@ -121,7 +125,17 @@ export function mount(root, { world, goHome }) {
     el('div', { class: 'zen__row', role: 'group', 'aria-label': 'Sounds' }, soundButtons),
     el('div', { class: 'zen__row' }, volumeButton, button('Back', () => showView('main'))),
   );
-  const panel = el('section', { class: 'zen__panel', 'aria-label': 'Zen controls' }, mainView, breatheView, soundsView);
+  const placeButtons = PLACES.map((p) =>
+    button(p.label, () => setPlace(p.id), { 'aria-pressed': String(p.id === world.place()) }),
+  );
+  const placesView = el(
+    'div',
+    { class: 'zen__view', hidden: true },
+    el('h2', { class: 'zen__subtitle', text: 'Places' }),
+    el('div', { class: 'zen__places', role: 'group', 'aria-label': 'Places' }, placeButtons),
+    el('div', { class: 'zen__row' }, button('Back', () => showView('main'))),
+  );
+  const panel = el('section', { class: 'zen__panel', 'aria-label': 'Zen controls' }, mainView, breatheView, soundsView, placesView);
 
   // Breathing, shooting stars, the hint
 
@@ -145,6 +159,16 @@ export function mount(root, { world, goHome }) {
     mainView.hidden = name !== 'main';
     breatheView.hidden = name !== 'breathe';
     soundsView.hidden = name !== 'sounds';
+    placesView.hidden = name !== 'places';
+  }
+
+  // A place: a closer, more detailed land (scene/places.js), drawn by main.js.
+  function setPlace(id) {
+    world.setPlace(id);
+    placeButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(PLACES[i].id === world.place())));
+    placeLabel.textContent = `Place: ${placeById(world.place()).label}`;
+    haptic();
+    restSoon();
   }
 
   // The controls rest after a while; a tap anywhere (or a key) brings them back.
@@ -171,7 +195,8 @@ export function mount(root, { world, goHome }) {
     timers.hint = setTimeout(() => (hint.hidden = true), HINT_MS);
   }
 
-  document.addEventListener('pointerdown', wake, { capture: true, signal });
+  // Picking up a critter isn't asking for the controls.
+  document.addEventListener('pointerdown', (event) => event.target.closest?.('.critter') || wake(), { capture: true, signal });
   document.addEventListener(
     'keydown',
     (event) => {
@@ -301,9 +326,10 @@ export function mount(root, { world, goHome }) {
     soundLabel.textContent = `Sounds: ${sounds.playing ? SOUNDS[sounds.playing].label : 'Off'}`;
   }
 
+  // Quiet, Normal, Loud, round again.
   function toggleVolume() {
-    sounds.setVolume(sounds.volume === 'quiet' ? 'normal' : 'quiet');
-    volumeButton.textContent = `Volume: ${sounds.volume === 'quiet' ? 'Quiet' : 'Normal'}`;
+    sounds.setVolume(VOLUME_ORDER[(VOLUME_ORDER.indexOf(sounds.volume) + 1) % VOLUME_ORDER.length]);
+    volumeButton.textContent = `Volume: ${VOLUME_LABELS[sounds.volume]}`;
   }
 
   tickClock();

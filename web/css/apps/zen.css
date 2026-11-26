@@ -25,6 +25,54 @@
     visibility 0s linear 0.6s;
 }
 
+/* A closer view: in Zen the world is drawn with bigger pixels (critters, sun,
+   clouds, rain all grow with it), and the land is the chosen place's own, more
+   detailed and layered (web/js/scene/places.js, set on <html> by main.js): far
+   mountains or dunes, nearer hills or sea, trees, ground and plants, plus a
+   ceiling of rock in caves and the underworld. All still pictures. */
+:root.is-immersive {
+  --px: 0.5rem;
+}
+
+:root.is-immersive .sky__scenery {
+  background-image:
+    var(--zen-ceiling, none), var(--zen-flora, none), var(--zen-trees, none), var(--zen-floor, none),
+    var(--zen-mid, none), var(--zen-far, none);
+  background-repeat: repeat-x;
+  background-size:
+    calc(128 * var(--px)) calc(20 * var(--px)),
+    calc(64 * var(--px)) calc(8 * var(--px)),
+    calc(128 * var(--px)) calc(44 * var(--px)),
+    var(--floor-h) var(--floor-h),
+    calc(160 * var(--px)) calc(30 * var(--px)),
+    calc(240 * var(--px)) calc(52 * var(--px));
+  background-position:
+    left top,
+    left bottom calc(var(--floor-h) - 3 * var(--px)),
+    left bottom calc(var(--floor-h) - var(--px)),
+    left bottom,
+    left bottom var(--floor-h),
+    left bottom calc(var(--floor-h) + 2 * var(--px));
+}
+
+/* Places with no sky (a cave, the underworld, the void): a backdrop of rock or
+   stars instead, and no sun, moon or clouds. */
+:root.is-immersive:is([data-place-sky="cave"], [data-place-sky="underworld"], [data-place-sky="void"]) .sky {
+  background: var(--zen-sky) var(--zen-backdrop) 0 0 / calc(64 * var(--px)) calc(64 * var(--px)) repeat;
+}
+
+:root.is-immersive:is([data-place-sky="cave"], [data-place-sky="underworld"], [data-place-sky="void"]) :is(.sky__sun, .sky__moon, .sky__clouds) {
+  display: none;
+}
+
+:root.is-immersive:is([data-place-sky="cave"], [data-place-sky="underworld"]) .sky__stars {
+  display: none;
+}
+
+:root.is-immersive[data-place-sky="void"] .sky__stars {
+  opacity: 1;
+}
+
 .zen {
   position: absolute;
   inset: 0;
@@ -38,6 +86,10 @@
   left: 50%;
   bottom: calc(var(--floor-h) + 2rem);
   width: min(64rem, calc(100% - 2 * var(--gutter)));
+  /* The places list is long on a phone: scroll inside rather than run off the top. */
+  max-height: calc(100% - var(--floor-h) - 4rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 1.3rem 1.6rem 1.6rem;
   transform: translateX(-50%);
   pointer-events: auto;
@@ -131,6 +183,13 @@
 
 .zen__button--mood {
   flex: 1 1 0;
+}
+
+/* The places, a grid of them. */
+.zen__places {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.8rem;
 }
 
 /* Quieter buttons: Hide controls, and Stop under the breathing sun. */
@@ -256,6 +315,11 @@
 }
 
 @media (max-width: 900px), (max-height: 560px) {
+  /* A phone is narrow: not quite so close. */
+  :root.is-immersive {
+    --px: 0.35rem;
+  }
+
   .zen__panel {
     bottom: calc(var(--floor-h) + 1rem + env(safe-area-inset-bottom));
     padding: 1rem;

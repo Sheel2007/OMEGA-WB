@@ -18,6 +18,8 @@ const EDGE_MARGIN = 0.08;
 const SPOT_TRIES = 30;
 // A visitor who's been called stops in the part of the screen nearest where it came in.
 const NEAR_SHARE = 0.4;
+// Put down after being carried, it stays at least this long before wandering off.
+const AFTER_DROP_MS = 8000;
 
 const between = (random, [lo, hi]) => lo + random() * (hi - lo);
 
@@ -65,15 +67,38 @@ export function planVisit(random, { width, size, avoid = [], kind, lingerMs, hur
   const spot = lingerSpot(random, { width, size, avoid, side: hurry ? (fromLeft ? 'left' : 'right') : null });
   const enter = walk(fromLeft ? offLeft : offRight, spot, 0, hurry ? RUN_SPEED : WALK_SPEED);
   const linger = lingerMs ?? between(random, LINGER_MS);
-  const blinks = [];
-  for (let t = enter.end + between(random, BLINK_EVERY_MS); t < enter.end + linger - BLINK_MS; t += between(random, BLINK_EVERY_MS)) {
-    blinks.push(Math.round(t));
-  }
-  const stay = { at: spot, start: enter.end, end: enter.end + linger, facing: fromLeft ? 1 : -1, blinks };
+  const stay = { at: spot, start: enter.end, end: enter.end + linger, facing: fromLeft ? 1 : -1, blinks: blinksBetween(random, enter.end, enter.end + linger) };
   // Usually carries on the way it was going; sometimes turns back.
   const exitRight = random() < 0.7 ? fromLeft : !fromLeft;
   const leave = walk(spot, exitRight ? offRight : offLeft, stay.end, WALK_SPEED);
   return { kind: 'visit', segments: [enter, stay, leave], duration: leave.end };
+}
+
+function blinksBetween(random, start, end) {
+  const blinks = [];
+  for (let t = start + between(random, BLINK_EVERY_MS); t < end - BLINK_MS; t += between(random, BLINK_EVERY_MS)) {
+    blinks.push(Math.round(t));
+  }
+  return blinks;
+}
+
+// After someone has picked it up and put it down at x: it stays where it landed
+// for lingerMs (at least a little while), then walks off, usually the way it faces.
+export function planAfterDrop(random, { x, width, size, facing = 1, lingerMs }) {
+  const linger = Math.max(AFTER_DROP_MS, lingerMs ?? between(random, LINGER_MS));
+  const stay = { at: x, start: 0, end: linger, facing, blinks: blinksBetween(random, 0, linger) };
+  const exitRight = random() < 0.7 ? facing > 0 : facing < 0;
+  const leave = walk(x, exitRight ? width : -size, stay.end, WALK_SPEED);
+  return { kind: 'visit', segments: [stay, leave], duration: leave.end };
+}
+
+// How much of its stay a plan had left at ms (a whole fresh linger if it was
+// still walking in, nothing once it's leaving or dashing).
+export function stayLeft(plan, ms) {
+  const stay = plan.segments.find((s) => 'at' in s);
+  if (!stay) return null;
+  if (ms < stay.start) return stay.end - stay.start;
+  return Math.max(0, stay.end - ms);
 }
 
 export function critterAt(plan, ms) {

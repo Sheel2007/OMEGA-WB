@@ -35,6 +35,7 @@ import { createWeatherService } from './services/weather.js';
 import { createBlocksScene } from './scene/blocks-scene.js';
 import { precipitation } from './apps/weather/conditions.js';
 import { fallFor, parseWeather } from './scene/fall.js';
+import { placeById, placeVars } from './scene/places.js';
 import { sceneryVars } from './scene/scenery-art.js';
 import { parseSeason, seasonAt } from './scene/seasons.js';
 import { dayPhase, guessLocation, parseTimeOverride, startSky } from './sky.js';
@@ -135,10 +136,18 @@ let stopWeather = null;
 // screen's theme, and can set what falls (undefined: leave it to the weather).
 let zenOpen = false;
 let zenFall = undefined;
+// Which of Zen's places (scene/places.js) it shows: a closer, more detailed land.
+let zenPlace = 'meadow';
 
 function updateFall() {
   if (zenFall !== undefined) {
     scene?.setFall(zenFall);
+    return;
+  }
+  // A Zen place can have its own (snow in the taiga, embers in the underworld, nothing in a cave).
+  const placeFall = zenOpen ? placeById(zenPlace).fall : undefined;
+  if (placeFall !== undefined) {
+    scene?.setFall(placeFall);
     return;
   }
   const wet = fixedWeather ? (fixedWeather === 'none' ? null : fixedWeather) : fallingNow;
@@ -157,11 +166,20 @@ function dressLand() {
   const root = document.documentElement;
   season = fixedSeason ?? seasonAt(now(), place.latitude);
   const night = root.dataset.night === 'true';
-  const key = `${season} ${night}`;
+  const key = `${season} ${night} ${zenOpen ? zenPlace : ''}`;
   if (key === landDressedFor) return;
   landDressedFor = key;
   root.dataset.season = season;
   for (const [name, value] of Object.entries(sceneryVars(season, { night }))) root.style.setProperty(name, value);
+  // Zen draws its place's own, closer land over the usual one (zen.css).
+  if (zenOpen) {
+    for (const [name, value] of Object.entries(placeVars(zenPlace, { season, night }))) root.style.setProperty(name, value);
+    root.dataset.place = zenPlace;
+    root.dataset.placeSky = placeById(zenPlace).sky;
+  } else {
+    delete root.dataset.place;
+    delete root.dataset.placeSky;
+  }
   updateFall();
 }
 
@@ -268,6 +286,9 @@ const appHost = createAppHost({
         sky.setSun(null);
       }
       applyLook();
+      dressLand();
+      // Zen draws the world closer (bigger art pixels); the scene re-measures.
+      scene?.refresh();
       updateFall();
     }
     // An app opened from the library comes back to the home screen, not the library.
@@ -289,6 +310,11 @@ context.world = {
   },
   summon: () => scene?.summon() ?? false,
   isNight: () => document.documentElement.dataset.night === 'true',
+  place: () => zenPlace,
+  setPlace: (id) => {
+    zenPlace = placeById(id).id;
+    dressLand();
+  },
 };
 
 const track = home.querySelector('.pager__track');
@@ -492,7 +518,8 @@ function syncScene({ theme, scenery }) {
       skyEl: document.querySelector('.sky'),
       sceneEl,
       params,
-      getPhase: () => phase,
+      // Under the ground or out in the void, it's the night visitors who come.
+      getPhase: () => (zenOpen && placeById(zenPlace).sky !== 'open' ? 'night' : phase),
     });
     scene.setPaused('app', scenePaused.app);
     scene.setPaused('edit', scenePaused.edit);

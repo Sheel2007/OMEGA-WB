@@ -12,12 +12,16 @@ import { seededRandom } from '../random.js';
 export const TILE = 48;
 
 // tickMs: how often the scene moves it. vx, vy: art pixels per second (vy > 0
-// falls). gusts: comes and goes rather than falling all the time.
+// falls). gusts: comes and goes rather than falling all the time. Rain and snow
+// come straight down, the way they do in a blocky world: rain fast, in long
+// streaks; snow slowly. Only petals and leaves drift sideways, on the wind.
 export const FALLS = {
-  rain: { tickMs: 125, vx: -4, vy: 32, gusts: false },
-  snow: { tickMs: 250, vx: 1, vy: 4, gusts: false },
+  rain: { tickMs: 125, vx: 0, vy: 56, gusts: false },
+  snow: { tickMs: 250, vx: 0, vy: 6, gusts: false },
   petals: { tickMs: 250, vx: 4, vy: 3, gusts: true },
   leaves: { tickMs: 250, vx: 5, vy: 4, gusts: true },
+  // Zen's underworld: sparks drifting up off the lava (vy < 0 rises).
+  embers: { tickMs: 250, vx: 1, vy: -5, gusts: false },
 };
 
 const GUST_MS = [16000, 24000];
@@ -61,25 +65,34 @@ export function tickDelay({ visit = false, untilVisit = Infinity, fallTickMs = n
   return Math.max(0, Math.min(...moving));
 }
 
+// Rain is streaks as long as it falls in one tick, near (bright) and far (dim),
+// so it reads as rain and has some depth on a single layer.
 const SPRITES = {
-  rain: [['b', 'b', 'B'], ['b', 'B'], ['b', 'b', 'b', 'B']],
+  rain: [
+    ['b', 'b', 'b', 'b', 'B'],
+    ['f', 'f', 'f'],
+    ['b', 'b', 'b', 'b', 'b', 'B'],
+    ['f', 'f', 'f', 'f'],
+  ],
   snow: [['w'], ['ww', 'ww'], ['.w.', 'www', '.w.'], ['W']],
   petals: [['pP'], ['p'], ['P', 'p'], ['pp']],
   leaves: [['oo', 'o.'], ['rr', '.r'], ['y', 'yy'], ['.o', 'oO'], ['r']],
+  embers: [['e'], ['E'], ['e', 'r'], ['E']],
 };
 
-const COUNTS = { rain: 24, snow: 22, petals: 12, leaves: 12 };
+const COUNTS = { rain: 30, snow: 22, petals: 12, leaves: 12, embers: 16 };
 
 const PALETTES = {
-  rain: { b: '#9ec4ff', B: '#d6e6ff' },
+  rain: { b: '#9ec4ff', B: '#d6e6ff', f: '#7d9fd6' },
   snow: { w: '#ffffff', W: '#d8e4f6' },
   petals: { p: '#f7b6cf', P: '#ffe3ee' },
   leaves: { o: '#e2781f', O: '#b8561a', r: '#c8452a', y: '#eba33a' },
+  embers: { e: '#ff8a2a', E: '#ffd25a', r: '#c8452a' },
 };
 
 // One tile: a few bits placed at random (the same every time), none touching,
 // none cut by the tile's edge.
-const SEEDS = { rain: 11, snow: 23, petals: 37, leaves: 41 };
+const SEEDS = { rain: 11, snow: 23, petals: 37, leaves: 41, embers: 53 };
 
 export function fallTile(kind) {
   const random = seededRandom(SEEDS[kind]);
